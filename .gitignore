@@ -1,0 +1,7 @@
+*.code-workspace
+.DS_Store
+
+config.yml
+
+/.tmp/
+.air.conf
