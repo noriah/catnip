@@ -3,7 +3,7 @@ VERSION := 0.0.1
 
 BASE := $(shell pwd)
 
-MAIN_PATH := $(BASE)/run
+MAIN_PATH := $(BASE)
 
 BIN_DIR := $(BASE)/build
 BIN_FILE := $(BIN_DIR)/$(PROGRAM)
@@ -41,4 +41,5 @@ clean: clean-$(PROGRAM)
 .PHONY: clean clean-$(PROGRAM)
 
 all: $(PROGRAM)
+
 .PHONY: all

@@ -1,4 +1,4 @@
-package tavis
+package main
 
 import (
 	"context"
@@ -16,7 +16,7 @@ import (
 // constants for testing
 const (
 	DeviceName   = "VisOut"
-	SampleRate   = 44100
+	SampleRate   = 48000
 	TargetFPS    = 60
 	ChannelCount = 2
 )
@@ -37,7 +37,7 @@ var (
 type rawSample = float32
 
 // Run does the run things
-func Run() error {
+func run() error {
 	var err error
 
 	// PORTAUDIO THINGS
@@ -91,8 +91,8 @@ func Run() error {
 	var (
 		endSig chan os.Signal
 
-		readKickChan  chan struct{}
-		readReadyChan chan struct{}
+		readKickChan  chan bool
+		readReadyChan chan bool
 
 		idx    int       // general use index
 		sample rawSample // general use sample
@@ -111,8 +111,8 @@ func Run() error {
 	endSig = make(chan os.Signal, 3)
 	signal.Notify(endSig, os.Interrupt)
 
-	readKickChan = make(chan struct{})
-	readReadyChan = make(chan struct{})
+	readKickChan = make(chan bool, 1)
+	readReadyChan = make(chan bool, 1)
 
 	fftBuffer = &fftw.Array2{
 		N:     [...]int{ChannelCount, SampleSize},
@@ -155,12 +155,13 @@ func Run() error {
 			if subErr = paStream.Read(); subErr != nil {
 				fmt.Println(err)
 				rootCancel()
+				break PortThatLoops
 			}
 
 			select {
 			case <-rootCtx.Done():
 				break PortThatLoops
-			case readReadyChan <- struct{}{}:
+			case readReadyChan <- true:
 			}
 		}
 
@@ -225,4 +226,10 @@ RunForRest: // , run!!!
 	fftPlan.Destroy()
 
 	return nil
+}
+
+func main() {
+	if err := run(); err != nil {
+		panic(err)
+	}
 }
