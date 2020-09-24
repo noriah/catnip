@@ -1,15 +1,12 @@
-package main
+package tavis
 
 import (
 	"context"
-	"errors"
 	"fmt"
 	"os"
 	"os/signal"
-	"strings"
 	"time"
 
-	"github.com/gordonklaus/portaudio"
 	"github.com/runningwild/go-fftw/fftw"
 )
 
@@ -28,63 +25,11 @@ const (
 	DrawDelay  = time.Second / TargetFPS
 )
 
-// errors
-var (
-	ErrBadDevice error = errors.New("device not found")
-)
-
-// alias our preferred channel for testing purposes
-type rawSample = float32
+type SampleType = float32
 
 // Run does the run things
-func run() error {
+func Run() error {
 	var err error
-
-	// PORTAUDIO THINGS
-
-	if err = portaudio.Initialize(); err != nil {
-		return err
-	}
-
-	var devices []*portaudio.DeviceInfo
-
-	if devices, err = portaudio.Devices(); err != nil {
-		return err
-	}
-
-	var device *portaudio.DeviceInfo
-
-	for idx := 0; idx < len(devices); idx++ {
-		if strings.Compare(devices[idx].Name, DeviceName) == 0 {
-			device = devices[idx]
-			break
-		}
-	}
-
-	if device == nil {
-		return ErrBadDevice
-	}
-
-	var (
-		rawBuffer []rawSample       // raw sample buffer
-		paStream  *portaudio.Stream // portaudio stream
-	)
-
-	rawBuffer = make([]rawSample, BufferSize)
-
-	if paStream, err = portaudio.OpenStream(
-		portaudio.StreamParameters{
-			Input: portaudio.StreamDeviceParameters{
-				Device:   device,
-				Channels: ChannelCount,
-				Latency:  device.DefaultLowInputLatency,
-			},
-			SampleRate:      SampleRate,
-			FramesPerBuffer: SampleSize,
-			Flags:           portaudio.ClipOff,
-		}, &rawBuffer); err != nil {
-		return err
-	}
 
 	// MAIN LOOP PREP
 
@@ -136,43 +81,6 @@ func run() error {
 	}()
 
 	// MAIN LOOP
-
-	go func() {
-		var subErr error
-		if subErr = paStream.Start(); subErr != nil {
-			fmt.Println(subErr)
-			rootCancel()
-		}
-
-	PortThatLoops:
-		for {
-			select {
-			case <-rootCtx.Done():
-				break PortThatLoops
-			case <-readKickChan:
-			}
-
-			if subErr = paStream.Read(); subErr != nil {
-				fmt.Println(err)
-				rootCancel()
-				break PortThatLoops
-			}
-
-			select {
-			case <-rootCtx.Done():
-				break PortThatLoops
-			case readReadyChan <- true:
-			}
-		}
-
-		if subErr = paStream.Close(); subErr != nil {
-			fmt.Println(subErr)
-		}
-
-		if subErr = portaudio.Terminate(); subErr != nil {
-			fmt.Println(subErr)
-		}
-	}()
 
 	last = time.Now()
 
@@ -226,10 +134,4 @@ RunForRest: // , run!!!
 	fftPlan.Destroy()
 
 	return nil
-}
-
-func main() {
-	if err := run(); err != nil {
-		panic(err)
-	}
 }
