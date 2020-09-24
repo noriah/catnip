@@ -3,7 +3,7 @@ VERSION := 0.0.1
 
 BASE := $(shell pwd)
 
-MAIN_PATH := $(BASE)
+MAIN_PATH := $(BASE)/run
 
 BIN_DIR := $(BASE)/build
 BIN_FILE := $(BIN_DIR)/$(PROGRAM)
