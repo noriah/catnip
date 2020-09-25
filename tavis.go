@@ -8,6 +8,8 @@ import (
 	"time"
 
 	fftw "github.com/noriah/tavis/fftw"
+
+	"github.com/gdamore/tcell/v2"
 )
 
 // constants for testing
@@ -27,13 +29,14 @@ const (
 
 // Run does the run things
 func Run() error {
+	var err error
 
 	// MAIN LOOP PREP
 
 	var (
-		// portportport
-
 		audioInput *Portaudio
+
+		screen tcell.Screen
 
 		rawBuffer SampleBuffer
 
@@ -43,19 +46,10 @@ func Run() error {
 		rootCtx    context.Context
 		rootCancel context.CancelFunc
 
-		last       time.Time // last tick time
-		since      time.Duration
+		// last       time.Time // last tick time
+		// since      time.Duration
 		mainTicker *time.Ticker
 	)
-
-	rawBuffer = make(SampleBuffer, BufferSize)
-	fftwBuffer = make([]fftw.FftwComplexType, BufferSize)
-
-	fftwPlan = fftw.New(
-		rawBuffer, fftwBuffer, ChannelCount, SampleSize,
-		fftw.Forward, fftw.Estimate)
-
-	rootCtx, rootCancel = context.WithCancel(context.Background())
 
 	audioInput = &Portaudio{
 		DeviceName: "VisOut",
@@ -64,9 +58,22 @@ func Run() error {
 		SampleSize: SampleSize,
 	}
 
-	if err := audioInput.Init(); err != nil {
+	panicOnError(audioInput.Init())
+
+	rawBuffer = make(SampleBuffer, BufferSize)
+	fftwBuffer = make([]fftw.FftwComplexType, BufferSize)
+
+	fftwPlan = fftw.New(
+		rawBuffer, fftwBuffer, ChannelCount, SampleSize,
+		fftw.Forward, fftw.Estimate)
+
+	if screen, err = tcell.NewScreen(); err != nil {
 		panic(err)
 	}
+
+	panicOnError(screen.Init())
+
+	rootCtx, rootCancel = context.WithCancel(context.Background())
 
 	// Handle fanout of cancel
 	go func() {
@@ -92,7 +99,7 @@ func Run() error {
 
 RunForRest: // , run!!!
 	for range mainTicker.C {
-		last = time.Now()
+		// last = time.Now()
 		select {
 		case <-rootCtx.Done():
 			break RunForRest
@@ -100,17 +107,17 @@ RunForRest: // , run!!!
 		}
 
 		if audioInput.Read(rootCtx, rawBuffer) == 0 {
-			fmt.Println("what happened!")
+			// fmt.Println("what happened!")
 		}
 
 		fftwPlan.Execute()
 
 		fmt.Println(rawBuffer)
 
-		since = time.Since(last)
-		if since > DrawDelay {
-			fmt.Print("slow loop!\n")
-		}
+		// since = time.Since(last)
+		// if since > DrawDelay {
+		// 	fmt.Print("slow loop!\n")
+		// }
 	}
 
 	rootCancel()
@@ -121,9 +128,17 @@ RunForRest: // , run!!!
 
 	mainTicker.Stop()
 
+	screen.Fini()
+
 	audioInput.Close()
 
 	fftwPlan.Destroy()
 
 	return nil
+}
+
+func panicOnError(err error) {
+	if err != nil {
+		panic(err)
+	}
 }

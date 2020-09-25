@@ -119,7 +119,7 @@ func (pa *Portaudio) PaCallback(in SampleBuffer,
 		select {
 		case pa.loopChanBytes <- idx:
 		case <-time.After(time.Second):
-			fmt.Println("error?? top")
+			fmt.Println("response send timed out")
 		}
 	default:
 	}
