@@ -24,26 +24,25 @@ const (
 )
 
 type Plan struct {
-	fftw_p C.fftw_plan
+	cPlan C.fftw_plan
 }
 
 func (p *Plan) Execute() {
-	C.fftw_execute(p.fftw_p)
+	C.fftw_execute(p.cPlan)
 }
 
 func (p *Plan) Destroy() {
-	C.fftw_destroy_plan(p.fftw_p)
+	C.fftw_destroy_plan(p.cPlan)
 }
 
-func New(in []float32, out []FftwComplexType, d0, d1 int, dir Direction, flag Flag) *Plan {
+func New(in []float32, out []FftwComplexType, d0, d1 int, flag Flag) *Plan {
 	var (
-		inC   = (*C.fftw_complex)(unsafe.Pointer(&in[0]))
+		inC   = (*C.double)(unsafe.Pointer(&in[0]))
 		outC  = (*C.fftw_complex)(unsafe.Pointer(&out[0]))
 		d0C   = C.int(d0)
 		d1C   = C.int(d1)
-		dirC  = C.int(dir)
 		flagC = C.uint(flag)
 	)
-	p := C.fftw_plan_dft_2d(d0C, d1C, inC, outC, dirC, flagC)
+	p := C.fftw_plan_dft_r2c_2d(d0C, d1C, inC, outC, flagC)
 	return &Plan{p}
 }
