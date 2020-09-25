@@ -27,9 +27,8 @@ type Plan struct {
 	fftw_p C.fftw_plan
 }
 
-func (p *Plan) Execute() *Plan {
+func (p *Plan) Execute() {
 	C.fftw_execute(p.fftw_p)
-	return p
 }
 
 func (p *Plan) Destroy() {
