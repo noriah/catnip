@@ -7,7 +7,7 @@ import (
 	"os/signal"
 	"time"
 
-	"github.com/runningwild/go-fftw/fftw"
+	fftw "github.com/noriah/tavis/fftw"
 )
 
 // constants for testing
@@ -20,30 +20,25 @@ const (
 
 // calculated constants
 const (
-	SampleSize = int(SampleRate) / TargetFPS
+	SampleSize = 256
 	BufferSize = SampleSize * ChannelCount
 	DrawDelay  = time.Second / TargetFPS
 )
 
-type SampleType = float32
-
 // Run does the run things
 func Run() error {
-	var err error
 
 	// MAIN LOOP PREP
 
 	var (
-		endSig chan os.Signal
+		// portportport
 
-		readKickChan  chan bool
-		readReadyChan chan bool
+		audioInput *Portaudio
 
-		idx    int       // general use index
-		sample rawSample // general use sample
+		rawBuffer SampleBuffer
 
-		fftBuffer *fftw.Array2 // fftw input array
-		fftPlan   *fftw.Plan   // fftw plan
+		fftwBuffer []fftw.FftwComplexType
+		fftwPlan   *fftw.Plan // fftw plan
 
 		rootCtx    context.Context
 		rootCancel context.CancelFunc
@@ -53,25 +48,34 @@ func Run() error {
 		mainTicker *time.Ticker
 	)
 
-	endSig = make(chan os.Signal, 3)
-	signal.Notify(endSig, os.Interrupt)
+	rawBuffer = make(SampleBuffer, BufferSize)
+	fftwBuffer = make([]fftw.FftwComplexType, BufferSize)
 
-	readKickChan = make(chan bool, 1)
-	readReadyChan = make(chan bool, 1)
-
-	fftBuffer = &fftw.Array2{
-		N:     [...]int{ChannelCount, SampleSize},
-		Elems: make([]complex128, BufferSize),
-	}
-
-	fftPlan = fftw.NewPlan2(
-		fftBuffer, fftBuffer,
+	fftwPlan = fftw.New(
+		rawBuffer, fftwBuffer, ChannelCount, SampleSize,
 		fftw.Forward, fftw.Estimate)
 
 	rootCtx, rootCancel = context.WithCancel(context.Background())
 
+	audioInput = &Portaudio{
+		DeviceName: "VisOut",
+		FrameSize:  ChannelCount,
+		SampleRate: SampleRate,
+		SampleSize: SampleSize,
+	}
+
+	if err := audioInput.Init(); err != nil {
+		panic(err)
+	}
+
 	// Handle fanout of cancel
 	go func() {
+
+		var endSig chan os.Signal
+
+		endSig = make(chan os.Signal, 3)
+		signal.Notify(endSig, os.Interrupt)
+
 		select {
 		case <-rootCtx.Done():
 		case <-endSig:
@@ -82,56 +86,44 @@ func Run() error {
 
 	// MAIN LOOP
 
-	last = time.Now()
+	audioInput.Start()
 
 	mainTicker = time.NewTicker(DrawDelay)
 
-	// kickstart the read process
-	readKickChan <- struct{}{}
-
 RunForRest: // , run!!!
-	for {
+	for range mainTicker.C {
+		last = time.Now()
+		select {
+		case <-rootCtx.Done():
+			break RunForRest
+		default:
+		}
+
+		if audioInput.Read(rootCtx, rawBuffer) == 0 {
+			fmt.Println("what happened!")
+		}
+
+		fftwPlan.Execute()
+
+		fmt.Println(rawBuffer)
+
 		since = time.Since(last)
-
 		if since > DrawDelay {
-			fmt.Print("slow loop!")
+			fmt.Print("slow loop!\n")
 		}
-
-		fmt.Println(since)
-
-		select {
-		case <-rootCtx.Done():
-			break RunForRest
-		case last = <-mainTicker.C:
-		}
-
-		select {
-		case <-rootCtx.Done():
-			break RunForRest
-		case <-readReadyChan:
-		}
-
-		for idx, sample = range rawBuffer {
-			fftBuffer.Elems[idx] = complex(float64(sample), 0)
-		}
-
-		select {
-		case <-rootCtx.Done():
-			break RunForRest
-		case readKickChan <- struct{}{}:
-		}
-
-		fftPlan.Execute()
-
 	}
 
 	rootCancel()
 
 	// CLEANUP
 
+	audioInput.Stop()
+
 	mainTicker.Stop()
 
-	fftPlan.Destroy()
+	audioInput.Close()
+
+	fftwPlan.Destroy()
 
 	return nil
 }

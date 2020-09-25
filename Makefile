@@ -3,9 +3,9 @@ VERSION := 0.0.1
 
 BASE := $(shell pwd)
 
-MAIN_PATH := $(BASE)/run
+MAIN_PATH := $(BASE)/cmd/tavis/main.go
 
-BIN_DIR := $(BASE)/build
+BIN_DIR := $(BASE)
 BIN_FILE := $(BIN_DIR)/$(PROGRAM)
 
 
@@ -19,7 +19,7 @@ LDFLAGS :=  -ldflags "\
 	-X $(BUILD_PKG).date=$(BUILD_DATE) \
 	-X $(BUILD_PKG).commit=$(GIT_COMMIT)" \
 
-$(PROGRAM): mkdir-build
+$(PROGRAM):
 	go build $(LDFLAGS) -o $(BIN_FILE) $(MAIN_PATH)
 
 run:
@@ -27,16 +27,10 @@ run:
 
 .PHONY: run
 
-mkdir-build:
-	mkdir -p $(BIN_DIR)
-
-.PHONY: run
-
 clean-$(PROGRAM):
 	rm $(BIN_FILE)
 
 clean: clean-$(PROGRAM)
-	rmdir $(BIN_DIR)
 
 .PHONY: clean clean-$(PROGRAM)
 
