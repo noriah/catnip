@@ -7,9 +7,8 @@ import (
 	"os/signal"
 	"time"
 
-	fftw "github.com/noriah/tavis/fftw"
-
-	"github.com/gdamore/tcell/v2"
+	"github.com/noriah/tavis/fftw"
+	"github.com/noriah/tavis/input"
 )
 
 // constants for testing
@@ -29,18 +28,15 @@ const (
 
 // Run does the run things
 func Run() error {
-	var err error
 
 	// MAIN LOOP PREP
 
 	var (
-		audioInput *Portaudio
+		audioInput *input.Portaudio
 
-		screen tcell.Screen
+		rawBuffer input.SampleBuffer
 
-		rawBuffer SampleBuffer
-
-		fftwBuffer []fftw.FftwComplexType
+		fftwBuffer fftw.CmplxBuffer
 		fftwPlan   *fftw.Plan // fftw plan
 
 		rootCtx    context.Context
@@ -51,7 +47,7 @@ func Run() error {
 		mainTicker *time.Ticker
 	)
 
-	audioInput = &Portaudio{
+	audioInput = &input.Portaudio{
 		DeviceName: "VisOut",
 		FrameSize:  ChannelCount,
 		SampleRate: SampleRate,
@@ -60,18 +56,12 @@ func Run() error {
 
 	panicOnError(audioInput.Init())
 
-	rawBuffer = make(SampleBuffer, BufferSize)
-	fftwBuffer = make([]fftw.FftwComplexType, BufferSize)
+	rawBuffer = make(input.SampleBuffer, BufferSize)
+	fftwBuffer = make(fftw.CmplxBuffer, BufferSize)
 
 	fftwPlan = fftw.New(
 		rawBuffer, fftwBuffer, ChannelCount, SampleSize,
-		fftw.Forward, fftw.Estimate)
-
-	if screen, err = tcell.NewScreen(); err != nil {
-		panic(err)
-	}
-
-	panicOnError(screen.Init())
+		fftw.Estimate)
 
 	rootCtx, rootCancel = context.WithCancel(context.Background())
 
@@ -112,7 +102,7 @@ RunForRest: // , run!!!
 
 		fftwPlan.Execute()
 
-		fmt.Println(rawBuffer)
+		fmt.Println(fftwBuffer[0:20])
 
 		// since = time.Since(last)
 		// if since > DrawDelay {
@@ -127,8 +117,6 @@ RunForRest: // , run!!!
 	audioInput.Stop()
 
 	mainTicker.Stop()
-
-	screen.Fini()
 
 	audioInput.Close()
 

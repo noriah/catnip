@@ -1,4 +1,4 @@
-package tavis
+package input
 
 import (
 	"context"
@@ -6,6 +6,7 @@ import (
 	"fmt"
 	"strings"
 	"time"
+	"unsafe"
 
 	"github.com/gordonklaus/portaudio"
 )
@@ -15,8 +16,16 @@ var (
 	ErrBadDevice error = errors.New("device not found")
 )
 
+// SampleType is the datatype we want from our inputs
 type SampleType = float32
+
+// SampleBuffer is a slice of SampleType
 type SampleBuffer []SampleType
+
+// Ptr returns a pointer for use with CGO
+func (sb SampleBuffer) Ptr() unsafe.Pointer {
+	return unsafe.Pointer(&sb[0])
+}
 
 // Portaudio is an input source that pulls from Portaudio
 //
@@ -69,7 +78,7 @@ func (pa *Portaudio) Init() error {
 			},
 			SampleRate:      pa.SampleRate,
 			FramesPerBuffer: pa.SampleSize,
-			// Flags:           portaudio.ClipOff | portaudio.DitherOff,
+			Flags:           portaudio.ClipOff | portaudio.DitherOff,
 		}, pa.PaCallback); err != nil {
 		return err
 	}
@@ -118,7 +127,7 @@ func (pa *Portaudio) PaCallback(in SampleBuffer,
 
 		select {
 		case pa.loopChanBytes <- idx:
-		case <-time.After(time.Second):
+		case <-time.After(time.Second / 2):
 			fmt.Println("response send timed out")
 		}
 	default:
