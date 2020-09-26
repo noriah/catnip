@@ -22,6 +22,11 @@ const (
 	// TargetFPS is how fast we want to redraw. Play with it
 	TargetFPS = 60
 
+	// MaxBars is the maximum number of bars we will display
+	MaxBars = 512
+
+	NumBars = 64
+
 	// ChannelCount is the number of channels we want to look at. DO NOT TOUCH
 	ChannelCount = 2
 )
@@ -53,6 +58,10 @@ func Run() error {
 		fftwBuffer fftw.CmplxBuffer
 		fftwPlan   *fftw.Plan // fftw plan
 
+		barBuffer BarBuffer
+
+		spectrum *Spectrum
+
 		rootCtx    context.Context
 		rootCancel context.CancelFunc
 
@@ -72,6 +81,19 @@ func Run() error {
 	}
 
 	panicOnError(audioInput.Init())
+
+	barBuffer = make(BarBuffer, MaxBars)
+
+	spectrum = &Spectrum{
+		SampleSize: SampleSize,
+		SampleRate: SampleRate,
+		FrameSize:  ChannelCount,
+		BarBuffer:  barBuffer,
+	}
+
+	panicOnError(spectrum.Init())
+
+	spectrum.Recalculate(NumBars, 400, 6000)
 
 	fftwBuffer = make(fftw.CmplxBuffer, BufferSize)
 
@@ -120,9 +142,12 @@ RunForRest: // , run!!!
 			}
 
 			fftwPlan.Execute()
+			spectrum.Generate(fftwBuffer)
 		}
 
-		fmt.Println(fftwBuffer[0:20])
+		// fmt.Println(fftwBuffer[0 : NumBars*2])
+		fmt.Println(barBuffer[0 : NumBars*2])
+		// spectrum.Print()
 
 		// since = time.Since(last)
 		// if since > DrawDelay {
