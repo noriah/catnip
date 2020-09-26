@@ -26,7 +26,7 @@ const (
 	MaxBars = 512
 
 	// NumBars is how many bars we start with
-	NumBars = 64
+	NumBars = 128
 
 	// ChannelCount is the number of channels we want to look at. DO NOT TOUCH
 	ChannelCount = 2
@@ -143,7 +143,7 @@ RunForRest: // , run!!!
 			}
 
 			fftwPlan.Execute()
-			spectrum.Generate(fftwBuffer)
+			spectrum.Generate(fftwBuffer, 200)
 		}
 
 		// fmt.Println(fftwBuffer[0 : NumBars*2])

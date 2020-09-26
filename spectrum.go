@@ -5,19 +5,25 @@ import (
 	"math"
 
 	"github.com/noriah/tavis/fftw"
+	"github.com/noriah/tavis/util"
+)
+
+// Spectrum Constants
+const (
+	AutoScalingSeconds = 10
 )
 
 // BarType is the type of each bar value
-type BarType = int32
+type BarType = float64
 
 // BarBuffer is a slice of bar types
 type BarBuffer []BarType
 
-// FreqType is a type of each frequency value
-type FreqType = float64
+// ScratchType is a type of each frequency value
+type ScratchType = float64
 
-// FreqBuffer is a slice of freqtype
-type FreqBuffer []FreqType
+// ScratchBuffer is a slice of ScratchType
+type ScratchBuffer []ScratchType
 
 // BinType is a type of each bin cutoff value
 type BinType = int
@@ -31,10 +37,15 @@ type Spectrum struct {
 	bars int
 
 	SampleSize int
-	SampleRate FreqType
+	SampleRate ScratchType
 	FrameSize  int
 
 	BarBuffer BarBuffer
+
+	workBuffer ScratchBuffer
+
+	heightWindow []*util.MovingWindow
+	maxHeights   ScratchBuffer
 
 	loCutBins BinBuffer
 	hiCutBins BinBuffer
@@ -44,10 +55,21 @@ type Spectrum struct {
 func (s *Spectrum) Init() error {
 	s.max = len(s.BarBuffer) / s.FrameSize
 
+	s.workBuffer = make(ScratchBuffer, s.max+1)
+
+	winMax := int((AutoScalingSeconds*s.SampleRate)/float64(s.SampleSize)) * 2
+
+	s.heightWindow = make([]*util.MovingWindow, s.FrameSize)
+	s.maxHeights = make(ScratchBuffer, s.FrameSize)
+
+	for idx := 0; idx < s.FrameSize; idx++ {
+		s.heightWindow[idx] = util.NewMovingWindow(winMax)
+	}
+
 	s.loCutBins = make(BinBuffer, s.max+1)
 	s.hiCutBins = make(BinBuffer, s.max+1)
 
-	s.Recalculate(s.max, 10, s.SampleRate)
+	s.Recalculate(s.max, 20, s.SampleRate/2)
 
 	return nil
 }
@@ -59,7 +81,7 @@ func (s *Spectrum) Print() {
 }
 
 // Recalculate rebuilds our frequency bins with num bin counts
-func (s *Spectrum) Recalculate(num int, lo, hi FreqType) int {
+func (s *Spectrum) Recalculate(num int, lo, hi ScratchType) int {
 	if num > s.max {
 		num = s.max
 	}
@@ -67,29 +89,34 @@ func (s *Spectrum) Recalculate(num int, lo, hi FreqType) int {
 	s.bars = num
 
 	var (
-		bins FreqType
+		bins ScratchType
 
-		freqConst FreqType
-		freq      FreqType
+		freqConst ScratchType
+		freq      ScratchType
+
+		hRate ScratchType
+		qSize ScratchType
 
 		idx int
 	)
 
+	hRate = s.SampleRate / 2
+	qSize = float64(s.SampleSize) / 2
+
 	bins = float64(s.bars + 1)
-	freqConst = FreqType(math.Log10(lo/hi) / (1/bins - 1))
+	freqConst = ScratchType(math.Log10(lo/hi) / ((1 / bins) - 1))
 
 	for idx = 0; idx <= s.bars; idx++ {
-		freq = hi * math.Pow(10, (-1*freqConst)+(freqConst*(float64(idx+1)/bins)))
+		freq = hi * math.Pow(10, (freqConst*-1)+((float64(idx+1)/bins)*freqConst))
 
-		s.loCutBins[idx] = BinType(freq)
-		fmt.Println(freq)
+		s.loCutBins[idx] = BinType((freq / hRate) * qSize)
 
 		if idx > 0 {
 			if s.loCutBins[idx] <= s.loCutBins[idx-1] {
 				s.loCutBins[idx] = s.loCutBins[idx-1] + 1
 			}
 
-			s.hiCutBins[idx-1] = s.loCutBins[idx]
+			s.hiCutBins[idx-1] = s.loCutBins[idx-1]
 		}
 	}
 
@@ -97,41 +124,67 @@ func (s *Spectrum) Recalculate(num int, lo, hi FreqType) int {
 }
 
 // Generate makes the bars in buffer
-func (s *Spectrum) Generate(buf fftw.CmplxBuffer) {
+func (s *Spectrum) Generate(buf fftw.CmplxBuffer, height int) {
 	var (
-		idx     int
-		chx     int
-		num     int
-		fftwVar fftw.CmplxType
-		freqMag float64
-		cut     BinType
-		boost   float64
+		bax     int            // Bar Index
+		chx     int            // Channel Index
+		chidx   int            // Buffer Channel Index
+		num     int            // Number of samples in buf
+		fftwVar fftw.CmplxType // FFTW Value
+		freqMag float64        // Frequency Magnitude
+		cut     BinType        // Frequency Cut
+		boost   float64        // Boost Factor
+		stddev  float64        // Standard Deviation
 	)
 
 	num = len(buf)
 
-	for idx = 0; idx < s.bars; idx++ {
-		boost = math.Log2(float64(2+idx)) * (100 / float64(s.bars))
+	for chx = 0; chx < s.FrameSize; chx++ {
+		s.maxHeights[chx] = 0.125
+	}
 
-		for chx = idx * s.FrameSize; chx < ((idx + 1) * s.FrameSize); chx++ {
+	for bax = 0; bax < s.bars; bax++ {
+		boost = math.Log2(float64(2+bax)) * (100 / float64(s.bars))
+
+		for chx = 0; chx < s.FrameSize; chx++ {
+			chidx = (bax * s.FrameSize) + chx
 
 			freqMag = 0
 
-			for cut = s.loCutBins[idx]; cut <= s.hiCutBins[idx] && cut < num; cut++ {
+			for cut = s.loCutBins[bax]; cut <= s.hiCutBins[bax] && cut < num; cut++ {
 
-				fftwVar = buf[chx]
+				fftwVar = buf[chidx]
 
 				freqMag += math.Sqrt((real(fftwVar) * real(fftwVar)) +
 					(imag(fftwVar) * imag(fftwVar)))
 
 			}
 
-			freqMag /= FreqType(s.hiCutBins[idx] - s.loCutBins[idx] + 1)
+			freqMag /= ScratchType(s.hiCutBins[bax] - s.loCutBins[bax] + 1)
 			freqMag *= boost
 
-			fmt.Println(chx)
-			s.BarBuffer[chx] = BarType(math.Pow(freqMag, 0.5))
+			s.workBuffer[chidx] = math.Pow(freqMag, 0.5)
 
+			if s.workBuffer[chidx] > s.maxHeights[chx] {
+				s.maxHeights[chx] = s.workBuffer[chidx]
+			}
+		}
+	}
+
+	s.Monstercat(1.5)
+
+	boost = float64(height)
+
+	for chx = 0; chx < s.FrameSize; chx++ {
+
+		freqMag, stddev = s.heightWindow[chx].Update(s.maxHeights[chx])
+
+		s.maxHeights[chx] = math.Max(freqMag+(2*stddev), 1)
+
+		for bax = 0; bax < s.bars*s.FrameSize; bax += s.FrameSize {
+
+			s.BarBuffer[bax+chx] = s.workBuffer[bax+chx] / s.maxHeights[chx]
+			s.BarBuffer[bax+chx] *= boost
 		}
 	}
 }
@@ -150,23 +203,29 @@ func (s *Spectrum) Monstercat(factor float64) {
 	}
 
 	var (
-		pass int
-		bar  int
-		barV BarType
+		bax   int
+		pass  int
+		chx   int
+		chidx int
+		barV  ScratchType
 	)
 
-	for pass = 0; pass < s.bars; pass++ {
-		for bar = pass - 1; bar >= 0; bar-- {
-			barV = s.BarBuffer[pass] / pow(factor, pass-bar)
-			if barV > s.BarBuffer[bar] {
-				s.BarBuffer[bar] = barV
-			}
-		}
+	for bax = 1; bax < s.bars; bax++ {
+		for chx = 0; chx < s.FrameSize; chx++ {
+			chidx = (bax * s.FrameSize) + chx
 
-		for bar = pass + 1; bar < s.bars; bar++ {
-			barV = s.BarBuffer[pass] / pow(factor, bar-pass)
-			if barV > s.BarBuffer[bar] {
-				s.BarBuffer[bar] = barV
+			for pass = bax - 1; pass >= 0; pass-- {
+				barV = s.workBuffer[chidx] / pow(factor, bax-pass)
+				if barV > s.workBuffer[chidx] {
+					s.workBuffer[chidx] = barV
+				}
+			}
+
+			for pass = bax + 1; pass < s.bars; pass++ {
+				barV = s.workBuffer[chidx] / pow(factor, pass-bax)
+				if barV > s.workBuffer[chidx] {
+					s.workBuffer[chidx] = barV
+				}
 			}
 		}
 	}
