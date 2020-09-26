@@ -143,7 +143,7 @@ RunForRest: // , run!!!
 			}
 
 			fftwPlan.Execute()
-			spectrum.Generate(fftwBuffer, 200)
+			spectrum.Generate(fftwBuffer, 200, 1.6)
 		}
 
 		// fmt.Println(fftwBuffer[0 : NumBars*2])
