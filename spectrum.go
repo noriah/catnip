@@ -7,18 +7,25 @@ import (
 	"github.com/noriah/tavis/fftw"
 )
 
+// BarType is the type of each bar value
 type BarType = int32
 
+// BarBuffer is a slice of bar types
 type BarBuffer []BarType
 
+// FreqType is a type of each frequency value
 type FreqType = float64
 
+// FreqBuffer is a slice of freqtype
 type FreqBuffer []FreqType
 
+// BinType is a type of each bin cutoff value
 type BinType = int
 
+// BinBuffer is aslice of BinType
 type BinBuffer []BinType
 
+// Spectrum creates an audio spectrum in a buffer
 type Spectrum struct {
 	max  int
 	bars int
@@ -30,26 +37,23 @@ type Spectrum struct {
 	BarBuffer BarBuffer
 
 	loCutBins BinBuffer
-	midBins   BinBuffer
 	hiCutBins BinBuffer
-	relBins   BinBuffer
-	eqFreqs   FreqBuffer
 }
 
 // Init will set up our spectrum
 func (s *Spectrum) Init() error {
 	s.max = len(s.BarBuffer) / s.FrameSize
+
 	s.loCutBins = make(BinBuffer, s.max+1)
-	s.midBins = make(BinBuffer, s.max+1)
 	s.hiCutBins = make(BinBuffer, s.max+1)
-	s.relBins = make(BinBuffer, s.max+1)
-	s.eqFreqs = make(FreqBuffer, s.max+1)
 
 	s.Recalculate(s.max, 10, s.SampleRate)
 
 	return nil
 }
 
+// Print is a debug function to print internal structure.
+// Will be removed later.
 func (s *Spectrum) Print() {
 	fmt.Println(s.max, s.loCutBins, s.hiCutBins)
 }
@@ -62,26 +66,17 @@ func (s *Spectrum) Recalculate(num int, lo, hi FreqType) int {
 
 	s.bars = num
 
-	num *= s.FrameSize
-
 	var (
 		bins FreqType
-		// bin  FreqType
 
 		freqConst FreqType
 		freq      FreqType
-
-		// hRate BinType
-		// qSize FreqType
 
 		idx int
 	)
 
 	bins = float64(s.bars + 1)
 	freqConst = FreqType(math.Log10(lo/hi) / (1/bins - 1))
-
-	// hRate = BinType(s.SampleRate / 2.0)
-	// qSize = float64(s.SampleSize) / 4.0
 
 	for idx = 0; idx <= s.bars; idx++ {
 		freq = hi * math.Pow(10, (-1*freqConst)+(freqConst*(float64(idx+1)/bins)))
@@ -95,13 +90,6 @@ func (s *Spectrum) Recalculate(num int, lo, hi FreqType) int {
 			}
 
 			s.hiCutBins[idx-1] = s.loCutBins[idx]
-		}
-
-		// s.relBins[idx] = s.loCutBins[idx] / hRate
-
-		// s.eqFreqs[idx] = math.Pow(float64(s.loCutBins[idx]), 1)
-
-		if idx > 0 {
 		}
 	}
 
@@ -148,12 +136,14 @@ func (s *Spectrum) Generate(buf fftw.CmplxBuffer) {
 	}
 }
 
+// Waves is unimplemented
 func (s *Spectrum) Waves(waves int) {
 	if waves <= 0 {
 		return
 	}
 }
 
+// Monstercat preforms monstercat smoothing on bars
 func (s *Spectrum) Monstercat(factor float64) {
 	if factor <= 1 {
 		return
