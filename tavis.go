@@ -25,6 +25,7 @@ const (
 	// MaxBars is the maximum number of bars we will display
 	MaxBars = 512
 
+	// NumBars is how many bars we start with
 	NumBars = 64
 
 	// ChannelCount is the number of channels we want to look at. DO NOT TOUCH
