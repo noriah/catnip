@@ -31,15 +31,14 @@ func (sb SampleBuffer) Ptr() unsafe.Pointer {
 //
 // The number of frames per read will be
 type Portaudio struct {
-	stream        *portaudio.Stream // our input stream
-	loopChanBytes chan int
-	loopChanCmplx chan SampleBuffer
+	stream *portaudio.Stream // our input stream
 
-	DeviceName   string       // name of device to look for
-	FrameSize    int          // number of channels per frame
-	SampleSize   int          // number of frames per buffer write
-	SampleRate   float64      // sample rate
 	SampleBuffer SampleBuffer // internal scratch buffer
+
+	DeviceName string  // name of device to look for
+	FrameSize  int     // number of channels per frame
+	SampleSize int     // number of frames per buffer write
+	SampleRate float64 // sample rate
 }
 
 // Init sets up all the portaudio things we need to do

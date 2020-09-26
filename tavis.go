@@ -56,8 +56,8 @@ func Run() error {
 		rootCtx    context.Context
 		rootCancel context.CancelFunc
 
-		last       time.Time // last tick time
-		since      time.Duration
+		// last       time.Time // last tick time
+		// since      time.Duration
 		mainTicker *time.Ticker
 	)
 
@@ -105,7 +105,7 @@ func Run() error {
 
 RunForRest: // , run!!!
 	for range mainTicker.C {
-		last = time.Now()
+		// last = time.Now()
 		select {
 		case <-rootCtx.Done():
 			break RunForRest
@@ -124,10 +124,10 @@ RunForRest: // , run!!!
 
 		fmt.Println(fftwBuffer[0:20])
 
-		since = time.Since(last)
-		if since > DrawDelay {
-			fmt.Print("slow loop!\n", since)
-		}
+		// since = time.Since(last)
+		// if since > DrawDelay {
+		// 	fmt.Print("slow loop!\n", since)
+		// }
 	}
 
 	rootCancel()
