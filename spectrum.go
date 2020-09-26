@@ -40,6 +40,8 @@ type Spectrum struct {
 	SampleRate ScratchType
 	FrameSize  int
 
+	Data fftw.CmplxBuffer
+
 	BarBuffer BarBuffer
 
 	workBuffer ScratchBuffer
@@ -116,32 +118,41 @@ func (s *Spectrum) Recalculate(num int, lo, hi ScratchType) int {
 				s.loCutBins[idx] = s.loCutBins[idx-1] + 1
 			}
 
-			s.hiCutBins[idx-1] = s.loCutBins[idx-1]
+			s.hiCutBins[idx-1] = s.loCutBins[idx] - 1
 		}
 	}
 
 	return s.bars
 }
 
-// Generate makes the bars in buffer
+// Generate makes bars and dumps them in the BarBuffer
 // Look at all the loops.
 // Someone stop me!
-func (s *Spectrum) Generate(buf fftw.CmplxBuffer, height int, factor float64) {
+func (s *Spectrum) Generate(height int, factor float64) {
+
 	var (
-		bax     int            // Bar Index
-		chx     int            // Channel Index
-		chidx   int            // Buffer Channel Index
-		bufLen  int            // Number of samples in buf
-		pass    int            // Pass number for monstercat
+
+		// Indexes
+
+		bufLen int // Number of samples in s.Data
+		bax    int // Bar Index
+		chx    int // Channel Index
+		chidx  int // Buffer Channel Index
+
+		// Monstercat
+
+		pass int         // Pass number for monstercat
+		tmp  ScratchType // tmp value for monstercat
+
 		fftwVar fftw.CmplxType // FFTW Value
 		freqMag float64        // Frequency Magnitude
-		cut     BinType        // Frequency Cut
-		boost   float64        // Boost Factor
-		stddev  float64        // Standard Deviation
-		tmp     ScratchType    // tmp value
+
+		cut    BinType // Frequency Cut
+		boost  float64 // Boost Factor
+		stddev float64 // Standard Deviation for scaling
 	)
 
-	bufLen = len(buf)
+	bufLen = len(s.Data)
 
 	for chx = 0; chx < s.FrameSize; chx++ {
 		s.maxHeights[chx] = 0.125
@@ -157,7 +168,7 @@ func (s *Spectrum) Generate(buf fftw.CmplxBuffer, height int, factor float64) {
 
 			for cut = s.loCutBins[bax]; cut <= s.hiCutBins[bax] && cut < bufLen; cut++ {
 
-				fftwVar = buf[chidx]
+				fftwVar = s.Data[chidx]
 
 				freqMag += math.Sqrt((real(fftwVar) * real(fftwVar)) +
 					(imag(fftwVar) * imag(fftwVar)))
@@ -169,17 +180,20 @@ func (s *Spectrum) Generate(buf fftw.CmplxBuffer, height int, factor float64) {
 
 			s.workBuffer[chidx] = math.Pow(freqMag, 0.5)
 
-			for pass = bax - 1; pass >= 0; pass-- {
-				tmp = s.workBuffer[chidx] / pow(factor, bax-pass)
-				if tmp > s.workBuffer[chidx] {
-					s.workBuffer[chidx] = tmp
-				}
-			}
+			if bax > 0 {
 
-			for pass = bax + 1; pass < s.bars; pass++ {
-				tmp = s.workBuffer[chidx] / pow(factor, pass-bax)
-				if tmp > s.workBuffer[chidx] {
-					s.workBuffer[chidx] = tmp
+				for pass = bax - 1; pass >= 0; pass-- {
+					tmp = s.workBuffer[chidx] / math.Pow(factor, float64(bax-pass))
+					if tmp > s.workBuffer[chidx] {
+						s.workBuffer[chidx] = tmp
+					}
+				}
+
+				for pass = bax + 1; pass < s.bars; pass++ {
+					tmp = s.workBuffer[chidx] / math.Pow(factor, float64(pass-bax))
+					if tmp > s.workBuffer[chidx] {
+						s.workBuffer[chidx] = tmp
+					}
 				}
 			}
 
@@ -200,27 +214,8 @@ func (s *Spectrum) Generate(buf fftw.CmplxBuffer, height int, factor float64) {
 		for bax = 0; bax < s.bars; bax++ {
 			chidx = (bax * s.FrameSize) + chx
 
-			s.BarBuffer[chidx] = s.workBuffer[chidx] / s.maxHeights[chx]
-			s.BarBuffer[chidx] *= boost
+			s.BarBuffer[chidx] = BarType((s.workBuffer[chidx] / s.maxHeights[chx]) * boost)
 
 		}
 	}
-}
-
-// Waves is unimplemented
-func (s *Spectrum) Waves(waves int) {
-	if waves <= 0 {
-		return
-	}
-}
-
-func max(bar, baz BarType) BarType {
-	if bar < baz {
-		return baz
-	}
-	return bar
-}
-
-func pow(factor float64, delta int) BarType {
-	return BarType(math.Pow(factor, float64(delta)))
 }

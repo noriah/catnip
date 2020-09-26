@@ -83,24 +83,25 @@ func Run() error {
 
 	panicOnError(audioInput.Init())
 
-	barBuffer = make(BarBuffer, MaxBars)
-
-	spectrum = &Spectrum{
-		SampleSize: SampleSize,
-		SampleRate: SampleRate,
-		FrameSize:  ChannelCount,
-		BarBuffer:  barBuffer,
-	}
-
-	panicOnError(spectrum.Init())
-
-	spectrum.Recalculate(NumBars, 400, 6000)
-
 	fftwBuffer = make(fftw.CmplxBuffer, BufferSize)
 
 	fftwPlan = fftw.New(
 		rawBuffer, fftwBuffer, ChannelCount, SampleSize,
 		fftw.Estimate)
+
+	barBuffer = make(BarBuffer, MaxBars)
+
+	spectrum = &Spectrum{
+		FrameSize:  ChannelCount,
+		SampleRate: SampleRate,
+		SampleSize: SampleSize,
+		BarBuffer:  barBuffer,
+		Data:       fftwBuffer,
+	}
+
+	panicOnError(spectrum.Init())
+
+	spectrum.Recalculate(NumBars, 400, 6000)
 
 	rootCtx, rootCancel = context.WithCancel(context.Background())
 
@@ -135,15 +136,13 @@ RunForRest: // , run!!!
 		default:
 		}
 
-		fmt.Println(audioInput.ReadyRead())
-
 		if audioInput.ReadyRead() >= SampleSize {
 			if err = audioInput.Read(rootCtx); err != nil {
 				fmt.Println("what happened!", err)
 			}
 
 			fftwPlan.Execute()
-			spectrum.Generate(fftwBuffer, 200, 1.6)
+			spectrum.Generate(30, 1.6)
 		}
 
 		// fmt.Println(fftwBuffer[0 : NumBars*2])
