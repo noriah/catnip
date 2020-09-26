@@ -124,20 +124,24 @@ func (s *Spectrum) Recalculate(num int, lo, hi ScratchType) int {
 }
 
 // Generate makes the bars in buffer
-func (s *Spectrum) Generate(buf fftw.CmplxBuffer, height int) {
+// Look at all the loops.
+// Someone stop me!
+func (s *Spectrum) Generate(buf fftw.CmplxBuffer, height int, factor float64) {
 	var (
 		bax     int            // Bar Index
 		chx     int            // Channel Index
 		chidx   int            // Buffer Channel Index
-		num     int            // Number of samples in buf
+		bufLen  int            // Number of samples in buf
+		pass    int            // Pass number for monstercat
 		fftwVar fftw.CmplxType // FFTW Value
 		freqMag float64        // Frequency Magnitude
 		cut     BinType        // Frequency Cut
 		boost   float64        // Boost Factor
 		stddev  float64        // Standard Deviation
+		tmp     ScratchType    // tmp value
 	)
 
-	num = len(buf)
+	bufLen = len(buf)
 
 	for chx = 0; chx < s.FrameSize; chx++ {
 		s.maxHeights[chx] = 0.125
@@ -151,7 +155,7 @@ func (s *Spectrum) Generate(buf fftw.CmplxBuffer, height int) {
 
 			freqMag = 0
 
-			for cut = s.loCutBins[bax]; cut <= s.hiCutBins[bax] && cut < num; cut++ {
+			for cut = s.loCutBins[bax]; cut <= s.hiCutBins[bax] && cut < bufLen; cut++ {
 
 				fftwVar = buf[chidx]
 
@@ -165,13 +169,25 @@ func (s *Spectrum) Generate(buf fftw.CmplxBuffer, height int) {
 
 			s.workBuffer[chidx] = math.Pow(freqMag, 0.5)
 
+			for pass = bax - 1; pass >= 0; pass-- {
+				tmp = s.workBuffer[chidx] / pow(factor, bax-pass)
+				if tmp > s.workBuffer[chidx] {
+					s.workBuffer[chidx] = tmp
+				}
+			}
+
+			for pass = bax + 1; pass < s.bars; pass++ {
+				tmp = s.workBuffer[chidx] / pow(factor, pass-bax)
+				if tmp > s.workBuffer[chidx] {
+					s.workBuffer[chidx] = tmp
+				}
+			}
+
 			if s.workBuffer[chidx] > s.maxHeights[chx] {
 				s.maxHeights[chx] = s.workBuffer[chidx]
 			}
 		}
 	}
-
-	s.Monstercat(1.5)
 
 	boost = float64(height)
 
@@ -181,10 +197,12 @@ func (s *Spectrum) Generate(buf fftw.CmplxBuffer, height int) {
 
 		s.maxHeights[chx] = math.Max(freqMag+(2*stddev), 1)
 
-		for bax = 0; bax < s.bars*s.FrameSize; bax += s.FrameSize {
+		for bax = 0; bax < s.bars; bax++ {
+			chidx = (bax * s.FrameSize) + chx
 
-			s.BarBuffer[bax+chx] = s.workBuffer[bax+chx] / s.maxHeights[chx]
-			s.BarBuffer[bax+chx] *= boost
+			s.BarBuffer[chidx] = s.workBuffer[chidx] / s.maxHeights[chx]
+			s.BarBuffer[chidx] *= boost
+
 		}
 	}
 }
@@ -193,41 +211,6 @@ func (s *Spectrum) Generate(buf fftw.CmplxBuffer, height int) {
 func (s *Spectrum) Waves(waves int) {
 	if waves <= 0 {
 		return
-	}
-}
-
-// Monstercat preforms monstercat smoothing on bars
-func (s *Spectrum) Monstercat(factor float64) {
-	if factor <= 1 {
-		return
-	}
-
-	var (
-		bax   int
-		pass  int
-		chx   int
-		chidx int
-		barV  ScratchType
-	)
-
-	for bax = 1; bax < s.bars; bax++ {
-		for chx = 0; chx < s.FrameSize; chx++ {
-			chidx = (bax * s.FrameSize) + chx
-
-			for pass = bax - 1; pass >= 0; pass-- {
-				barV = s.workBuffer[chidx] / pow(factor, bax-pass)
-				if barV > s.workBuffer[chidx] {
-					s.workBuffer[chidx] = barV
-				}
-			}
-
-			for pass = bax + 1; pass < s.bars; pass++ {
-				barV = s.workBuffer[chidx] / pow(factor, pass-bax)
-				if barV > s.workBuffer[chidx] {
-					s.workBuffer[chidx] = barV
-				}
-			}
-		}
 	}
 }
 
