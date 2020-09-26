@@ -13,17 +13,29 @@ import (
 
 // constants for testing
 const (
-	DeviceName   = "VisOut"
-	SampleRate   = 48000
-	TargetFPS    = 60
+	// DeviceName is the name of the Device we want to listen to
+	DeviceName = "VisOut"
+
+	// SampleRate is the rate at which samples are read
+	SampleRate = 48000
+
+	// TargetFPS is how fast we want to redraw. Play with it
+	TargetFPS = 60
+
+	// ChannelCount is the number of channels we want to look at. DO NOT TOUCH
 	ChannelCount = 2
 )
 
 // calculated constants
 const (
-	SampleSize = 256
+	// SampleSize is the number of frames per channel we want per read
+	SampleSize = SampleRate / TargetFPS
+
+	// BufferSize is the total size of our buffer (SampleSize * FrameSize)
 	BufferSize = SampleSize * ChannelCount
-	DrawDelay  = time.Second / TargetFPS
+
+	// DrawDelay is the time we wait between ticks to draw.
+	DrawDelay = time.Second / TargetFPS
 )
 
 // Run does the run things
@@ -32,6 +44,8 @@ func Run() error {
 	// MAIN LOOP PREP
 
 	var (
+		err error
+
 		audioInput *input.Portaudio
 
 		rawBuffer input.SampleBuffer
@@ -42,21 +56,23 @@ func Run() error {
 		rootCtx    context.Context
 		rootCancel context.CancelFunc
 
-		// last       time.Time // last tick time
-		// since      time.Duration
+		last       time.Time // last tick time
+		since      time.Duration
 		mainTicker *time.Ticker
 	)
 
+	rawBuffer = make(input.SampleBuffer, BufferSize)
+
 	audioInput = &input.Portaudio{
-		DeviceName: "VisOut",
-		FrameSize:  ChannelCount,
-		SampleRate: SampleRate,
-		SampleSize: SampleSize,
+		DeviceName:   "VisOut",
+		FrameSize:    ChannelCount,
+		SampleRate:   SampleRate,
+		SampleSize:   SampleSize,
+		SampleBuffer: rawBuffer,
 	}
 
 	panicOnError(audioInput.Init())
 
-	rawBuffer = make(input.SampleBuffer, BufferSize)
 	fftwBuffer = make(fftw.CmplxBuffer, BufferSize)
 
 	fftwPlan = fftw.New(
@@ -89,25 +105,29 @@ func Run() error {
 
 RunForRest: // , run!!!
 	for range mainTicker.C {
-		// last = time.Now()
+		last = time.Now()
 		select {
 		case <-rootCtx.Done():
 			break RunForRest
 		default:
 		}
 
-		if audioInput.Read(rootCtx, rawBuffer) == 0 {
-			// fmt.Println("what happened!")
-		}
+		fmt.Println(audioInput.ReadyRead())
 
-		fftwPlan.Execute()
+		if audioInput.ReadyRead() >= SampleSize {
+			if err = audioInput.Read(rootCtx); err != nil {
+				fmt.Println("what happened!", err)
+			}
+
+			fftwPlan.Execute()
+		}
 
 		fmt.Println(fftwBuffer[0:20])
 
-		// since = time.Since(last)
-		// if since > DrawDelay {
-		// 	fmt.Print("slow loop!\n")
-		// }
+		since = time.Since(last)
+		if since > DrawDelay {
+			fmt.Print("slow loop!\n", since)
+		}
 	}
 
 	rootCancel()

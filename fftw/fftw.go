@@ -1,3 +1,9 @@
+// Package fftw contains specific Go bindings for the FFTW C library
+//
+// The only included bindings are those that are needed by tavis.
+// This includes the use of `fftw_plan_dft_r2c_2d`.
+// It is the only fftw plan we need, and the only one we have chosen to
+// implement here.
 package fftw
 
 // #cgo pkg-config: fftw3
@@ -7,6 +13,12 @@ import "C"
 import (
 	"unsafe"
 )
+
+// Buffer describes an object that can have `Ptr` called on it.
+// it should be a slice or other object that would be contiguous in C
+type Buffer interface {
+	Ptr() unsafe.Pointer
+}
 
 // CmplxType is a type used for FFTW complex
 // it should be `complex128` but we can play with it
@@ -25,9 +37,9 @@ type Direction int
 
 const (
 	// Forward means go from seconds to frequency time
-	Forward = Direction(C.FFTW_FORWARD)
+	Forward Direction = C.FFTW_FORWARD
 	// Backward meads go from frequence time to seconds
-	Backward = Direction(C.FFTW_BACKWARD)
+	Backward Direction = C.FFTW_BACKWARD
 )
 
 // Flag is an FFTW method flag
@@ -35,9 +47,9 @@ type Flag uint
 
 const (
 	// Estimate is C.FFTW_ESTIMATE
-	Estimate = Flag(C.FFTW_ESTIMATE)
+	Estimate Flag = C.FFTW_ESTIMATE
 	// Measure is C.FFTW_MEASURE
-	Measure = Flag(C.FFTW_MEASURE)
+	Measure Flag = C.FFTW_MEASURE
 )
 
 // Plan holds an FFTW C plan
@@ -53,12 +65,6 @@ func (p *Plan) Execute() {
 // Destroy releases resources
 func (p *Plan) Destroy() {
 	C.fftw_destroy_plan(p.cPlan)
-}
-
-// Buffer describes an object that can have `Ptr` called on it.
-// it should be a slice or other object that would be contiguous in C
-type Buffer interface {
-	Ptr() unsafe.Pointer
 }
 
 // New returns a new FFTW Plan for use with FFTW
