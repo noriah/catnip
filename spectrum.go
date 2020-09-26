@@ -134,10 +134,9 @@ func (s *Spectrum) Generate(height int, factor float64) {
 
 		// Indexes
 
-		bufLen int // Number of samples in s.Data
-		bax    int // Bar Index
-		chx    int // Channel Index
-		chidx  int // Buffer Channel Index
+		bax   int // Bar Index
+		chx   int // Channel Index
+		chidx int // Buffer Channel Index
 
 		// Monstercat
 
@@ -147,12 +146,13 @@ func (s *Spectrum) Generate(height int, factor float64) {
 		fftwVar fftw.CmplxType // FFTW Value
 		freqMag float64        // Frequency Magnitude
 
+		bl     int     // Number of samples in s.Data
 		cut    BinType // Frequency Cut
 		boost  float64 // Boost Factor
 		stddev float64 // Standard Deviation for scaling
 	)
 
-	bufLen = len(s.Data)
+	bl = len(s.Data)
 
 	for chx = 0; chx < s.FrameSize; chx++ {
 		s.maxHeights[chx] = 0.125
@@ -166,7 +166,7 @@ func (s *Spectrum) Generate(height int, factor float64) {
 
 			freqMag = 0
 
-			for cut = s.loCutBins[bax]; cut <= s.hiCutBins[bax] && cut < bufLen; cut++ {
+			for cut = s.loCutBins[bax]; cut <= s.hiCutBins[bax] && cut < bl; cut++ {
 
 				fftwVar = s.Data[chidx]
 
@@ -214,7 +214,9 @@ func (s *Spectrum) Generate(height int, factor float64) {
 		for bax = 0; bax < s.bars; bax++ {
 			chidx = (bax * s.FrameSize) + chx
 
-			s.BarBuffer[chidx] = BarType((s.workBuffer[chidx] / s.maxHeights[chx]) * boost)
+			tmp = (s.workBuffer[chidx] / s.maxHeights[chx]) * boost
+
+			s.BarBuffer[chidx] = BarType(tmp)
 
 		}
 	}
