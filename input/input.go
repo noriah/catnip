@@ -17,6 +17,11 @@ type SampleType = float32
 type SampleBuffer []SampleType
 
 // Ptr returns a pointer for use with CGO
-func (sb SampleBuffer) Ptr() unsafe.Pointer {
-	return unsafe.Pointer(&sb[0])
+func (cb SampleBuffer) Ptr(n ...int) unsafe.Pointer {
+	if len(n) > 0 {
+		return unsafe.Pointer(&cb[n[0]])
+
+	}
+
+	return unsafe.Pointer(&cb[0])
 }

@@ -160,7 +160,7 @@ func (s *Spectrum) Generate(buf fftw.CmplxBuffer) {
 	bl = len(buf) / s.frameSize
 
 	for chx = 0; chx < s.frameSize; chx++ {
-		s.peakHeight[chx] = 0.125
+		s.peakHeight[chx] = 1
 	}
 
 	for chx = 0; chx < s.frameSize; chx++ {
@@ -191,6 +191,37 @@ func (s *Spectrum) Generate(buf fftw.CmplxBuffer) {
 func pyt(val fftw.CmplxType) float64 {
 	return math.Sqrt((real(val) * real(val)) + (imag(val) * imag(val)))
 }
+
+// Scale scales the data
+func (s *Spectrum) Scale(height int) {
+	var (
+		idx int
+		chx int
+		// bix int
+
+		mHeight float64
+
+		chHeight float64
+
+		avg float64
+		sd  float64
+	)
+
+	mHeight = float64(height)
+
+	for chx = 0; chx < s.frameSize; chx++ {
+		avg, sd = s.heightWindow[chx].Update(s.peakHeight[chx])
+
+		chHeight = math.Max(avg+(2*sd), 1.0)
+
+		for idx = chx; idx < s.numBars*s.frameSize+chx; idx += s.frameSize {
+
+			s.workBuffer[idx] = math.Min(mHeight-1, ((s.workBuffer[idx]/chHeight)*mHeight)-1)
+		}
+	}
+}
+
+// func (s *Spectrum)
 
 // if bax > 0 {
 
