@@ -8,7 +8,7 @@ import (
 	"time"
 
 	"github.com/noriah/tavis/analysis"
-	"github.com/noriah/tavis/fftw"
+	"github.com/noriah/tavis/analysis/fftw"
 	"github.com/noriah/tavis/input"
 )
 
@@ -64,6 +64,8 @@ func Run() error {
 
 		spectrum *analysis.Spectrum
 
+		display *Display
+
 		rootCtx    context.Context
 		rootCancel context.CancelFunc
 
@@ -94,6 +96,10 @@ func Run() error {
 	// Set it up with our values
 	spectrum.Recalculate(NumBars, LoCutFerq, HiCutFreq)
 
+	display = &Display{}
+
+	panicOnError(display.Init())
+
 	rootCtx, rootCancel = context.WithCancel(context.Background())
 
 	// Handle fanout of cancel
@@ -113,6 +119,8 @@ func Run() error {
 	}()
 
 	// MAIN LOOP
+
+	display.Start()
 
 	audioInput.Start()
 
@@ -136,9 +144,7 @@ RunForRest: // , run!!!
 			spectrum.Generate(fftwBuffer)
 		}
 
-		// fmt.Println(fftwBuffer[0 : NumBars*2])
-		fmt.Println(spectrum.Bins())
-		// spectrum.Print()
+		// display.Draw(spectrum.Bins())
 
 		// since = time.Since(last)
 		// if since > DrawDelay {
@@ -151,6 +157,10 @@ RunForRest: // , run!!!
 	// CLEANUP
 
 	audioInput.Stop()
+
+	display.Stop()
+
+	display.Close()
 
 	mainTicker.Stop()
 
