@@ -4,7 +4,7 @@ import (
 	"fmt"
 	"math"
 
-	"github.com/noriah/tavis/fftw"
+	"github.com/noriah/tavis/analysis/fftw"
 	"github.com/noriah/tavis/util"
 )
 
