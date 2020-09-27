@@ -1,7 +1,7 @@
 package tavis
 
 import (
-	"os"
+	"fmt"
 
 	"github.com/gdamore/tcell/v2"
 )
@@ -10,7 +10,11 @@ import (
 const (
 	DisplayBar   rune = '\u2588'
 	DisplaySpace rune = '\u0020'
+
+	MaxWidth = 5000
 )
+
+var directions = [2]int{1, -1}
 
 // Display handles drawing our visualizer
 type Display struct {
@@ -18,12 +22,16 @@ type Display struct {
 	barWidth   int
 	spaceWidth int
 
+	// cellBuf *tcell.CellBuffer
+
 	shouldRun bool
 }
 
 // Init sets up the display
 func (d *Display) Init() error {
 	var err error
+
+	// cellBuf = &tcell.CellBuffer{}
 
 	if d.screen, err = tcell.NewScreen(); err != nil {
 		return err
@@ -33,29 +41,27 @@ func (d *Display) Init() error {
 		return err
 	}
 
+	d.screen.DisableMouse()
+
 	d.SetWidths(2, 1)
 
 	return nil
 }
 
+// Start display is bad
 func (d *Display) Start() error {
-
-	d.shouldRun = true
-
 	go func() {
-		for d.shouldRun {
-
-			if event := d.screen.PollEvent(); event != nil {
-				os.Interrupt.Signal()
-			}
+		var ev tcell.Event
+		for ev = d.screen.PollEvent(); ev != nil; ev = d.screen.PollEvent() {
+			fmt.Println(ev)
 		}
 	}()
 
 	return nil
 }
 
+// Stop display not work
 func (d *Display) Stop() error {
-	d.shouldRun = false
 	return nil
 }
 
@@ -79,13 +85,13 @@ func (d *Display) Bars() int {
 	var width, _ int = d.screen.Size()
 	var perBar int = d.barWidth + d.spaceWidth
 
-	width = width - d.spaceWidth
+	width = width + d.spaceWidth
 	width = width / perBar
 
 	return width
 }
 
-// Size returns the width and height of the screen
+// Size returns the width and height of the screen in bars and rows
 func (d *Display) Size() (int, int) {
 	var _, height int = d.screen.Size()
 	var width = d.Bars()
@@ -93,7 +99,7 @@ func (d *Display) Size() (int, int) {
 }
 
 // Draw takes data, and draws
-func (d *Display) Draw(buf []float64) error {
+func (d *Display) Draw(buf []float64, ch int) error {
 	var (
 		totalHeight int
 		totalBars   int
@@ -102,22 +108,51 @@ func (d *Display) Draw(buf []float64) error {
 
 		barSpaceWidth int
 
-		bax int
-		lix int
+		bax     int // bar index
+		rox     int
+		col     int
+		chx     int
+		bHeight int
+		dir     int
 	)
 
 	totalBars, totalHeight = d.Size()
 
 	barSpaceWidth = d.barWidth + d.spaceWidth
 
-	centerHeight = totalHeight / 2
+	centerHeight = totalHeight / ch
 
-	for bax = 0; bax < totalBars; bax++ {
+	// Please do not do this.
+	// Seriously.
+	// Do not.
+	for chx = 0; chx < ch; chx++ {
+		dir = directions[chx%2]
+		for bax = 0; bax < totalBars; bax++ {
+			for col = (bax * barSpaceWidth); col < (bax*barSpaceWidth + d.barWidth); col++ {
+				bHeight = int(buf[bax*ch+chx])
+				if bHeight < 1 {
+					bHeight = 1
+				}
+				for rox = 0; rox < bHeight; rox++ {
 
-		for lix = 0; lix < centerHeight; lix++ {
-			d.screen.SetCell(bax*barSpaceWidth, lix, tcell.StyleDefault, DisplayBar)
+					d.screen.SetContent(
+						bax*barSpaceWidth, centerHeight-(dir*rox),
+						DisplayBar, nil, tcell.StyleDefault)
+				}
+
+				if rox < centerHeight {
+
+					for ; rox <= centerHeight; rox++ {
+						d.screen.SetContent(
+							bax*barSpaceWidth, centerHeight-(dir*rox),
+							DisplaySpace, nil, tcell.StyleDefault)
+					}
+				}
+			}
 		}
 	}
+
+	// d.screen.Clear()
 
 	d.screen.Sync()
 

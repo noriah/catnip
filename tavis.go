@@ -2,7 +2,6 @@ package tavis
 
 import (
 	"context"
-	"fmt"
 	"os"
 	"os/signal"
 	"time"
@@ -10,6 +9,7 @@ import (
 	"github.com/noriah/tavis/analysis"
 	"github.com/noriah/tavis/analysis/fftw"
 	"github.com/noriah/tavis/input"
+	"github.com/noriah/tavis/input/portaudio"
 )
 
 // BarType is the type of each bar value
@@ -29,9 +29,6 @@ const (
 
 	// TargetFPS is how fast we want to redraw. Play with it
 	TargetFPS = 60
-
-	// NumBars is how many bars we want to show
-	NumBars = 128
 
 	// ChannelCount is the number of channels we want to look at. DO NOT TOUCH
 	ChannelCount = 2
@@ -69,13 +66,17 @@ func Run() error {
 		rootCtx    context.Context
 		rootCancel context.CancelFunc
 
+		barCount int
+
+		winHeight int
+
 		// last       time.Time // last tick time
 		// since      time.Duration
 		mainTicker *time.Ticker
 	)
 
 	audioInput = input.NewPortaudio(input.Params{
-		Device:   "VisOut",
+		Device:   DeviceName,
 		Channels: ChannelCount,
 		Rate:     SampleRate,
 		Samples:  SampleSize,
@@ -88,17 +89,19 @@ func Run() error {
 	fftwPlan = fftw.New(
 		audioInput.Buffer(), fftwBuffer,
 		ChannelCount, SampleSize,
-		fftw.Estimate)
+		fftw.Forward, fftw.Estimate)
+
+	display = &Display{}
+
+	panicOnError(display.Init())
+
+	barCount = display.SetWidths(1, 1)
 
 	// Make a spectrum
 	spectrum = analysis.NewSpectrum(SampleRate, SampleSize, ChannelCount)
 
 	// Set it up with our values
-	spectrum.Recalculate(NumBars, LoCutFerq, HiCutFreq)
-
-	display = &Display{}
-
-	panicOnError(display.Init())
+	spectrum.Recalculate(barCount, LoCutFerq, HiCutFreq)
 
 	rootCtx, rootCancel = context.WithCancel(context.Background())
 
@@ -122,6 +125,9 @@ func Run() error {
 
 	display.Start()
 
+	_, winHeight = display.Size()
+	winHeight = (winHeight / 2) - 5
+
 	audioInput.Start()
 
 	mainTicker = time.NewTicker(DrawDelay)
@@ -137,14 +143,18 @@ RunForRest: // , run!!!
 
 		if audioInput.ReadyRead() >= SampleSize {
 			if err = audioInput.Read(rootCtx); err != nil {
-				fmt.Println("what happened!", err)
+				if err != portaudio.InputOverflowed {
+					panic(err)
+				}
 			}
 
 			fftwPlan.Execute()
-			spectrum.Generate(fftwBuffer)
 		}
 
-		// display.Draw(spectrum.Bins())
+		spectrum.Generate(fftwBuffer)
+		spectrum.Scale(500)
+		display.Draw(spectrum.Bins(), ChannelCount)
+		// fmt.Println(spectrum.Bins())
 
 		// since = time.Since(last)
 		// if since > DrawDelay {

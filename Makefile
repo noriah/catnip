@@ -19,21 +19,26 @@ LDFLAGS :=  -ldflags "\
 	-X $(BUILD_PKG).date=$(BUILD_DATE) \
 	-X $(BUILD_PKG).commit=$(GIT_COMMIT)" \
 
-$(PROGRAM):
+
+build:
 	go build $(LDFLAGS) -o $(BIN_FILE) $(MAIN_PATH)
 
-run:
-	go run $(MAIN_PATH)
+.PHONY: build
+
+run: build
+	$(BIN_FILE)
 
 .PHONY: run
 
-clean-$(PROGRAM):
+clean:
 	rm $(BIN_FILE)
 
-clean: clean-$(PROGRAM)
+.PHONY: clean
 
-.PHONY: clean clean-$(PROGRAM)
+$(PROGRAM): run
 
-all: $(PROGRAM)
+.PHONY: $(PROGRAM)
+
+all: run 
 
 .PHONY: all
