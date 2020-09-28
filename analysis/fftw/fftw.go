@@ -74,13 +74,13 @@ func (p *Plan) Destroy() {
 // New returns a new FFTW Plan for use with FFTW
 func New(in, out Buffer, d0, d1 int, dir Direction, flag Flag) *Plan {
 	var (
-		inC   = (*C.fftw_complex)(in.Ptr())
-		outC  = (*C.fftw_complex)(out.Ptr())
-		d0C   = C.int(d0)
-		d1C   = C.int(d1)
-		dirC  = C.int(dir)
+		inC  = (*C.double)(in.Ptr())
+		outC = (*C.fftw_complex)(out.Ptr())
+		d0C  = C.int(d0)
+		d1C  = C.int(d1)
+		// dirC  = C.int(dir)
 		flagC = C.uint(flag)
 	)
-	p := C.fftw_plan_dft_2d(d0C, d1C, inC, outC, dirC, flagC)
+	p := C.fftw_plan_dft_r2c_2d(d0C, d1C, inC, outC, flagC)
 	return &Plan{p}
 }
