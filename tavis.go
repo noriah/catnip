@@ -2,6 +2,7 @@ package tavis
 
 import (
 	"context"
+	"fmt"
 	"os"
 	"os/signal"
 	"time"
@@ -61,14 +62,14 @@ func Run() error {
 
 		spectrum *analysis.Spectrum
 
-		display *Display
+		// display *Display
 
 		rootCtx    context.Context
 		rootCancel context.CancelFunc
 
-		barCount int
+		// barCount int
 
-		winHeight int
+		// winHeight int
 
 		// last       time.Time // last tick time
 		// since      time.Duration
@@ -91,17 +92,17 @@ func Run() error {
 		ChannelCount, SampleSize,
 		fftw.Forward, fftw.Estimate)
 
-	display = &Display{}
+	// display = &Display{}
 
-	panicOnError(display.Init())
+	// panicOnError(display.Init())
 
-	barCount = display.SetWidths(1, 1)
+	// barCount = display.SetWidths(1, 1)
 
 	// Make a spectrum
 	spectrum = analysis.NewSpectrum(SampleRate, SampleSize, ChannelCount)
 
 	// Set it up with our values
-	spectrum.Recalculate(barCount, LoCutFerq, HiCutFreq)
+	spectrum.Recalculate(20, LoCutFerq, HiCutFreq)
 
 	rootCtx, rootCancel = context.WithCancel(context.Background())
 
@@ -123,10 +124,10 @@ func Run() error {
 
 	// MAIN LOOP
 
-	display.Start()
+	// display.Start()
 
-	_, winHeight = display.Size()
-	winHeight = (winHeight / 2) - 5
+	// _, winHeight = display.Size()
+	// winHeight = (winHeight / 2) - 5
 
 	audioInput.Start()
 
@@ -152,8 +153,11 @@ RunForRest: // , run!!!
 		}
 
 		spectrum.Generate(fftwBuffer)
-		spectrum.Scale(500)
-		display.Draw(spectrum.Bins(), ChannelCount)
+		spectrum.Scale(10)
+		// fmt.Println(fftwBuffer[:80])
+		// fmt.Println(audioInput.Buffer()[:80])
+		fmt.Println(spectrum.Bins())
+		// display.Draw(spectrum.Bins(), ChannelCount)
 		// fmt.Println(spectrum.Bins())
 
 		// since = time.Since(last)
@@ -168,9 +172,9 @@ RunForRest: // , run!!!
 
 	audioInput.Stop()
 
-	display.Stop()
+	// display.Stop()
 
-	display.Close()
+	// display.Close()
 
 	mainTicker.Stop()
 
