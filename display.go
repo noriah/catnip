@@ -1,7 +1,7 @@
 package tavis
 
 import (
-	"fmt"
+	"os"
 
 	"github.com/gdamore/tcell/v2"
 )
@@ -21,10 +21,6 @@ type Display struct {
 	screen     tcell.Screen
 	barWidth   int
 	spaceWidth int
-
-	// cellBuf *tcell.CellBuffer
-
-	shouldRun bool
 }
 
 // Init sets up the display
@@ -42,8 +38,9 @@ func (d *Display) Init() error {
 	}
 
 	d.screen.DisableMouse()
+	d.screen.HideCursor()
 
-	d.SetWidths(2, 1)
+	d.SetWidths(1, 1)
 
 	return nil
 }
@@ -53,11 +50,27 @@ func (d *Display) Start() error {
 	go func() {
 		var ev tcell.Event
 		for ev = d.screen.PollEvent(); ev != nil; ev = d.screen.PollEvent() {
-			fmt.Println(ev)
+			d.HandleEvent(ev)
 		}
 	}()
 
 	return nil
+}
+
+func (d *Display) HandleEvent(ev tcell.Event) bool {
+	switch ev := ev.(type) {
+	case *tcell.EventKey:
+		switch ev.Key() {
+		case tcell.KeyCtrlC:
+			os.Interrupt.Signal()
+		default:
+
+		}
+
+	default:
+	}
+
+	return false
 }
 
 // Stop display not work

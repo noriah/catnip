@@ -11,9 +11,7 @@ import "C"
 
 import (
 	"fmt"
-	"os"
 	"reflect"
-	"runtime"
 	"sync"
 	"time"
 	"unsafe"
@@ -111,7 +109,6 @@ func Initialize() error {
 	if paErr != C.paNoError {
 		return newError(paErr)
 	}
-	initialized++
 	return nil
 }
 
@@ -130,11 +127,6 @@ func Terminate() error {
 	paErr := C.Pa_Terminate()
 	if paErr != C.paNoError {
 		return newError(paErr)
-	}
-	initialized--
-	if initialized <= 0 {
-		initialized = 0
-		cached = false
 	}
 	return nil
 }
@@ -251,34 +243,6 @@ func Devices() ([]*DeviceInfo, error) {
 	return devs, nil
 }
 
-// DefaultInputDevice returns information for the default
-// input device on the system.
-func DefaultInputDevice() (*DeviceInfo, error) {
-	devs, err := Devices()
-	if err != nil {
-		return nil, err
-	}
-	i := C.Pa_GetDefaultInputDevice()
-	if i < 0 {
-		return nil, newError(C.PaError(i))
-	}
-	return devs[i], nil
-}
-
-// DefaultOutputDevice returns information for the default
-// output device on the system.
-func DefaultOutputDevice() (*DeviceInfo, error) {
-	devs, err := Devices()
-	if err != nil {
-		return nil, err
-	}
-	i := C.Pa_GetDefaultOutputDevice()
-	if i < 0 {
-		return nil, newError(C.PaError(i))
-	}
-	return devs[i], nil
-}
-
 /*
 Cache the HostApi/Device list to simplify the enumeration code.
 Note that portaudio itself caches the lists, so these won't go stale.
@@ -391,70 +355,6 @@ const (
 	PrimeOutputBuffersUsingStreamCallback StreamFlags = C.paPrimeOutputBuffersUsingStreamCallback
 	PlatformSpecificFlags                 StreamFlags = C.paPlatformSpecificFlags
 )
-
-// HighLatencyParameters are mono in, stereo out (if supported),
-// high latency, the smaller of the default sample rates of the two devices,
-// and FramesPerBufferUnspecified.  One of the devices may be nil.
-func HighLatencyParameters(in, out *DeviceInfo) (p StreamParameters) {
-	sampleRate := 0.0
-	if in != nil {
-		p := &p.Input
-		p.Device = in
-		p.Channels = 1
-		if in.MaxInputChannels < 1 {
-			p.Channels = in.MaxInputChannels
-		}
-		p.Latency = in.DefaultHighInputLatency
-		sampleRate = in.DefaultSampleRate
-	}
-	if out != nil {
-		p := &p.Output
-		p.Device = out
-		p.Channels = 2
-		if out.MaxOutputChannels < 2 {
-			p.Channels = out.MaxOutputChannels
-		}
-		p.Latency = out.DefaultHighOutputLatency
-		if r := out.DefaultSampleRate; r < sampleRate || sampleRate == 0 {
-			sampleRate = r
-		}
-	}
-	p.SampleRate = sampleRate
-	p.FramesPerBuffer = FramesPerBufferUnspecified
-	return p
-}
-
-// LowLatencyParameters are mono in, stereo out (if supported),
-// low latency, the larger of the default sample rates of the two devices,
-// and FramesPerBufferUnspecified.  One of the devices may be nil.
-func LowLatencyParameters(in, out *DeviceInfo) (p StreamParameters) {
-	sampleRate := 0.0
-	if in != nil {
-		p := &p.Input
-		p.Device = in
-		p.Channels = 1
-		if in.MaxInputChannels < 1 {
-			p.Channels = in.MaxInputChannels
-		}
-		p.Latency = in.DefaultLowInputLatency
-		sampleRate = in.DefaultSampleRate
-	}
-	if out != nil {
-		p := &p.Output
-		p.Device = out
-		p.Channels = 2
-		if out.MaxOutputChannels < 2 {
-			p.Channels = out.MaxOutputChannels
-		}
-		p.Latency = out.DefaultLowOutputLatency
-		if r := out.DefaultSampleRate; r > sampleRate {
-			sampleRate = r
-		}
-	}
-	p.SampleRate = sampleRate
-	p.FramesPerBuffer = FramesPerBufferUnspecified
-	return p
-}
 
 // IsFormatSupported Returns nil if the format is supported, otherwise an error.
 // The args parameter has the same meaning as in OpenStream.
@@ -591,10 +491,6 @@ const (
 //
 // For an input- or output-only stream, one of the Buffer args may be omitted.
 func OpenStream(p StreamParameters, args ...interface{}) (*Stream, error) {
-	if initialized <= 0 {
-		return nil, NotInitialized
-	}
-
 	s := newStream()
 	err := s.init(p, args...)
 	if err != nil {
@@ -613,121 +509,15 @@ func OpenStream(p StreamParameters, args ...interface{}) (*Stream, error) {
 	return s, nil
 }
 
-// OpenDefaultStream is a simplified version of OpenStream that
-// opens the default input and/or output devices.
-//
-// The args parameter has the same meaning as in OpenStream.
-func OpenDefaultStream(numInputChannels, numOutputChannels int, sampleRate float64, framesPerBuffer int, args ...interface{}) (*Stream, error) {
-	if initialized <= 0 {
-		return nil, NotInitialized
-	}
-
-	var inDev, outDev *DeviceInfo
-	var err error
-	if numInputChannels > 0 {
-		inDev, err = DefaultInputDevice()
-		if err != nil {
-			return nil, err
-		}
-	}
-	if numOutputChannels > 0 {
-		outDev, err = DefaultOutputDevice()
-		if err != nil {
-			return nil, err
-		}
-	}
-	p := HighLatencyParameters(inDev, outDev)
-	p.Input.Channels = numInputChannels
-	p.Output.Channels = numOutputChannels
-	p.SampleRate = sampleRate
-	p.FramesPerBuffer = framesPerBuffer
-	return OpenStream(p, args...)
-}
-
 func (s *Stream) init(p StreamParameters, args ...interface{}) error {
 	switch len(args) {
 	case 0:
 		return fmt.Errorf("too few args")
 	case 1, 2:
-		if fun := reflect.ValueOf(args[0]); fun.Kind() == reflect.Func {
-			return s.initCallback(p, fun)
-		}
 		return s.initBuffers(p, args...)
 	default:
 		return fmt.Errorf("too many args")
 	}
-}
-
-func (s *Stream) initCallback(p StreamParameters, fun reflect.Value) error {
-	t := fun.Type()
-	if t.IsVariadic() {
-		return fmt.Errorf("StreamCallback must not be variadic")
-	}
-	nArgs := t.NumIn()
-	if nArgs == 0 {
-		return fmt.Errorf("too few parameters in StreamCallback")
-	}
-	args := make([]reflect.Value, nArgs)
-	i := 0
-	bothBufs := nArgs > 1 && t.In(1).Kind() == reflect.Slice
-	bufArg := func(p StreamDeviceParameters) (*C.PaStreamParameters, *reflect.SliceHeader, error) {
-		if p.Device != nil || bothBufs {
-			if i >= nArgs {
-				return nil, nil, fmt.Errorf("too few Buffer parameters in StreamCallback")
-			}
-			t := t.In(i)
-			sampleFmt := sampleFormat(t)
-			if sampleFmt == 0 {
-				return nil, nil, fmt.Errorf("expected Buffer type in StreamCallback, got %v", t)
-			}
-			buf := reflect.New(t)
-			args[i] = buf.Elem()
-			i++
-			if p.Device != nil {
-				pap := paStreamParameters(p, sampleFmt)
-				if pap.sampleFormat&C.paNonInterleaved != 0 {
-					n := int(pap.channelCount)
-					buf.Elem().Set(reflect.MakeSlice(t, n, n))
-				}
-				return pap, (*reflect.SliceHeader)(unsafe.Pointer(buf.Pointer())), nil
-			}
-		}
-		return nil, nil, nil
-	}
-	var err error
-	s.inParams, s.in, err = bufArg(p.Input)
-	if err != nil {
-		return err
-	}
-	s.outParams, s.out, err = bufArg(p.Output)
-	if err != nil {
-		return err
-	}
-	if i < nArgs {
-		t := t.In(i)
-		if t != reflect.TypeOf(StreamCallbackTimeInfo{}) {
-			return fmt.Errorf("invalid StreamCallback")
-		}
-		args[i] = reflect.ValueOf(&s.timeInfo).Elem()
-		i++
-	}
-	if i < nArgs {
-		t := t.In(i)
-		if t != reflect.TypeOf(StreamCallbackFlags(0)) {
-			return fmt.Errorf("invalid StreamCallback")
-		}
-		args[i] = reflect.ValueOf(&s.flags).Elem()
-		i++
-	}
-	if i < nArgs {
-		return fmt.Errorf("too many parameters in StreamCallback")
-	}
-	if t.NumOut() > 0 {
-		return fmt.Errorf("too many results in StreamCallback")
-	}
-	s.callback = fun
-	s.args = args
-	return nil
 }
 
 func (s *Stream) initBuffers(p StreamParameters, args ...interface{}) error {
@@ -829,49 +619,17 @@ func (s *Stream) Start() error {
 
 //export streamCallback
 func streamCallback(inputBuffer, outputBuffer unsafe.Pointer, frames C.ulong, timeInfo *C.PaStreamCallbackTimeInfo, statusFlags C.PaStreamCallbackFlags, userData unsafe.Pointer) {
-	defer func() {
-		// Don't let PortAudio silently swallow panics.
-		if x := recover(); x != nil {
-			buf := make([]byte, 1<<10)
-			for runtime.Stack(buf, true) == len(buf) {
-				buf = make([]byte, 2*len(buf))
-			}
-			fmt.Fprintf(os.Stderr, "panic in portaudio stream callback: %s\n\n%s", x, buf)
-			os.Exit(2)
-		}
-	}()
-
-	s := getStream(uintptr(userData))
-	s.timeInfo = StreamCallbackTimeInfo{duration(timeInfo.inputBufferAdcTime), duration(timeInfo.currentTime), duration(timeInfo.outputBufferDacTime)}
-	s.flags = StreamCallbackFlags(statusFlags)
-	updateBuffer(s.in, uintptr(inputBuffer), s.inParams, int(frames))
-	updateBuffer(s.out, uintptr(outputBuffer), s.outParams, int(frames))
-	s.callback.Call(s.args)
-}
-
-func updateBuffer(buf *reflect.SliceHeader, p uintptr, params *C.PaStreamParameters, frames int) {
-	if p == 0 {
-		return
-	}
-	if params.sampleFormat&C.paNonInterleaved == 0 {
-		setSlice(buf, p, frames*int(params.channelCount))
-	} else {
-		setChannels(buf, p, frames)
-	}
-}
-
-func setChannels(s *reflect.SliceHeader, p uintptr, frames int) {
-	for i := 0; i < s.Len; i++ {
-		buf := unsafe.Pointer(uintptr(unsafe.Pointer(s.Data)) + unsafe.Sizeof(reflect.SliceHeader{})*uintptr(i))
-		setSlice((*reflect.SliceHeader)(buf), *(*uintptr)(unsafe.Pointer(p)), frames)
-		p += unsafe.Sizeof(uintptr(0))
-	}
-}
-
-func setSlice(s *reflect.SliceHeader, data uintptr, n int) {
-	s.Data = data
-	s.Len = n
-	s.Cap = n
+	// defer func() {
+	// 	// Don't let PortAudio silently swallow panics.
+	// 	if x := recover(); x != nil {
+	// 		buf := make([]byte, 1<<10)
+	// 		for runtime.Stack(buf, true) == len(buf) {
+	// 			buf = make([]byte, 2*len(buf))
+	// 		}
+	// 		fmt.Fprintf(os.Stderr, "panic in portaudio stream callback: %s\n\n%s", x, buf)
+	// 		os.Exit(2)
+	// 	}
+	// }()
 }
 
 // Stop terminates audio processing. It waits until all pending
@@ -931,16 +689,6 @@ func (s *Stream) AvailableToRead() (int, error) {
 	return int(n), nil
 }
 
-// AvailableToWrite returns the number of frames that
-// can be written from the stream without waiting.
-func (s *Stream) AvailableToWrite() (int, error) {
-	n := C.Pa_GetStreamWriteAvailable(s.paStream)
-	if n < 0 {
-		return 0, newError(C.PaError(n))
-	}
-	return int(n), nil
-}
-
 // Read uses the buffer provided to OpenStream.
 // The number of samples to read is determined by the size of the buffer.
 func (s *Stream) Read() error {
@@ -955,22 +703,6 @@ func (s *Stream) Read() error {
 		return err
 	}
 	return newError(C.Pa_ReadStream(s.paStream, buf, C.ulong(frames)))
-}
-
-// Write uses the buffer provided to OpenStream.
-// The number of samples to write is determined by the size of the buffer.
-func (s *Stream) Write() error {
-	if s.callback.IsValid() {
-		return CanNotWriteToACallbackStream
-	}
-	if s.out == nil {
-		return CanNotWriteToAnInputOnlyStream
-	}
-	buf, frames, err := getBuffer(s.out, s.outParams)
-	if err != nil {
-		return err
-	}
-	return newError(C.Pa_WriteStream(s.paStream, buf, C.ulong(frames)))
 }
 
 func getBuffer(s *reflect.SliceHeader, p *C.PaStreamParameters) (unsafe.Pointer, int, error) {

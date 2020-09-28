@@ -4,11 +4,12 @@ import "math"
 
 // MovingWindow is a moving window
 type MovingWindow struct {
-	vals chan float64
-	sum  float64
+	vr   float64
+	sd   float64
+	mean float64
 	size float64
 	cap  float64
-	sd   float64
+	vals chan float64
 }
 
 // NewMovingWindow returns a new moving window
@@ -16,8 +17,6 @@ func NewMovingWindow(size int) *MovingWindow {
 
 	return &MovingWindow{
 		vals: make(chan float64, size),
-		sum:  0,
-		size: 0,
 		cap:  float64(size),
 	}
 }
@@ -26,31 +25,44 @@ func NewMovingWindow(size int) *MovingWindow {
 // The "hack" with this standard deviation is false and wrong
 // But idc. im just poking numbers right now.
 // I will do something proper later
-func (mw *MovingWindow) Update(newVal float64) (float64, float64) {
+func (mw *MovingWindow) Update(val float64) (float64, float64) {
 	if mw.size >= mw.cap {
-		val := <-mw.vals
-		mw.sum -= val
-		mw.size--
-		mw.sd -= math.Pow(val-mw.Mean(), 2)
+		mw.pushpop(val, <-mw.vals)
+		mw.vals <- val
+		return mw.mean, mw.sd
 	}
+
 	mw.size++
-	mw.sum += newVal
-	mw.sd += math.Pow(newVal-mw.Mean(), 2)
-	mw.vals <- newVal
-	return mw.Mean(), mw.StdDev()
+	mw.vals <- val
+	mw.pushpop(val, 0)
+	return mw.mean, mw.sd
+}
+
+func (mw *MovingWindow) pushpop(new, old float64) {
+	mw.sd = mw.mean + (new-old)/mw.size
+	mw.vr += (new - old) * (new - mw.sd + old - mw.mean) / (mw.size - 1)
+	mw.mean = mw.sd
+	mw.sd = math.Sqrt(mw.vr)
 }
 
 // Drop removes count items from the window
 func (mw *MovingWindow) Drop(count int) (float64, float64) {
-	var val float64
 	for cnt := 0; cnt < count && mw.size > 0; cnt++ {
-		val = <-mw.vals
-		mw.sum -= val
 		mw.size--
-		mw.sd -= math.Pow(val-mw.Mean(), 2)
+		// if we emptied out the window, set to 0 and return
+		if mw.size == 0 {
+			mw.vr = 0
+			mw.sd = 0
+			mw.mean = 0
+			// Get the last element out
+			<-mw.vals
+			return mw.mean, mw.sd
+		}
+
+		mw.pushpop(0, <-mw.vals)
 	}
 
-	return mw.Mean(), mw.StdDev()
+	return mw.mean, mw.sd
 }
 
 // Size returns how many items in the window
@@ -60,18 +72,10 @@ func (mw *MovingWindow) Size() int {
 
 // Mean is the moving window average
 func (mw *MovingWindow) Mean() float64 {
-	if mw.size == 0 {
-		return 0
-	}
-
-	return mw.sum / mw.size
+	return mw.mean
 }
 
 // StdDev is the moving average std
 func (mw *MovingWindow) StdDev() float64 {
-	if mw.size == 0 {
-		return 0
-	}
-
-	return math.Sqrt(mw.sd / mw.size)
+	return mw.sd
 }
