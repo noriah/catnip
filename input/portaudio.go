@@ -83,10 +83,10 @@ func (pa *Portaudio) init() error {
 				Channels: pa.frameSize,
 				Latency:  device.DefaultLowInputLatency,
 			},
-			SampleRate:      pa.sampleRate,
-			FramesPerBuffer: pa.sampleSize,
-			Flags:           portaudio.ClipOff | portaudio.DitherOff,
-		}, pa.sampleBuffer); err != nil {
+			SampleRate: pa.sampleRate,
+			// FramesPerBuffer: pa.sampleSize,
+			Flags: portaudio.ClipOff | portaudio.DitherOff,
+		}, &pa.sampleBuffer); err != nil {
 		return err
 	}
 
@@ -95,7 +95,7 @@ func (pa *Portaudio) init() error {
 
 // Buffer returns a slice to our buffer
 func (pa *Portaudio) Buffer() SampleBuffer {
-	return pa.sampleBuffer[:]
+	return pa.sampleBuffer
 }
 
 // ReadyRead returns the number of frames ready to read

@@ -16,7 +16,7 @@ const (
 )
 
 // binType is a type of each bin cutoff value
-type binType = int
+type binType = uint32
 
 // Spectrum is an audio spectrum in a buffer
 type Spectrum struct {
@@ -101,7 +101,7 @@ func (s *Spectrum) Recalculate(bars int, lo, hi float64) int {
 	s.numBars = bars
 
 	var (
-		bax  int     // bar position index (left to right on screen)
+		xBin int     // bin index
 		freq float64 // frequency for bar
 
 		bins float64 // float of total number of bins we are using
@@ -119,20 +119,20 @@ func (s *Spectrum) Recalculate(bars int, lo, hi float64) int {
 	hRate = s.sampleRate / 2.0
 	qSize = float64(s.sampleSize) / 4.0
 
-	for bax = 0; bax <= s.numBars; bax++ {
-		freq = (freqConst * -1) + ((float64(bax+1) / bins) * freqConst)
+	for xBin = 0; xBin <= s.numBars; xBin++ {
+		freq = (freqConst * -1) + ((float64(xBin+1) / bins) * freqConst * -1)
 		freq = hi * math.Pow(10.0, freq)
 		freq = freq / hRate
 		freq = freq / qSize
 
-		s.loCuts[bax] = binType(math.Floor(freq))
+		s.loCuts[xBin] = binType(math.Floor(freq))
 
-		if bax > 0 {
-			if s.loCuts[bax] <= s.loCuts[bax-1] {
-				s.loCuts[bax] = s.loCuts[bax-1] + 1
+		if xBin > 0 {
+			if s.loCuts[xBin] <= s.loCuts[xBin-1] {
+				s.loCuts[xBin] = s.loCuts[xBin-1] + 1
 			}
 
-			s.hiCuts[bax-1] = s.loCuts[bax-1]
+			s.hiCuts[xBin-1] = s.loCuts[xBin-1]
 		}
 	}
 
@@ -172,8 +172,8 @@ func (s *Spectrum) Generate(buf fftw.CmplxBuffer) {
 
 			barMag = 0
 
-			for cut = s.loCuts[bax]; cut <= s.hiCuts[bax] && cut < bl; cut++ {
-				barMag += pyt(buf[(cut*s.frameSize)+chx])
+			for cut = s.loCuts[bax]; cut <= s.hiCuts[bax] && cut < uint32(bl); cut++ {
+				barMag += pyt(buf[(int(cut)*s.frameSize)+chx])
 			}
 
 			barMag = barMag / float64(s.hiCuts[bax]-s.loCuts[bax]+1)
@@ -212,11 +212,12 @@ func (s *Spectrum) Scale(height int) {
 	for chx = 0; chx < s.frameSize; chx++ {
 		avg, sd = s.heightWindow[chx].Update(s.peakHeight[chx])
 
+		fmt.Println(avg, sd)
+
 		chHeight = math.Max(avg+(2*sd), 1.0)
 
 		for idx = chx; idx < s.numBars*s.frameSize+chx; idx += s.frameSize {
-
-			s.workBuffer[idx] = math.Min(mHeight-1, ((s.workBuffer[idx]/chHeight)*mHeight)-1)
+			s.workBuffer[idx] = ((s.workBuffer[idx] / chHeight) * mHeight) - 1
 		}
 	}
 }

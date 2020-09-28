@@ -40,7 +40,9 @@ func (mw *MovingWindow) Update(val float64) (float64, float64) {
 
 func (mw *MovingWindow) pushpop(new, old float64) {
 	mw.sd = mw.mean + (new-old)/mw.size
-	mw.vr += (new - old) * (new - mw.sd + old - mw.mean) / (mw.size - 1)
+	if mw.size >= 2 {
+		mw.vr += (new - old) * (new - mw.sd + old - mw.mean) / (mw.size - 1)
+	}
 	mw.mean = mw.sd
 	mw.sd = math.Sqrt(mw.vr)
 }
@@ -48,6 +50,8 @@ func (mw *MovingWindow) pushpop(new, old float64) {
 // Drop removes count items from the window
 func (mw *MovingWindow) Drop(count int) (float64, float64) {
 	for cnt := 0; cnt < count && mw.size > 0; cnt++ {
+		mw.pushpop(0, <-mw.vals)
+
 		mw.size--
 		// if we emptied out the window, set to 0 and return
 		if mw.size == 0 {
@@ -56,10 +60,8 @@ func (mw *MovingWindow) Drop(count int) (float64, float64) {
 			mw.mean = 0
 			// Get the last element out
 			<-mw.vals
-			return mw.mean, mw.sd
+			break
 		}
-
-		mw.pushpop(0, <-mw.vals)
 	}
 
 	return mw.mean, mw.sd
