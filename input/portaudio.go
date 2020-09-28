@@ -21,9 +21,7 @@ var (
 type Portaudio struct {
 	stream *portaudio.Stream // our input stream
 
-	sampleBuffer []SampleType // internal scratch buffer
-
-	subBuffer [][]SampleType
+	sampleBuffer SampleBuffer // internal scratch buffer
 
 	deviceName string  // name of device to look for
 	frameSize  int     // number of channels per frame
@@ -44,11 +42,6 @@ func NewPortaudio(pref Params) *Portaudio {
 		sampleRate:   pref.Rate,
 	}
 
-	pa.subBuffer = make([][]SampleType, pa.frameSize)
-
-	for idx := 0; idx < pa.frameSize; idx++ {
-		pa.subBuffer[idx] = make([]SampleType, pa.sampleSize)
-	}
 	if err := pa.init(); err != nil {
 		panic(err)
 	}
