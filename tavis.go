@@ -7,10 +7,8 @@ import (
 	"time"
 	"unsafe"
 
-	"github.com/noriah/tavis/analysis"
-	"github.com/noriah/tavis/analysis/fftw"
-	"github.com/noriah/tavis/input"
-	"github.com/noriah/tavis/input/portaudio"
+	"github.com/noriah/tavis/fftw"
+	"github.com/noriah/tavis/portaudio"
 )
 
 // BarType is the type of each bar value
@@ -71,12 +69,12 @@ func Run() error {
 	var (
 		err error
 
-		audioInput *input.Portaudio
+		audioInput *Portaudio
 
-		fftwBuffer fftw.CmplxBuffer
+		fftwBuffer []complex128
 		fftwPlan   *fftw.Plan // fftw plan
 
-		spectrum *analysis.Spectrum
+		spectrum *Spectrum
 
 		display *Display
 
@@ -93,7 +91,7 @@ func Run() error {
 		mainTicker *time.Ticker
 	)
 
-	audioInput = input.NewPortaudio(input.Params{
+	audioInput = NewPortaudio(Params{
 		Device:   DeviceName,
 		Channels: ChannelCount,
 		Rate:     SampleRate,
@@ -103,7 +101,7 @@ func Run() error {
 	tmpBuf := make(BarBuffer, BufferSize)
 
 	//FFTW complex data
-	fftwBuffer = make(fftw.CmplxBuffer, BufferSize)
+	fftwBuffer = make([]complex128, BufferSize)
 
 	audioBuf := audioInput.Buffer()
 
@@ -113,14 +111,23 @@ func Run() error {
 		ChannelCount, SampleSize,
 		fftw.Forward, fftw.Estimate)
 
-	display = &Display{}
+	// Make a spectrum
+	spectrum = &Spectrum{
+		sampleRate: SampleRate,
+		sampleSize: SampleSize,
+		frameSize:  ChannelCount,
+		dataBuf:    fftwBuffer,
+	}
+
+	panicOnError(spectrum.Init())
+
+	display = &Display{
+		dataBuf: spectrum.workBins,
+	}
 
 	panicOnError(display.Init())
 
-	barCount = display.SetWidths(1, 1)
-
-	// Make a spectrum
-	spectrum = analysis.NewSpectrum(SampleRate, SampleSize, ChannelCount)
+	barCount = display.SetWidths(2, 1)
 
 	// Set it up with our values
 	spectrum.Recalculate(barCount, LoCutFerq, HiCutFreq)
@@ -185,12 +192,12 @@ RunForRest: // , run!!!
 		}
 		winHeight = (winHeight / 2)
 
-		spectrum.Generate(fftwBuffer)
+		spectrum.Generate()
 		spectrum.Monstercat(MonstercatFactor)
 		spectrum.Scale(winHeight)
 		spectrum.Falloff(FalloffWeight)
 
-		display.Draw(spectrum.Bins())
+		display.Draw()
 		// fmt.Println(spectrum.Bins())
 
 		// since = time.Since(last)
