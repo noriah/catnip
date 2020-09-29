@@ -2,10 +2,10 @@ package tavis
 
 import (
 	"context"
-	"fmt"
 	"os"
 	"os/signal"
 	"time"
+	"unsafe"
 
 	"github.com/noriah/tavis/analysis"
 	"github.com/noriah/tavis/analysis/fftw"
@@ -15,6 +15,18 @@ import (
 
 // BarType is the type of each bar value
 type BarType = float64
+
+// BarBuffer is a slice of CmplxType
+type BarBuffer []BarType
+
+// Ptr returns a pointer for use with CGO
+func (cb BarBuffer) Ptr(n ...int) unsafe.Pointer {
+	if len(n) > 0 {
+		return unsafe.Pointer(&cb[n[0]])
+	}
+
+	return unsafe.Pointer(&cb[0])
+}
 
 // constants for testing
 const (
@@ -62,14 +74,14 @@ func Run() error {
 
 		spectrum *analysis.Spectrum
 
-		// display *Display
+		display *Display
 
 		rootCtx    context.Context
 		rootCancel context.CancelFunc
 
-		// barCount int
+		barCount int
 
-		// winHeight int
+		winHeight int
 
 		// last       time.Time // last tick time
 		// since      time.Duration
@@ -83,26 +95,30 @@ func Run() error {
 		Samples:  SampleSize,
 	})
 
+	tmpBuf := make(BarBuffer, BufferSize)
+
 	//FFTW complex data
 	fftwBuffer = make(fftw.CmplxBuffer, BufferSize)
 
+	audioBuf := audioInput.Buffer()
+
 	// Our FFTW calculator
 	fftwPlan = fftw.New(
-		audioInput.Buffer(), fftwBuffer,
+		tmpBuf, fftwBuffer,
 		ChannelCount, SampleSize,
 		fftw.Forward, fftw.Estimate)
 
-	// display = &Display{}
+	display = &Display{}
 
-	// panicOnError(display.Init())
+	panicOnError(display.Init())
 
-	// barCount = display.SetWidths(1, 1)
+	barCount = display.SetWidths(1, 1)
 
 	// Make a spectrum
 	spectrum = analysis.NewSpectrum(SampleRate, SampleSize, ChannelCount)
 
 	// Set it up with our values
-	spectrum.Recalculate(20, LoCutFerq, HiCutFreq)
+	spectrum.Recalculate(barCount, LoCutFerq, HiCutFreq)
 
 	rootCtx, rootCancel = context.WithCancel(context.Background())
 
@@ -124,10 +140,10 @@ func Run() error {
 
 	// MAIN LOOP
 
-	// display.Start()
+	display.Start()
 
-	// _, winHeight = display.Size()
-	// winHeight = (winHeight / 2) - 5
+	_, winHeight = display.Size()
+	winHeight = (winHeight / 2) - 5
 
 	audioInput.Start()
 
@@ -149,15 +165,18 @@ RunForRest: // , run!!!
 				}
 			}
 
-			fftwPlan.Execute()
+			for x := 0; x < len(tmpBuf); x++ {
+				tmpBuf[x] = float64(audioBuf[x])
+			}
 		}
+		fftwPlan.Execute()
 
 		spectrum.Generate(fftwBuffer)
 		spectrum.Scale(10)
 		// fmt.Println(fftwBuffer[:80])
 		// fmt.Println(audioInput.Buffer()[:80])
-		fmt.Println(spectrum.Bins())
-		// display.Draw(spectrum.Bins(), ChannelCount)
+		// fmt.Println(spectrum.Bins())
+		display.Draw(spectrum.Bins(), ChannelCount)
 		// fmt.Println(spectrum.Bins())
 
 		// since = time.Since(last)

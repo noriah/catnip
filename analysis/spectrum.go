@@ -16,12 +16,12 @@ const (
 )
 
 // binType is a type of each bin cutoff value
-type binType = uint32
+type binType = int
 
 // Spectrum is an audio spectrum in a buffer
 type Spectrum struct {
 	maxBars int
-	numBars int
+	numBins int
 
 	// sampleSize is the number of frames per sample
 	sampleSize int
@@ -63,7 +63,7 @@ func (s *Spectrum) init() error {
 
 	s.workBuffer = make([]float64, s.maxBars*s.frameSize)
 
-	winMax := int((AutoScalingSeconds*s.sampleRate)/float64(s.sampleSize)) * 2
+	winMax := int((AutoScalingSeconds * s.sampleRate) / float64(s.sampleSize))
 
 	s.heightWindow = make([]*util.MovingWindow, s.frameSize)
 	s.peakHeight = make([]float64, s.frameSize)
@@ -88,7 +88,7 @@ func (s *Spectrum) Print() {
 
 // Bins returns a slice of only the bins we are expecting to process
 func (s *Spectrum) Bins() []float64 {
-	var bars int = s.numBars * s.frameSize
+	var bars int = s.numBins * s.frameSize
 	return s.workBuffer[:bars:bars]
 }
 
@@ -98,34 +98,27 @@ func (s *Spectrum) Recalculate(bars int, lo, hi float64) int {
 		bars = s.maxBars
 	}
 
-	s.numBars = bars
+	s.numBins = bars
 
 	var (
-		xBin int     // bin index
-		freq float64 // frequency for bar
+		cBins float64 // bin count constant
+		cFreq float64 // frequency step constant
 
-		bins float64 // float of total number of bins we are using
+		xBin int // bin index
 
-		freqConst float64
-
-		hRate float64
-		qSize float64
+		vFreq float64 // frequency variable
 	)
 
-	bins = float64(s.numBars + 1.0)
+	cBins = float64(s.numBins + 1.0)
 
-	freqConst = math.Log10(lo/hi) / ((1.0 / bins) - 1.0)
+	cFreq = math.Log10(lo/hi) / ((1.0 / cBins) - 1.0)
 
-	hRate = s.sampleRate / 2.0
-	qSize = float64(s.sampleSize) / 4.0
+	for xBin = 0; xBin <= s.numBins; xBin++ {
+		vFreq = (cFreq) + ((float64(xBin+1) / cBins) * cFreq)
+		vFreq = hi * math.Pow(10.0, vFreq)
+		vFreq = (vFreq / (s.sampleRate / 2.0)) / (float64(s.sampleSize) / 4.0)
 
-	for xBin = 0; xBin <= s.numBars; xBin++ {
-		freq = (freqConst * -1) + ((float64(xBin+1) / bins) * freqConst * -1)
-		freq = hi * math.Pow(10.0, freq)
-		freq = freq / hRate
-		freq = freq / qSize
-
-		s.loCuts[xBin] = binType(math.Floor(freq))
+		s.loCuts[xBin] = binType(math.Floor(vFreq))
 
 		if xBin > 0 {
 			if s.loCuts[xBin] <= s.loCuts[xBin-1] {
@@ -136,53 +129,54 @@ func (s *Spectrum) Recalculate(bars int, lo, hi float64) int {
 		}
 	}
 
-	return s.numBars
+	return s.numBins
 }
 
-// Generate makes numBars and dumps them in the buffer
+// Generate makes numBins and dumps them in the buffer
 func (s *Spectrum) Generate(buf fftw.CmplxBuffer) {
 
 	var (
 
 		// Indexes
 
-		bax   int // Bar Index
-		chx   int // Channel Index
-		chidx int // Buffer Channel Index
+		xBin int // bin index
+		xChn int // channel Index
+		xBuf int // buffer Index
+
+		xFreq binType // frequency index
 
 		bl int // Number of samples in buf
 
-		cut    binType // Frequency Cut
 		barMag float64 // Frequency Magnitude
 		boost  float64 // Boost Factor
 	)
 
 	bl = len(buf) / s.frameSize
 
-	for chx = 0; chx < s.frameSize; chx++ {
-		s.peakHeight[chx] = 1
+	for xChn = 0; xChn < s.frameSize; xChn++ {
+		s.peakHeight[xChn] = 1
 	}
 
-	for chx = 0; chx < s.frameSize; chx++ {
+	for xChn = 0; xChn < s.frameSize; xChn++ {
 
-		for bax = 0; bax < s.numBars; bax++ {
-			chidx = (bax * s.frameSize) + chx
+		for xBin = 0; xBin < s.numBins; xBin++ {
+			xBuf = (xBin * s.frameSize) + xChn
 
-			boost = math.Log2(float64(2+bax)) * (100.0 / float64(s.numBars))
+			boost = math.Log2(float64(2+xBin)) * (100.0 / float64(s.numBins))
 
 			barMag = 0
 
-			for cut = s.loCuts[bax]; cut <= s.hiCuts[bax] && cut < uint32(bl); cut++ {
-				barMag += pyt(buf[(int(cut)*s.frameSize)+chx])
+			for xFreq = s.loCuts[xBin]; xFreq <= s.hiCuts[xBin] && xFreq < binType(bl); xFreq++ {
+				barMag = barMag + pyt(buf[(int(xFreq)*s.frameSize)+xChn])
 			}
 
-			barMag = barMag / float64(s.hiCuts[bax]-s.loCuts[bax]+1)
+			barMag = barMag / float64(s.hiCuts[xBin]-s.loCuts[xBin]+1)
 			barMag = barMag * boost
 
-			s.workBuffer[chidx] = math.Pow(barMag, 0.5)
+			s.workBuffer[xBuf] = math.Pow(barMag, 0.5)
 
-			if s.workBuffer[chidx] > s.peakHeight[chx] {
-				s.peakHeight[chx] = s.workBuffer[chidx]
+			if s.workBuffer[xBuf] > s.peakHeight[xChn] {
+				s.peakHeight[xChn] = s.workBuffer[xBuf]
 			}
 		}
 	}
@@ -195,64 +189,60 @@ func pyt(val fftw.CmplxType) float64 {
 // Scale scales the data
 func (s *Spectrum) Scale(height int) {
 	var (
-		idx int
-		chx int
-		// bix int
+		xBin  int // bin index
+		xChan int // channel index
 
-		mHeight float64
+		cHeight float64 // window half height constant
 
-		chHeight float64
-
-		avg float64
-		sd  float64
+		vMag  float64 // magnitude variable
+		vMean float64 // average variable
+		vSD   float64 // standard deviation variable
 	)
 
-	mHeight = float64(height)
+	cHeight = float64(height)
 
-	for chx = 0; chx < s.frameSize; chx++ {
-		avg, sd = s.heightWindow[chx].Update(s.peakHeight[chx])
+	for xChan = 0; xChan < s.frameSize; xChan++ {
+		vMean, vSD = s.heightWindow[xChan].Update(s.peakHeight[xChan])
 
-		fmt.Println(avg, sd)
+		vMag = math.Max(vMean+(2*vSD), 1.0)
 
-		chHeight = math.Max(avg+(2*sd), 1.0)
-
-		for idx = chx; idx < s.numBars*s.frameSize+chx; idx += s.frameSize {
-			s.workBuffer[idx] = ((s.workBuffer[idx] / chHeight) * mHeight) - 1
+		for xBin = xChan; xBin < s.numBins*s.frameSize+xChan; xBin += s.frameSize {
+			s.workBuffer[xBin] = math.Min(cHeight-1, ((s.workBuffer[xBin]/vMag)*cHeight)-1)
 		}
 	}
 }
 
 // func (s *Spectrum)
 
-// if bax > 0 {
+// if xBin > 0 {
 
-// 	for pass = bax - 1; pass >= 0; pass-- {
-// 		tmp = s.workBuffer[chidx] / math.Pow(factor, float64(bax-pass))
-// 		if tmp > s.workBuffer[chidx] {
-// 			s.workBuffer[chidx] = tmp
+// 	for pass = xBin - 1; pass >= 0; pass-- {
+// 		tmp = s.workBuffer[xBuf] / math.Pow(factor, float64(xBin-pass))
+// 		if tmp > s.workBuffer[xBuf] {
+// 			s.workBuffer[xBuf] = tmp
 // 		}
 // 	}
 
-// 	for pass = bax + 1; pass < s.numBars; pass++ {
-// 		tmp = s.workBuffer[chidx] / math.Pow(factor, float64(pass-bax))
-// 		if tmp > s.workBuffer[chidx] {
-// 			s.workBuffer[chidx] = tmp
+// 	for pass = xBin + 1; pass < s.numBins; pass++ {
+// 		tmp = s.workBuffer[xBuf] / math.Pow(factor, float64(pass-xBin))
+// 		if tmp > s.workBuffer[xBuf] {
+// 			s.workBuffer[xBuf] = tmp
 // 		}
 // 	}
 // }
 
-// for chx = 0; chx < s.frameSize; chx++ {
+// for xChn = 0; xChn < s.frameSize; xChn++ {
 
-// 	barMag, stddev = s.heightWindow[chx].Update(s.peakHeight[chx])
+// 	barMag, stddev = s.heightWindow[xChn].Update(s.peakHeight[xChn])
 
-// 	s.peakHeight[chx] = math.Max(barMag+(2*stddev), 1)
+// 	s.peakHeight[xChn] = math.Max(barMag+(2*stddev), 1)
 
-// 	for bax = 0; bax < s.numBars; bax++ {
-// 		chidx = (bax * s.frameSize) + chx
+// 	for xBin = 0; xBin < s.numBins; xBin++ {
+// 		xBuf = (xBin * s.frameSize) + xChn
 
-// 		tmp = (s.workBuffer[chidx] / s.peakHeight[chx]) * boost
+// 		tmp = (s.workBuffer[xBuf] / s.peakHeight[xChn]) * boost
 
-// 		s.barBuffer[chidx] = BarType(tmp)
+// 		s.barBuffer[xBuf] = BarType(tmp)
 
 // 	}
 // }
