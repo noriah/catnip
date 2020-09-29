@@ -17,6 +17,7 @@ var directions = [2]int{1, -1}
 // Display handles drawing our visualizer
 type Display struct {
 	screen     tcell.Screen
+	dataBuf    []float64
 	barWidth   int
 	spaceWidth int
 }
@@ -113,7 +114,7 @@ func (d *Display) Size() (int, int) {
 }
 
 // Draw takes data, and draws
-func (d *Display) Draw(buf []float64) error {
+func (d *Display) Draw() error {
 	var (
 		totalHeight int
 		totalWidth  int
@@ -148,11 +149,11 @@ func (d *Display) Draw(buf []float64) error {
 
 		vBin = (xCol / barSpaceWidth) * chans
 
-		if vBin >= len(buf) {
+		if vBin >= len(d.dataBuf) {
 			break
 		}
 
-		xRow = center - int(buf[vBin])
+		xRow = center - int(d.dataBuf[vBin])
 
 		for target = center; xRow < target; xRow++ {
 			d.screen.SetContent(xCol, xRow, DisplayBar, nil, tcell.StyleDefault)
@@ -161,7 +162,7 @@ func (d *Display) Draw(buf []float64) error {
 		vBin++
 		xRow++
 
-		for target = center + int(buf[vBin]); xRow <= target; xRow++ {
+		for target = center + int(d.dataBuf[vBin]); xRow <= target; xRow++ {
 			d.screen.SetContent(xCol, xRow, DisplayBar, nil, tcell.StyleDefault)
 		}
 	}

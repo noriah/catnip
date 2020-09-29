@@ -14,28 +14,6 @@ import (
 	"unsafe"
 )
 
-// Buffer describes an object that can have `Ptr` called on it.
-// it should be a slice or other object that would be contiguous in C
-type Buffer interface {
-	Ptr(...int) unsafe.Pointer
-}
-
-// CmplxType is a type used for FFTW complex
-// it should be `complex128` but we can play with it
-type CmplxType = complex128
-
-// CmplxBuffer is a slice of CmplxType
-type CmplxBuffer []CmplxType
-
-// Ptr returns a pointer for use with CGO
-func (cb CmplxBuffer) Ptr(n ...int) unsafe.Pointer {
-	if len(n) > 0 {
-		return unsafe.Pointer(&cb[n[0]])
-	}
-
-	return unsafe.Pointer(&cb[0])
-}
-
 // Direction is an FFTW direction of operation flag
 type Direction int
 
@@ -72,10 +50,10 @@ func (p *Plan) Destroy() {
 }
 
 // New returns a new FFTW Plan for use with FFTW
-func New(in, out Buffer, d0, d1 int, dir Direction, flag Flag) *Plan {
+func New(in []float64, out []complex128, d0, d1 int, dir Direction, flag Flag) *Plan {
 	var (
-		inC  = (*C.double)(in.Ptr())
-		outC = (*C.fftw_complex)(out.Ptr())
+		inC  = (*C.double)(unsafe.Pointer(&in[0]))
+		outC = (*C.fftw_complex)(unsafe.Pointer(&out[0]))
 		d0C  = C.int(d0)
 		d1C  = C.int(d1)
 		// dirC  = C.int(dir)

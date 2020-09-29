@@ -1,10 +1,9 @@
-package analysis
+package tavis
 
 import (
 	"fmt"
 	"math"
 
-	"github.com/noriah/tavis/analysis/fftw"
 	"github.com/noriah/tavis/util"
 )
 
@@ -16,9 +15,6 @@ const (
 
 	MaxBars = 1024
 )
-
-// binType is a type of each bin cutoff value
-type binType = int
 
 // Spectrum is an audio spectrum in a buffer
 type Spectrum struct {
@@ -37,32 +33,19 @@ type Spectrum struct {
 	// winMax is the maximum number of values in our sliding window
 	winMax int
 
+	dataBuf []complex128
+
 	workBins []float64
 
 	heightWindow []*util.MovingWindow
 	peakHeight   []float64
 
-	loCuts []binType
-	hiCuts []binType
-}
-
-// NewSpectrum returns a new Spectrum
-func NewSpectrum(rate float64, samples, frame int) *Spectrum {
-	var newSpectrum *Spectrum = &Spectrum{
-		sampleRate: rate,
-		sampleSize: samples,
-		frameSize:  frame,
-	}
-
-	if err := newSpectrum.init(); err != nil {
-		panic(err)
-	}
-
-	return newSpectrum
+	loCuts []int
+	hiCuts []int
 }
 
 // Init will set up our spectrum
-func (s *Spectrum) init() error {
+func (s *Spectrum) Init() error {
 
 	s.maxBars = MaxBars
 
@@ -77,8 +60,8 @@ func (s *Spectrum) init() error {
 		s.heightWindow[idx] = util.NewMovingWindow(s.winMax)
 	}
 
-	s.loCuts = make([]binType, s.maxBars+1)
-	s.hiCuts = make([]binType, s.maxBars+1)
+	s.loCuts = make([]int, s.maxBars+1)
+	s.hiCuts = make([]int, s.maxBars+1)
 
 	s.Recalculate(s.maxBars, 20, s.sampleRate/2)
 
@@ -118,12 +101,14 @@ func (s *Spectrum) Recalculate(bars int, lo, hi float64) int {
 
 	cFreq = math.Log10(lo/hi) / ((1.0 / cBins) - 1.0)
 
+	// so this came from dpayne/cli-visualizer
+	// until i can find a different solution
 	for xBin = 0; xBin <= s.numBins; xBin++ {
 		vFreq = (cFreq) + ((float64(xBin+1) / cBins) * cFreq)
 		vFreq = hi * math.Pow(10.0, vFreq)
-		vFreq = vFreq / (s.sampleRate / 2.0) / (float64(s.sampleSize) / 4.0)
+		vFreq = (vFreq / (s.sampleRate / 2.0)) / (float64(s.sampleSize) / 4.0)
 
-		s.loCuts[xBin] = binType(math.Floor(vFreq))
+		s.loCuts[xBin] = int(math.Floor(vFreq))
 
 		if xBin > 0 {
 			if s.loCuts[xBin] <= s.loCuts[xBin-1] {
@@ -138,7 +123,7 @@ func (s *Spectrum) Recalculate(bars int, lo, hi float64) int {
 }
 
 // Generate makes numBins and dumps them in the buffer
-func (s *Spectrum) Generate(buf fftw.CmplxBuffer) {
+func (s *Spectrum) Generate() {
 
 	var (
 
@@ -148,46 +133,40 @@ func (s *Spectrum) Generate(buf fftw.CmplxBuffer) {
 		xChn int // channel Index
 		xBuf int // buffer Index
 
-		xFreq binType // frequency index
+		xFreq int // frequency index
 
-		bl int // Number of samples in buf
-
-		barMag float64 // Frequency Magnitude
-		boost  float64 // Boost Factor
+		vMag  float64 // Frequency Magnitude variable
+		boost float64 // Boost Factor
 	)
-
-	bl = len(buf) / s.frameSize
 
 	for xChn = 0; xChn < s.frameSize; xChn++ {
 		s.peakHeight[xChn] = 0.125
 	}
 
-	for xChn = 0; xChn < s.frameSize; xChn++ {
+	for xBuf = 0; xBuf < BufferSize; xBuf++ {
+		xBin = (xBuf / s.frameSize)
+		xChn = (xBuf % s.frameSize)
 
-		for xBin = 0; xBin < s.numBins; xBin++ {
-			xBuf = (xBin * s.frameSize) + xChn
+		boost = math.Log2(float64(2+xBuf)) * (100.0 / float64(s.numBins))
 
-			boost = math.Log2(float64(2+xBin)) * (100.0 / float64(s.numBins))
+		vMag = 0
 
-			barMag = 0
+		for xFreq = s.loCuts[xBin]; xFreq <= s.hiCuts[xBin]; xFreq++ {
+			vMag += pyt(s.dataBuf[xBuf])
+		}
 
-			for xFreq = s.loCuts[xBin]; xFreq <= s.hiCuts[xBin] && xFreq < binType(bl); xFreq++ {
-				barMag = barMag + pyt(buf[(int(xFreq)*s.frameSize)+xChn])
-			}
+		vMag = vMag / float64(s.hiCuts[xBin]-s.loCuts[xBin]+1)
+		vMag = vMag * boost
 
-			barMag = barMag / float64(s.hiCuts[xBin]-s.loCuts[xBin]+1)
-			barMag = barMag * boost
+		s.workBins[xBuf] = math.Pow(vMag, 0.5)
 
-			s.workBins[xBuf] = math.Pow(barMag, 0.5)
-
-			if s.workBins[xBuf] > s.peakHeight[xChn] {
-				s.peakHeight[xChn] = s.workBins[xBuf]
-			}
+		if s.workBins[xBuf] > s.peakHeight[xChn] {
+			s.peakHeight[xChn] = s.workBins[xBuf]
 		}
 	}
 }
 
-func pyt(val fftw.CmplxType) float64 {
+func pyt(val complex128) float64 {
 	return math.Sqrt((real(val) * real(val)) + (imag(val) * imag(val)))
 }
 

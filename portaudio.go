@@ -1,4 +1,4 @@
-package input
+package tavis
 
 import (
 	"context"
@@ -7,7 +7,7 @@ import (
 	"strings"
 	"unsafe"
 
-	"github.com/noriah/tavis/input/portaudio"
+	"github.com/noriah/tavis/portaudio"
 )
 
 // errors
@@ -57,8 +57,7 @@ type Portaudio struct {
 // NewPortaudio returns a new portaudio input
 func NewPortaudio(pref Params) *Portaudio {
 
-	var sze int = pref.Samples + (2 - pref.Samples%2)
-	sze = sze * pref.Channels
+	var sze int = pref.Samples * pref.Channels
 
 	var newBuf SampleBuffer = make(SampleBuffer, sze)
 
