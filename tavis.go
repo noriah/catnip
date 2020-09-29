@@ -13,6 +13,19 @@ import (
 	"github.com/noriah/tavis/input/portaudio"
 )
 
+type Dimension struct {
+	Value int
+}
+
+func (d *Dimension) Update(val int) bool {
+	if d.Value != val {
+		d.Value = val
+		return true
+	}
+
+	return false
+}
+
 // BarType is the type of each bar value
 type BarType = float64
 
@@ -36,9 +49,13 @@ const (
 	// SampleRate is the rate at which samples are read
 	SampleRate = 48000
 
-	LoCutFerq = 220
+	LoCutFerq = 380
 
-	HiCutFreq = 6000
+	HiCutFreq = 5000
+
+	MonstercatFactor = 1.83
+
+	FalloffWeight = 0.921
 
 	// TargetFPS is how fast we want to redraw. Play with it
 	TargetFPS = 60
@@ -81,11 +98,14 @@ func Run() error {
 
 		barCount int
 
+		winWidth  int
 		winHeight int
 
 		// last       time.Time // last tick time
 		// since      time.Duration
 		mainTicker *time.Ticker
+
+		tmpWidth *Dimension
 	)
 
 	audioInput = input.NewPortaudio(input.Params{
@@ -112,15 +132,20 @@ func Run() error {
 
 	panicOnError(display.Init())
 
-	barCount = display.SetWidths(1, 1)
+	barCount = display.SetWidths(2, 1)
 
 	// Make a spectrum
 	spectrum = analysis.NewSpectrum(SampleRate, SampleSize, ChannelCount)
+
+	tmpWidth = &Dimension{barCount}
 
 	// Set it up with our values
 	spectrum.Recalculate(barCount, LoCutFerq, HiCutFreq)
 
 	rootCtx, rootCancel = context.WithCancel(context.Background())
+
+	// TODO(noriah): remove temprorary variables
+	displayChan := make(chan bool, 1)
 
 	// Handle fanout of cancel
 	go func() {
@@ -132,6 +157,7 @@ func Run() error {
 
 		select {
 		case <-rootCtx.Done():
+		case <-displayChan:
 		case <-endSig:
 		}
 
@@ -140,10 +166,7 @@ func Run() error {
 
 	// MAIN LOOP
 
-	display.Start()
-
-	_, winHeight = display.Size()
-	winHeight = (winHeight / 2)
+	display.Start(displayChan)
 
 	audioInput.Start()
 
@@ -171,13 +194,19 @@ RunForRest: // , run!!!
 		}
 		fftwPlan.Execute()
 
+		winWidth, winHeight = display.Size()
+
+		if tmpWidth.Update(winWidth) {
+			spectrum.Recalculate(winWidth, LoCutFerq, HiCutFreq)
+		}
+		winHeight = (winHeight / 2)
+
 		spectrum.Generate(fftwBuffer)
+		spectrum.Monstercat(MonstercatFactor)
 		spectrum.Scale(winHeight)
-		spectrum.Monstercat(1.6)
-		// fmt.Println(fftwBuffer[:80])
-		// fmt.Println(audioInput.Buffer()[:80])
-		// fmt.Println(spectrum.Bins())
-		display.Draw(spectrum.Bins(), ChannelCount)
+		spectrum.Falloff(FalloffWeight)
+
+		display.Draw(spectrum.Bins())
 		// fmt.Println(spectrum.Bins())
 
 		// since = time.Since(last)
@@ -192,9 +221,9 @@ RunForRest: // , run!!!
 
 	audioInput.Stop()
 
-	// display.Stop()
+	display.Stop()
 
-	// display.Close()
+	display.Close()
 
 	mainTicker.Stop()
 

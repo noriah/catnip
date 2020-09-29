@@ -1,8 +1,6 @@
 package tavis
 
 import (
-	"os"
-
 	"github.com/gdamore/tcell/v2"
 )
 
@@ -46,12 +44,15 @@ func (d *Display) Init() error {
 }
 
 // Start display is bad
-func (d *Display) Start() error {
+func (d *Display) Start(endCh chan<- bool) error {
 	go func() {
 		var ev tcell.Event
 		for ev = d.screen.PollEvent(); ev != nil; ev = d.screen.PollEvent() {
-			d.HandleEvent(ev)
+			if d.HandleEvent(ev) {
+				break
+			}
 		}
+		endCh <- true
 	}()
 
 	return nil
@@ -62,7 +63,7 @@ func (d *Display) HandleEvent(ev tcell.Event) bool {
 	case *tcell.EventKey:
 		switch ev.Key() {
 		case tcell.KeyCtrlC:
-			os.Interrupt.Signal()
+			return true
 		default:
 
 		}
@@ -98,7 +99,6 @@ func (d *Display) Bars() int {
 	var width, _ int = d.screen.Size()
 	var perBar int = d.barWidth + d.spaceWidth
 
-	width = width + d.spaceWidth
 	width = width / perBar
 
 	return width
@@ -112,48 +112,50 @@ func (d *Display) Size() (int, int) {
 }
 
 // Draw takes data, and draws
-func (d *Display) Draw(buf []float64, ch int) error {
+func (d *Display) Draw(buf []float64) error {
 	var (
 		totalHeight int
-		totalBars   int
-
-		centerHeight int
+		totalWidth  int
 
 		barSpaceWidth int
 
-		bax     int // bar index
-		rox     int
-		col     int
-		chx     int
-		bHeight int
-		dir     int
+		xCol int
+		xRow int
+
+		vBin int
 	)
 
-	totalBars, totalHeight = d.Size()
+	totalWidth, totalHeight = d.screen.Size()
 
 	barSpaceWidth = d.barWidth + d.spaceWidth
 
-	centerHeight = totalHeight / ch
+	// temporary
+	var center int = totalHeight / 2
+	if center%2 == 0 {
+		center--
+	}
+	var target int
+	var offset int = 0
+	var chans int = 2
 
-	// Please do not do this.
-	// Seriously.
-	// Do not.
-	for chx = 0; chx < ch; chx++ {
-		dir = directions[chx%2]
-		for bax = 0; bax < totalBars; bax++ {
-			for col = (bax * barSpaceWidth); col < (bax*barSpaceWidth + d.barWidth); col++ {
-				bHeight = int(buf[bax*ch+chx])
-				if bHeight < 1 {
-					bHeight = 1
-				}
-				for rox = 0; rox < bHeight; rox++ {
+	for xCol = offset; xCol < totalWidth; xCol++ {
+		d.screen.SetContent(xCol, center, DisplayBar, nil, tcell.StyleDefault)
+		if (xCol%barSpaceWidth)/d.barWidth > 0 {
+			continue
+		}
 
-					d.screen.SetContent(
-						bax*barSpaceWidth, centerHeight-(dir*rox),
-						DisplayBar, nil, tcell.StyleDefault)
-				}
+		vBin = (xCol / barSpaceWidth) * chans
 
-			}
+		xRow = center - int(buf[vBin])
+
+		for target = center; xRow < target; xRow++ {
+			d.screen.SetContent(xCol, xRow, DisplayBar, nil, tcell.StyleDefault)
+		}
+
+		vBin++
+
+		for target = center + int(buf[vBin]); xRow < target; xRow++ {
+			d.screen.SetContent(xCol, xRow, DisplayBar, nil, tcell.StyleDefault)
 		}
 	}
 
