@@ -221,6 +221,7 @@ func (s *Spectrum) Scale(height int) {
 	}
 }
 
+// Monstercat is not entirely understood yet.
 func (s *Spectrum) Monstercat(factor float64) {
 
 	var (
@@ -248,6 +249,7 @@ func (s *Spectrum) Monstercat(factor float64) {
 	}
 }
 
+// Falloff is a simple falloff function
 func (s *Spectrum) Falloff(weight float64) {
 	var (
 		xBin int
@@ -259,34 +261,3 @@ func (s *Spectrum) Falloff(weight float64) {
 		s.workBins[xBin] = math.Max(vMag, s.workBins[xBin])
 	}
 }
-
-// 	for pass = xBin - 1; pass >= 0; pass-- {
-// 		tmp = s.workBins[xBuf] / math.Pow(factor, float64(xBin-pass))
-// 		if tmp > s.workBins[xBuf] {
-// 			s.workBins[xBuf] = tmp
-// 		}
-// 	}
-
-// 	for pass = xBin + 1; pass < s.numBins; pass++ {
-// 		tmp = s.workBins[xBuf] / math.Pow(factor, float64(pass-xBin))
-// 		if tmp > s.workBins[xBuf] {
-// 			s.workBins[xBuf] = tmp
-// 		}
-// 	}
-// }
-
-// for xChn = 0; xChn < s.frameSize; xChn++ {
-
-// 	barMag, stddev = s.heightWindow[xChn].Update(s.peakHeight[xChn])
-
-// 	s.peakHeight[xChn] = math.Max(barMag+(2*stddev), 1)
-
-// 	for xBin = 0; xBin < s.numBins; xBin++ {
-// 		xBuf = (xBin * s.frameSize) + xChn
-
-// 		tmp = (s.workBins[xBuf] / s.peakHeight[xChn]) * boost
-
-// 		s.barBuffer[xBuf] = BarType(tmp)
-
-// 	}
-// }

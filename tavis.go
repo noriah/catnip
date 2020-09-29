@@ -13,19 +13,6 @@ import (
 	"github.com/noriah/tavis/input/portaudio"
 )
 
-type Dimension struct {
-	Value int
-}
-
-func (d *Dimension) Update(val int) bool {
-	if d.Value != val {
-		d.Value = val
-		return true
-	}
-
-	return false
-}
-
 // BarType is the type of each bar value
 type BarType = float64
 
@@ -49,13 +36,13 @@ const (
 	// SampleRate is the rate at which samples are read
 	SampleRate = 48000
 
-	LoCutFerq = 380
+	LoCutFerq = 220
 
-	HiCutFreq = 5000
+	HiCutFreq = 6000
 
-	MonstercatFactor = 1.83
+	MonstercatFactor = 3.64
 
-	FalloffWeight = 0.921
+	FalloffWeight = 0.910
 
 	// TargetFPS is how fast we want to redraw. Play with it
 	TargetFPS = 60
@@ -104,8 +91,6 @@ func Run() error {
 		// last       time.Time // last tick time
 		// since      time.Duration
 		mainTicker *time.Ticker
-
-		tmpWidth *Dimension
 	)
 
 	audioInput = input.NewPortaudio(input.Params{
@@ -132,12 +117,10 @@ func Run() error {
 
 	panicOnError(display.Init())
 
-	barCount = display.SetWidths(2, 1)
+	barCount = display.SetWidths(1, 1)
 
 	// Make a spectrum
 	spectrum = analysis.NewSpectrum(SampleRate, SampleSize, ChannelCount)
-
-	tmpWidth = &Dimension{barCount}
 
 	// Set it up with our values
 	spectrum.Recalculate(barCount, LoCutFerq, HiCutFreq)
@@ -196,8 +179,9 @@ RunForRest: // , run!!!
 
 		winWidth, winHeight = display.Size()
 
-		if tmpWidth.Update(winWidth) {
-			spectrum.Recalculate(winWidth, LoCutFerq, HiCutFreq)
+		if barCount != winWidth {
+			barCount = winWidth
+			spectrum.Recalculate(barCount, LoCutFerq, HiCutFreq)
 		}
 		winHeight = (winHeight / 2)
 
