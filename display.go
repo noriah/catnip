@@ -58,6 +58,7 @@ func (d *Display) Start(endCh chan<- bool) error {
 	return nil
 }
 
+// HandleEvent will take events and do things with them
 func (d *Display) HandleEvent(ev tcell.Event) bool {
 	switch ev := ev.(type) {
 	case *tcell.EventKey:
@@ -139,12 +140,17 @@ func (d *Display) Draw(buf []float64) error {
 	var chans int = 2
 
 	for xCol = offset; xCol < totalWidth; xCol++ {
-		d.screen.SetContent(xCol, center, DisplayBar, nil, tcell.StyleDefault)
 		if (xCol%barSpaceWidth)/d.barWidth > 0 {
 			continue
 		}
 
+		d.screen.SetContent(xCol, center, DisplayBar, nil, tcell.StyleDefault)
+
 		vBin = (xCol / barSpaceWidth) * chans
+
+		if vBin >= len(buf) {
+			break
+		}
 
 		xRow = center - int(buf[vBin])
 
@@ -153,8 +159,9 @@ func (d *Display) Draw(buf []float64) error {
 		}
 
 		vBin++
+		xRow++
 
-		for target = center + int(buf[vBin]); xRow < target; xRow++ {
+		for target = center + int(buf[vBin]); xRow <= target; xRow++ {
 			d.screen.SetContent(xCol, xRow, DisplayBar, nil, tcell.StyleDefault)
 		}
 	}
