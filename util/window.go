@@ -1,11 +1,15 @@
 package util
 
-import "math"
+import (
+	"fmt"
+	"math"
+)
 
 // MovingWindow is a moving window
 type MovingWindow struct {
 	vr   float64
 	sd   float64
+	sum  float64
 	mean float64
 	size float64
 	cap  float64
@@ -39,29 +43,31 @@ func (mw *MovingWindow) Update(val float64) (float64, float64) {
 }
 
 func (mw *MovingWindow) pushpop(new, old float64) {
-	mw.sd = mw.mean + (new-old)/mw.size
-	if mw.size >= 2 {
-		mw.vr += (new - old) * (new - mw.sd + old - mw.mean) / (mw.size - 1)
-	}
-	mw.mean = mw.sd
-	mw.sd = math.Sqrt(mw.vr)
+	mw.vr = mw.vr + (new * new) - (old * old)
+	mw.sum = mw.sum + (new - old)
+	mw.mean = mw.sum / mw.size
+	mw.sd = math.Sqrt(mw.vr / (mw.size - 1))
+
+	fmt.Println(new, old, mw.mean, mw.sd, mw.vr)
 }
 
 // Drop removes count items from the window
 func (mw *MovingWindow) Drop(count int) (float64, float64) {
-	for cnt := 0; cnt < count && mw.size > 0; cnt++ {
-		mw.pushpop(0, <-mw.vals)
+	for cnt := 0; cnt < count; cnt++ {
 
 		mw.size--
 		// if we emptied out the window, set to 0 and return
-		if mw.size == 0 {
+		if mw.size <= 0 {
 			mw.vr = 0
 			mw.sd = 0
+			mw.sum = 0
 			mw.mean = 0
+			mw.size = 0
 			// Get the last element out
 			<-mw.vals
 			break
 		}
+		mw.pushpop(0, <-mw.vals)
 	}
 
 	return mw.mean, mw.sd

@@ -5,6 +5,7 @@ import (
 	"errors"
 	"fmt"
 	"strings"
+	"unsafe"
 
 	"github.com/noriah/tavis/input/portaudio"
 )
@@ -14,6 +15,30 @@ var (
 	ErrBadDevice    error = errors.New("device not found")
 	ErrReadTimedOut error = errors.New("read timed out")
 )
+
+// Params are input params
+type Params struct {
+	Device   string  // name of device to look for
+	Channels int     // number of channels per frame
+	Samples  int     // number of frames per buffer write
+	Rate     float64 // sample rate
+}
+
+// SampleType is the datatype we want from our inputs
+type SampleType = float32
+
+// SampleBuffer is a slice of SampleType
+type SampleBuffer []SampleType
+
+// Ptr returns a pointer for use with CGO
+func (cb SampleBuffer) Ptr(n ...int) unsafe.Pointer {
+	if len(n) > 0 {
+		return unsafe.Pointer(&cb[n[0]])
+
+	}
+
+	return unsafe.Pointer(&cb[0])
+}
 
 // Portaudio is an input source that pulls from Portaudio
 //
@@ -32,7 +57,10 @@ type Portaudio struct {
 // NewPortaudio returns a new portaudio input
 func NewPortaudio(pref Params) *Portaudio {
 
-	var newBuf SampleBuffer = make(SampleBuffer, pref.Samples*pref.Channels)
+	var sze int = pref.Samples + (2 - pref.Samples%2)
+	sze = sze * pref.Channels
+
+	var newBuf SampleBuffer = make(SampleBuffer, sze)
 
 	var pa *Portaudio = &Portaudio{
 		sampleBuffer: newBuf,
@@ -83,9 +111,9 @@ func (pa *Portaudio) init() error {
 				Channels: pa.frameSize,
 				Latency:  device.DefaultLowInputLatency,
 			},
-			SampleRate: pa.sampleRate,
-			// FramesPerBuffer: pa.sampleSize,
-			Flags: portaudio.ClipOff | portaudio.DitherOff,
+			SampleRate:      pa.sampleRate,
+			FramesPerBuffer: pa.sampleSize,
+			Flags:           portaudio.ClipOff | portaudio.DitherOff,
 		}, &pa.sampleBuffer); err != nil {
 		return err
 	}
