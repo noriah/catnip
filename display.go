@@ -153,21 +153,12 @@ func (d *Display) Draw(buf []float64, ch int) error {
 						DisplayBar, nil, tcell.StyleDefault)
 				}
 
-				if rox < centerHeight {
-
-					for ; rox <= centerHeight; rox++ {
-						d.screen.SetContent(
-							bax*barSpaceWidth, centerHeight-(dir*rox),
-							DisplaySpace, nil, tcell.StyleDefault)
-					}
-				}
 			}
 		}
 	}
 
-	// d.screen.Clear()
-
-	d.screen.Sync()
+	d.screen.Show()
+	d.screen.Clear()
 
 	return nil
 }

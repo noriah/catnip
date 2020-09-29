@@ -143,7 +143,7 @@ func Run() error {
 	display.Start()
 
 	_, winHeight = display.Size()
-	winHeight = (winHeight / 2) - 5
+	winHeight = (winHeight / 2)
 
 	audioInput.Start()
 
@@ -172,7 +172,8 @@ RunForRest: // , run!!!
 		fftwPlan.Execute()
 
 		spectrum.Generate(fftwBuffer)
-		spectrum.Scale(10)
+		spectrum.Scale(winHeight)
+		spectrum.Monstercat(1.6)
 		// fmt.Println(fftwBuffer[:80])
 		// fmt.Println(audioInput.Buffer()[:80])
 		// fmt.Println(spectrum.Bins())

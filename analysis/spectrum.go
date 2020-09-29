@@ -116,7 +116,7 @@ func (s *Spectrum) Recalculate(bars int, lo, hi float64) int {
 	for xBin = 0; xBin <= s.numBins; xBin++ {
 		vFreq = (cFreq) + ((float64(xBin+1) / cBins) * cFreq)
 		vFreq = hi * math.Pow(10.0, vFreq)
-		vFreq = (vFreq / (s.sampleRate / 2.0)) / (float64(s.sampleSize) / 4.0)
+		vFreq = vFreq / (s.sampleRate / 2.0) / (float64(s.sampleSize) / 4.0)
 
 		s.loCuts[xBin] = binType(math.Floor(vFreq))
 
@@ -189,8 +189,8 @@ func pyt(val fftw.CmplxType) float64 {
 // Scale scales the data
 func (s *Spectrum) Scale(height int) {
 	var (
-		xBin  int // bin index
-		xChan int // channel index
+		xBin int // bin index
+		xChn int // channel index
 
 		cHeight float64 // window half height constant
 
@@ -201,13 +201,47 @@ func (s *Spectrum) Scale(height int) {
 
 	cHeight = float64(height)
 
-	for xChan = 0; xChan < s.frameSize; xChan++ {
-		vMean, vSD = s.heightWindow[xChan].Update(s.peakHeight[xChan])
+	for xChn = 0; xChn < s.frameSize; xChn++ {
+		vMean, vSD = s.heightWindow[xChn].Update(s.peakHeight[xChn])
 
 		vMag = math.Max(vMean+(2*vSD), 1.0)
 
-		for xBin = xChan; xBin < s.numBins*s.frameSize+xChan; xBin += s.frameSize {
+		for xBin = xChn; xBin < s.numBins*s.frameSize+xChn; xBin += s.frameSize {
 			s.workBuffer[xBin] = math.Min(cHeight-1, ((s.workBuffer[xBin]/vMag)*cHeight)-1)
+		}
+	}
+}
+
+func (s *Spectrum) Monstercat(factor float64) {
+
+	var (
+		xBin int
+		xChn int
+		pass int
+		xBuf int
+		tmp  float64
+	)
+
+	for xChn = 0; xChn < s.frameSize; xChn++ {
+
+		for xBin = 0; xBin < s.numBins; xBin++ {
+
+			if xBin > 0 {
+				xBuf = (xBin * s.frameSize) + xChn
+				for pass = xBin - 1; pass >= 0; pass-- {
+					tmp = s.workBuffer[xBuf] / math.Pow(factor, float64(xBin-pass))
+					if tmp > s.workBuffer[xBuf] {
+						s.workBuffer[xBuf] = tmp
+					}
+				}
+
+				for pass = xBin + 1; pass < s.numBins; pass++ {
+					tmp = s.workBuffer[xBuf] / math.Pow(factor, float64(pass-xBin))
+					if tmp > s.workBuffer[xBuf] {
+						s.workBuffer[xBuf] = tmp
+					}
+				}
+			}
 		}
 	}
 }

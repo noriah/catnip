@@ -1,7 +1,6 @@
 package util
 
 import (
-	"fmt"
 	"math"
 )
 
@@ -47,8 +46,6 @@ func (mw *MovingWindow) pushpop(new, old float64) {
 	mw.sum = mw.sum + (new - old)
 	mw.mean = mw.sum / mw.size
 	mw.sd = math.Sqrt(mw.vr / (mw.size - 1))
-
-	fmt.Println(new, old, mw.mean, mw.sd, mw.vr)
 }
 
 // Drop removes count items from the window
