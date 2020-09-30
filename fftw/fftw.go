@@ -14,12 +14,6 @@ import (
 	"unsafe"
 )
 
-// RealType is an alias for us
-type RealType = float64
-
-// ComplexType is an alias for us
-type ComplexType = complex128
-
 // Flag is an FFTW method flag
 type Flag uint
 
@@ -32,28 +26,40 @@ const (
 
 // Plan holds an FFTW C plan
 type Plan struct {
-	cPlan C.fftw_plan
+	cPlans []C.fftw_plan
 }
 
 // Execute runs the plan
 func (p *Plan) Execute() {
-	C.fftw_execute(p.cPlan)
+	for xID := 0; xID < len(p.cPlans); xID++ {
+		C.fftw_execute(p.cPlans[xID])
+	}
 }
 
 // Destroy releases resources
 func (p *Plan) Destroy() {
-	C.fftw_destroy_plan(p.cPlan)
+	for xID := 0; xID < len(p.cPlans); xID++ {
+		C.fftw_destroy_plan(p.cPlans[xID])
+	}
 }
 
 // New returns a new FFTW Plan for use with FFTW
-func New(in []RealType, out []ComplexType, d0, d1 int, flag Flag) *Plan {
+func New(in []float64, out []complex128, d0, d1 int, flag Flag) *Plan {
+
 	var (
-		inC   = (*C.double)(unsafe.Pointer(&in[0]))
-		outC  = (*C.fftw_complex)(unsafe.Pointer(&out[0]))
-		d0C   = C.int(d0)
 		d1C   = C.int(d1)
 		flagC = C.uint(flag)
+		plan  = &Plan{make([]C.fftw_plan, d0)}
 	)
-	p := C.fftw_plan_dft_r2c_2d(d0C, d1C, inC, outC, flagC)
-	return &Plan{p}
+
+	for xID := 0; xID < d0; xID++ {
+		plan.cPlans[xID] = C.fftw_plan_dft_r2c_1d(
+			d1C,
+			(*C.double)(unsafe.Pointer(&in[d1*xID])),
+			(*C.fftw_complex)(unsafe.Pointer(&out[((d1/2)+1)*xID])),
+			flagC,
+		)
+	}
+
+	return plan
 }
