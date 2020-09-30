@@ -34,6 +34,8 @@ type Spectrum struct {
 	// sampleRate is the frequency that samples are collected
 	sampleRate float64
 
+	sampleDataSize int
+
 	// frameSize is the number of channels we expect per frame
 	frameSize int
 
@@ -137,14 +139,15 @@ func (s *Spectrum) Generate() {
 
 	for xSet = range s.workSets {
 
-		for xBin = 0; xBin < s.numBins; xBin++ {
+		for xBin = 0; xBin <= s.numBins; xBin++ {
 
 			vBoost = math.Log2(float64(2+xBin)) * (100.0 / float64(s.numBins))
 
 			vMag = 0
 
-			for xFreq = s.loCuts[xBin]; xFreq <= s.hiCuts[xBin] && xFreq < (s.sampleSize/2+1); xFreq++ {
-				vMag = vMag + pyt(s.DataBuf[(xFreq*s.frameSize)+xSet])
+			for xFreq = s.loCuts[xBin]; xFreq <= s.hiCuts[xBin] &&
+				xFreq < s.sampleDataSize; xFreq++ {
+				vMag = vMag + pyt(s.DataBuf[xFreq])
 			}
 
 			vMag = vMag / float64(s.hiCuts[xBin]-s.loCuts[xBin]+1)
@@ -155,8 +158,8 @@ func (s *Spectrum) Generate() {
 	}
 }
 
-func pyt(val complex128) float64 {
-	return math.Sqrt((real(val) * real(val)) + (imag(val) * imag(val)))
+func pyt(value complex128) float64 {
+	return math.Sqrt((real(value) * real(value)) + (imag(value) * imag(value)))
 }
 
 // Scale scales the data
@@ -209,7 +212,7 @@ func (s *Spectrum) Monstercat(factor float64) {
 	)
 
 	for _, vSet = range s.workSets {
-		for xBin = 0; xBin < s.numBins*s.frameSize; xBin++ {
+		for xBin = 0; xBin < s.numBins; xBin++ {
 			if xBin > 0 {
 				for pass = xBin - 1; pass >= 0; pass-- {
 					tmp = vSet.Data[xBin] / math.Pow(factor, float64(xBin-pass))
