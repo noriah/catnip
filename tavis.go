@@ -38,8 +38,12 @@ const (
 	// SampleSize is the number of frames per channel we want per read
 	SampleSize = SampleRate / TargetFPS
 
+	FFTWSize = (SampleSize / 2) + 1
+
 	// BufferSize is the total size of our buffer (SampleSize * FrameSize)
-	BufferSize = SampleSize * ChannelCount
+	SampleBufferSize = SampleSize * ChannelCount
+
+	FFTWBufferSize = FFTWSize * ChannelCount
 
 	// DrawDelay is the time we wait between ticks to draw.
 	DrawDelay = time.Second / TargetFPS
@@ -55,7 +59,7 @@ func Run() error {
 
 		audioInput *Portaudio
 
-		fftwBuffer []fftw.ComplexType
+		fftwBuffer []complex128
 		fftwPlan   *fftw.Plan // fftw plan
 
 		spectrum *Spectrum
@@ -66,6 +70,9 @@ func Run() error {
 		rootCancel context.CancelFunc
 
 		barCount int
+
+		xSet int
+		xBuf int
 
 		winWidth  int
 		winHeight int
@@ -84,10 +91,10 @@ func Run() error {
 
 	panicOnError(audioInput.Init())
 
-	tmpBuf := make([]float64, BufferSize)
+	tmpBuf := make([]float64, SampleBufferSize)
 
 	//FFTW complex data
-	fftwBuffer = make([]fftw.ComplexType, (SampleSize/2+1)*ChannelCount)
+	fftwBuffer = make([]complex128, FFTWBufferSize)
 
 	audioBuf := audioInput.Buffer()
 
@@ -101,7 +108,7 @@ func Run() error {
 	spectrum = &Spectrum{
 		sampleRate:     SampleRate,
 		sampleSize:     SampleSize,
-		sampleDataSize: SampleSize/2 + 1,
+		sampleDataSize: FFTWSize,
 		frameSize:      ChannelCount,
 		DataBuf:        fftwBuffer,
 	}
@@ -174,24 +181,21 @@ RunForRest: // , run!!!
 
 			// This "fix" is because the portaudio interface Im using does not
 			// work properly. I have rebuild the array for them
-			for s := 0; s < ChannelCount; s++ {
-				for x := 0; x < SampleSize; x++ {
-					// tmpBuf[x+(SampleSize*s)] = float64(audioBuf[(x*ChannelCount)+s])
-					tmpBuf[(x*ChannelCount)+s] = float64(audioBuf[(x*ChannelCount)+s])
+			for xSet = 0; xSet < ChannelCount; xSet++ {
+				for xBuf = 0; xBuf < SampleSize; xBuf++ {
+					tmpBuf[xBuf+(SampleSize*xSet)] = float64(audioBuf[(xBuf*ChannelCount)+xSet])
 				}
 			}
 			fftwPlan.Execute()
-
-			winHeight = (winHeight / 2)
 
 			spectrum.Generate()
 
 			spectrum.Monstercat(MonstercatFactor)
 
-			spectrum.Scale(winHeight)
+			spectrum.Scale(winHeight / 2)
 
 			spectrum.Falloff(FalloffWeight)
-			// go display.Draw()
+
 			display.Draw()
 		}
 

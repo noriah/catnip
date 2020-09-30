@@ -2,8 +2,6 @@ package tavis
 
 import (
 	"math"
-
-	"github.com/noriah/tavis/fftw"
 )
 
 // Spectrum Constants
@@ -45,8 +43,8 @@ type Spectrum struct {
 	// winMax is the maximum number of values in our sliding window
 	winMax int
 
-	// DataBuf is a slice of fftw.ComplexType values
-	DataBuf []fftw.ComplexType
+	// DataBuf is a slice of complex128 values
+	DataBuf []complex128
 
 	// workSets is a slice of float64 values
 	workSets []*DataSet
@@ -60,9 +58,9 @@ func (s *Spectrum) Init() error {
 
 	s.maxBins = MaxBars
 
-	s.workSets = make([]*DataSet, s.frameSize)
-
 	s.winMax = int((AutoScalingSeconds*s.sampleRate)/float64(s.sampleSize)) * 2
+
+	s.workSets = make([]*DataSet, s.frameSize)
 
 	for idx := 0; idx < s.frameSize; idx++ {
 		s.workSets[idx] = &DataSet{
@@ -76,7 +74,7 @@ func (s *Spectrum) Init() error {
 	s.loCuts = make([]int, s.maxBins+1)
 	s.hiCuts = make([]int, s.maxBins+1)
 
-	s.Recalculate(20, 20, s.sampleRate/2)
+	s.Recalculate(s.maxBins, 20, s.sampleRate/2)
 
 	return nil
 }
@@ -87,6 +85,9 @@ func (s *Spectrum) DataSets() []*DataSet {
 }
 
 // Recalculate rebuilds our frequency bins with bins bin counts
+//
+// reference: https://github.com/karlstav/cava/blob/master/cava.c#L654
+// reference: https://github.com/noriah/cli-visualizer/blob/master/src/Transformer/SpectrumTransformer.cpp#L598
 func (s *Spectrum) Recalculate(bins int, lo, hi float64) int {
 	if bins > s.maxBins {
 		bins = s.maxBins
@@ -103,14 +104,14 @@ func (s *Spectrum) Recalculate(bins int, lo, hi float64) int {
 		vFreq float64 // frequency variable
 	)
 
-	cBins = float64(s.numBins + 1)
+	cBins = float64(bins + 1)
 
 	cFreq = math.Log10(lo/hi) / ((1 / cBins) - 1)
 
 	// so this came from dpayne/cli-visualizer
 	// until i can find a different solution
-	for xBin = 0; xBin <= s.numBins; xBin++ {
-		vFreq = (cFreq * -1) + ((float64(xBin+1) / cBins) * cFreq)
+	for xBin = 0; xBin <= bins; xBin++ {
+		vFreq = ((float64(xBin+1) / cBins) * cFreq) - cFreq
 		vFreq = hi * math.Pow(10.0, vFreq)
 		vFreq = (vFreq / (s.sampleRate / 2)) * (float64(s.sampleSize) / 4)
 
@@ -143,7 +144,7 @@ func (s *Spectrum) Generate() {
 
 	for xSet = range s.workSets {
 
-		for xBin = 0; xBin <= s.numBins+1; xBin++ {
+		for xBin = 0; xBin <= s.numBins; xBin++ {
 
 			vBoost = math.Log2(float64(2+xBin)) * (100.0 / float64(s.numBins))
 
@@ -151,7 +152,7 @@ func (s *Spectrum) Generate() {
 
 			for xFreq = s.loCuts[xBin]; xFreq <= s.hiCuts[xBin] &&
 				xFreq < s.sampleDataSize; xFreq++ {
-				vMag = vMag + pyt(s.DataBuf[(xFreq*s.frameSize)+xSet])
+				vMag = vMag + pyt(s.DataBuf[xFreq+(s.sampleDataSize*xSet)])
 				// vMag = vMag + pyt(s.DataBuf[xFreq+(s.sampleDataSize*xSet)])
 			}
 
@@ -163,7 +164,7 @@ func (s *Spectrum) Generate() {
 	}
 }
 
-func pyt(value fftw.ComplexType) float64 {
+func pyt(value complex128) float64 {
 	return math.Sqrt(float64((real(value) * real(value)) + (imag(value) * imag(value))))
 }
 
