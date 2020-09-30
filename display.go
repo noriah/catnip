@@ -24,8 +24,6 @@ type Display struct {
 func (d *Display) Init() error {
 	var err error
 
-	// cellBuf = &tcell.CellBuffer{}
-
 	if d.screen, err = tcell.NewScreen(); err != nil {
 		return err
 	}
@@ -97,7 +95,6 @@ func (d *Display) SetWidths(bar, space int) int {
 // Bars returns the number of bars we will draw
 func (d *Display) Bars() int {
 	var width, _ int = d.screen.Size()
-
 	return width / d.binWidth
 }
 
@@ -133,37 +130,68 @@ func (d *Display) Draw() error {
 	)
 
 	cWidth, cHeight = d.screen.Size()
+	cWidth = (d.binWidth * (cWidth / d.binWidth))
 
 	cHeight = cHeight / 2
 
 	cOffset = d.offset()
 
+	// this seems a bit too much
+	// can we do less work on draws, please?
+	// TODO(winter): clean up draw loop
 	for _, vSet = range d.DataSets {
 
 		vDelta = 1
 
+		// If we are looking at the second set (right channel)
+		// draw upside down
 		if vSet.id == 1 {
-			vDelta = -vDelta
+			vDelta *= -1
 		}
 
-		for xCol = 0; xCol < cWidth; xCol += d.binWidth {
-
-			xBin = xCol / d.binWidth
+		for xCol, xBin = 0, 0; xCol < cWidth; xCol = xBin * d.binWidth {
+			xCol += cOffset
 
 			vTarget = int(vSet.Data[xBin])
 
+			// Draw the bars for this data set
 			for xRow = 0; xRow < vTarget*d.barWidth; xRow++ {
 				d.screen.SetContent(
-					xCol+cOffset+(xRow/vTarget),
-					cHeight+(vDelta*(xRow%vTarget)),
+
+					// this is so dirty looking
+					// it is done so we do not have two loops here, one for bar width,
+					// and one for row. it has not been benchmarked which is better
+
+					// TODO(nora): benchmark math vs. double loop
+
+					xCol+(xRow/vTarget),
+
+					cHeight+(vDelta*(1+(xRow%vTarget))),
+
+					// Just use our const character for now
+					DisplayBar, nil,
+
+					// Working on color bars
+					tcell.StyleDefault,
+				)
+			}
+
+			// Draw our center line
+			for xRow = xCol + d.barWidth; xCol < xRow; xCol++ {
+				d.screen.SetContent(
+					xCol, cHeight,
 					DisplayBar, nil,
 					tcell.StyleDefault,
 				)
 			}
+
+			// increment the bin we are looking at.
+			xBin++
 		}
 	}
 
 	d.screen.Show()
+
 	d.screen.Clear()
 
 	return nil

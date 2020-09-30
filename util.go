@@ -88,6 +88,11 @@ func (mw *MovingWindow) Points() int {
 	return int(mw.points)
 }
 
+// Capacity returns max size of window
+func (mw *MovingWindow) Capacity() int {
+	return int(mw.capacity)
+}
+
 // Mean is the moving window average
 func (mw *MovingWindow) Mean() float64 {
 	return mw.average
@@ -96,4 +101,9 @@ func (mw *MovingWindow) Mean() float64 {
 // StdDev is the moving average std
 func (mw *MovingWindow) StdDev() float64 {
 	return mw.stddev
+}
+
+// Stats returns the statistics of this window
+func (mw *MovingWindow) Stats() (float64, float64) {
+	return mw.average, mw.stddev
 }
