@@ -17,7 +17,7 @@ var directions = [2]int{1, -1}
 // Display handles drawing our visualizer
 type Display struct {
 	screen     tcell.Screen
-	dataBuf    []float64
+	DataSets   []*DataSet
 	barWidth   int
 	spaceWidth int
 }
@@ -116,54 +116,52 @@ func (d *Display) Size() (int, int) {
 // Draw takes data, and draws
 func (d *Display) Draw() error {
 	var (
-		totalHeight int
-		totalWidth  int
+		cHeight int
+		cWidth  int
 
 		barSpaceWidth int
 
 		xCol int
 		xRow int
+		xSet int
+		xBin int
 
-		vBin int
+		vTarget int
 	)
-
-	totalWidth, totalHeight = d.screen.Size()
 
 	barSpaceWidth = d.barWidth + d.spaceWidth
 
-	// temporary
-	var center int = totalHeight / 2
-	if center%2 == 0 {
-		center--
-	}
-	var target int
-	var offset int = 0
-	var chans int = 2
+	cWidth, cHeight = d.screen.Size()
 
-	for xCol = offset; xCol < totalWidth; xCol++ {
+	cHeight = cHeight / 2
+	if cHeight%2 == 0 {
+		cHeight--
+	}
+
+	var offset int = 0
+
+	for xCol = offset; xCol < cWidth; xCol++ {
 		if (xCol%barSpaceWidth)/d.barWidth > 0 {
 			continue
 		}
 
-		d.screen.SetContent(xCol, center, DisplayBar, nil, tcell.StyleDefault)
+		d.screen.SetContent(xCol, cHeight, DisplayBar, nil, tcell.StyleDefault)
 
-		vBin = (xCol / barSpaceWidth) * chans
+		xBin = (xCol / barSpaceWidth)
 
-		if vBin >= len(d.dataBuf) {
-			break
-		}
+		for xSet = range d.DataSets {
+			vTarget = cHeight
 
-		xRow = center - int(d.dataBuf[vBin])
+			if xSet%2 == 1 {
+				vTarget = vTarget + int(d.DataSets[xSet].Data[xBin])
+			}
 
-		for target = center; xRow < target; xRow++ {
-			d.screen.SetContent(xCol, xRow, DisplayBar, nil, tcell.StyleDefault)
-		}
+			xRow = vTarget - int(d.DataSets[xSet].Data[xBin])
 
-		vBin++
-		xRow++
-
-		for target = center + int(d.dataBuf[vBin]); xRow <= target; xRow++ {
-			d.screen.SetContent(xCol, xRow, DisplayBar, nil, tcell.StyleDefault)
+			for xRow < vTarget {
+				d.screen.SetContent(xCol, xRow, DisplayBar, nil, tcell.StyleDefault)
+				xRow++
+			}
 		}
 	}
 

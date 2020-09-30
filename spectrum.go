@@ -1,10 +1,7 @@
 package tavis
 
 import (
-	"fmt"
 	"math"
-
-	"github.com/noriah/tavis/util"
 )
 
 // Spectrum Constants
@@ -16,9 +13,19 @@ const (
 	MaxBars = 1024
 )
 
+// DataSet represents a channel or sample index in a series frame
+type DataSet struct {
+	id int
+
+	Data []float64
+
+	peakHeight float64
+	window     *MovingWindow
+}
+
 // Spectrum is an audio spectrum in a buffer
 type Spectrum struct {
-	maxBars int
+	maxBins int
 	numBins int
 
 	// sampleSize is the number of frames per sample
@@ -33,12 +40,11 @@ type Spectrum struct {
 	// winMax is the maximum number of values in our sliding window
 	winMax int
 
-	dataBuf []complex128
+	// DataBuf is a slice of complex128 values
+	DataBuf []complex128
 
-	workBins []float64
-
-	heightWindow []*util.MovingWindow
-	peakHeight   []float64
+	// workSets is a slice of float64 values
+	workSets []*DataSet
 
 	loCuts []int
 	hiCuts []int
@@ -47,46 +53,40 @@ type Spectrum struct {
 // Init will set up our spectrum
 func (s *Spectrum) Init() error {
 
-	s.maxBars = MaxBars
+	s.maxBins = MaxBars
 
-	s.workBins = make([]float64, s.maxBars*s.frameSize)
+	s.workSets = make([]*DataSet, s.frameSize)
 
 	s.winMax = int((AutoScalingSeconds*s.sampleRate)/float64(s.sampleSize)) * 2
 
-	s.heightWindow = make([]*util.MovingWindow, s.frameSize)
-	s.peakHeight = make([]float64, s.frameSize)
-
 	for idx := 0; idx < s.frameSize; idx++ {
-		s.heightWindow[idx] = util.NewMovingWindow(s.winMax)
+		s.workSets[idx] = &DataSet{
+			id:     idx,
+			Data:   make([]float64, s.maxBins),
+			window: NewMovingWindow(s.winMax),
+		}
 	}
 
-	s.loCuts = make([]int, s.maxBars+1)
-	s.hiCuts = make([]int, s.maxBars+1)
+	s.loCuts = make([]int, s.maxBins+1)
+	s.hiCuts = make([]int, s.maxBins+1)
 
-	s.Recalculate(s.maxBars, 20, s.sampleRate/2)
+	s.Recalculate(s.maxBins, 20, s.sampleRate/2)
 
 	return nil
 }
 
-// Print is a debug function to print internal structure.
-// Will be removed later.
-func (s *Spectrum) Print() {
-	fmt.Println(s.maxBars, s.loCuts, s.hiCuts)
+// DataSets returns our sets of data
+func (s *Spectrum) DataSets() []*DataSet {
+	return s.workSets
 }
 
-// Bins returns a slice of only the bins we are expecting to process
-func (s *Spectrum) Bins() []float64 {
-	var bars int = s.numBins * s.frameSize
-	return s.workBins[:bars:bars]
-}
-
-// Recalculate rebuilds our frequency bins with bars bin counts
-func (s *Spectrum) Recalculate(bars int, lo, hi float64) int {
-	if bars > s.maxBars {
-		bars = s.maxBars
+// Recalculate rebuilds our frequency bins with bins bin counts
+func (s *Spectrum) Recalculate(bins int, lo, hi float64) int {
+	if bins > s.maxBins {
+		bins = s.maxBins
 	}
 
-	s.numBins = bars
+	s.numBins = bins
 
 	var (
 		cBins float64 // bin count constant
@@ -106,7 +106,7 @@ func (s *Spectrum) Recalculate(bars int, lo, hi float64) int {
 	for xBin = 0; xBin <= s.numBins; xBin++ {
 		vFreq = (cFreq) + ((float64(xBin+1) / cBins) * cFreq)
 		vFreq = hi * math.Pow(10.0, vFreq)
-		vFreq = (vFreq / (s.sampleRate / 2.0)) / (float64(s.sampleSize) / 4.0)
+		vFreq = (vFreq / (float64(s.sampleSize) / 4.0)) / (s.sampleRate / 2.0)
 
 		s.loCuts[xBin] = int(math.Floor(vFreq))
 
@@ -130,38 +130,31 @@ func (s *Spectrum) Generate() {
 		// Indexes
 
 		xBin int // bin index
-		xChn int // channel Index
-		xBuf int // buffer Index
+		xSet int // set index
 
 		xFreq int // frequency index
 
 		vMag  float64 // Frequency Magnitude variable
 		boost float64 // Boost Factor
+
 	)
 
-	for xChn = 0; xChn < s.frameSize; xChn++ {
-		s.peakHeight[xChn] = 0.125
-	}
+	for xSet = range s.workSets {
 
-	for xBuf = 0; xBuf < BufferSize; xBuf++ {
-		xBin = (xBuf / s.frameSize)
-		xChn = (xBuf % s.frameSize)
+		for xBin = 0; xBin < s.sampleSize; xBin++ {
 
-		boost = math.Log2(float64(2+xBuf)) * (100.0 / float64(s.numBins))
+			boost = math.Log2(float64(2+xBin)) * (100.0 / float64(s.numBins))
 
-		vMag = 0
+			vMag = 0
 
-		for xFreq = s.loCuts[xBin]; xFreq <= s.hiCuts[xBin]; xFreq++ {
-			vMag += pyt(s.dataBuf[xBuf])
-		}
+			for xFreq = s.loCuts[xBin]; xFreq <= s.hiCuts[xBin]; xFreq++ {
+				vMag += pyt(s.DataBuf[(xBin*s.frameSize)+xSet])
+			}
 
-		vMag = vMag / float64(s.hiCuts[xBin]-s.loCuts[xBin]+1)
-		vMag = vMag * boost
+			vMag = vMag / float64(s.hiCuts[xBin]-s.loCuts[xBin]+1)
+			vMag = vMag * boost
 
-		s.workBins[xBuf] = math.Pow(vMag, 0.5)
-
-		if s.workBins[xBuf] > s.peakHeight[xChn] {
-			s.peakHeight[xChn] = s.workBins[xBuf]
+			s.workSets[xSet].Data[xBin] = math.Pow(vMag, 0.5)
 		}
 	}
 }
@@ -178,6 +171,7 @@ func (s *Spectrum) Scale(height int) {
 
 		cHeight float64 // height constant
 
+		vSet  *DataSet
 		vMag  float64 // magnitude variable
 		vMean float64 // average variable
 		vSD   float64 // standard deviation variable
@@ -185,17 +179,17 @@ func (s *Spectrum) Scale(height int) {
 
 	cHeight = float64(height)
 
-	for xChn = 0; xChn < s.frameSize; xChn++ {
-		if s.heightWindow[xChn].Size() >= s.winMax {
-			s.heightWindow[xChn].Drop(int(float64(s.winMax) * AutoScalingDumpPercent))
+	for _, vSet = range s.workSets {
+		if vSet.window.Points() >= s.winMax {
+			vSet.window.Drop(int(float64(s.winMax) * AutoScalingDumpPercent))
 		}
 
-		vMean, vSD = s.heightWindow[xChn].Update(s.peakHeight[xChn])
+		vMean, vSD = vSet.window.Update(vSet.peakHeight)
 
 		vMag = math.Max(vMean+(2*vSD), 1.0)
 
 		for xBin = xChn; xBin < s.numBins*s.frameSize; xBin += s.frameSize {
-			s.workBins[xBin] = math.Min(cHeight-1, ((s.workBins[xBin]/vMag)*cHeight)-1)
+			vSet.Data[xBin] = math.Min(cHeight-1, ((vSet.Data[xBin]/vMag)*cHeight)-1)
 		}
 	}
 }
@@ -206,22 +200,25 @@ func (s *Spectrum) Monstercat(factor float64) {
 	var (
 		xBin int
 		pass int
+		vSet *DataSet
 		tmp  float64
 	)
 
-	for xBin = 0; xBin < s.numBins*s.frameSize; xBin++ {
-		if xBin > 0 {
-			for pass = xBin - 1; pass >= 0; pass-- {
-				tmp = s.workBins[xBin] / math.Pow(factor, float64(xBin-pass))
-				if tmp > s.workBins[xBin] {
-					s.workBins[xBin] = tmp
+	for _, vSet = range s.workSets {
+		for xBin = 0; xBin < s.numBins*s.frameSize; xBin++ {
+			if xBin > 0 {
+				for pass = xBin - 1; pass >= 0; pass-- {
+					tmp = vSet.Data[xBin] / math.Pow(factor, float64(xBin-pass))
+					if tmp > vSet.Data[xBin] {
+						vSet.Data[xBin] = tmp
+					}
 				}
-			}
 
-			for pass = xBin + 1; pass < s.numBins; pass++ {
-				tmp = s.workBins[xBin] / math.Pow(factor, float64(pass-xBin))
-				if tmp > s.workBins[xBin] {
-					s.workBins[xBin] = tmp
+				for pass = xBin + 1; pass < s.numBins; pass++ {
+					tmp = vSet.Data[xBin] / math.Pow(factor, float64(pass-xBin))
+					if tmp > vSet.Data[xBin] {
+						vSet.Data[xBin] = tmp
+					}
 				}
 			}
 		}
@@ -233,10 +230,13 @@ func (s *Spectrum) Falloff(weight float64) {
 	var (
 		xBin int
 		vMag float64
+		vSet *DataSet
 	)
 
-	for xBin = 0; xBin < s.numBins; xBin++ {
-		vMag = math.Min(s.workBins[xBin]*weight, s.workBins[xBin]-1)
-		s.workBins[xBin] = math.Max(vMag, s.workBins[xBin])
+	for _, vSet = range s.workSets {
+		for xBin = 0; xBin < s.numBins; xBin++ {
+			vMag = math.Min(vSet.Data[xBin]*weight, vSet.Data[xBin]-1)
+			vSet.Data[xBin] = math.Max(vMag, vSet.Data[xBin])
+		}
 	}
 }

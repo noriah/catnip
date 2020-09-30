@@ -14,16 +14,6 @@ import (
 	"unsafe"
 )
 
-// Direction is an FFTW direction of operation flag
-type Direction int
-
-const (
-	// Forward means go from seconds to frequency time
-	Forward Direction = C.FFTW_FORWARD
-	// Backward meads go from frequence time to seconds
-	Backward Direction = C.FFTW_BACKWARD
-)
-
 // Flag is an FFTW method flag
 type Flag uint
 
@@ -50,13 +40,12 @@ func (p *Plan) Destroy() {
 }
 
 // New returns a new FFTW Plan for use with FFTW
-func New(in []float64, out []complex128, d0, d1 int, dir Direction, flag Flag) *Plan {
+func New(in []float64, out []complex128, d0, d1 int, flag Flag) *Plan {
 	var (
-		inC  = (*C.double)(unsafe.Pointer(&in[0]))
-		outC = (*C.fftw_complex)(unsafe.Pointer(&out[0]))
-		d0C  = C.int(d0)
-		d1C  = C.int(d1)
-		// dirC  = C.int(dir)
+		inC   = (*C.double)(unsafe.Pointer(&in[0]))
+		outC  = (*C.fftw_complex)(unsafe.Pointer(&out[0]))
+		d0C   = C.int(d0)
+		d1C   = C.int(d1)
 		flagC = C.uint(flag)
 	)
 	p := C.fftw_plan_dft_r2c_2d(d0C, d1C, inC, outC, flagC)
