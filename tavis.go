@@ -22,13 +22,13 @@ const (
 	LoCutFerq = 410
 
 	// HiCutFreq is the high end of our audio spectrum
-	HiCutFreq = 8000
+	HiCutFreq = SampleRate / 3
 
 	// MonstercatFactor is how much do we want to look like monstercat
-	MonstercatFactor = 3.75
+	MonstercatFactor = 8.75
 
 	// Falloff weight
-	FalloffWeight = 0.912
+	FalloffWeight = 0.910
 
 	// BarWidth is the width of bars, in columns
 	BarWidth = 2

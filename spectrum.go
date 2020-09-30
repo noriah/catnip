@@ -6,9 +6,16 @@ import (
 
 // Spectrum Constants
 const (
-	AutoScalingSeconds = 10
+	// ScalingFastWindow in seconds
+	ScalingSlowWindow = 10
 
-	AutoScalingDumpPercent = 0.75
+	// ScalingFastWindow in seconds
+	ScalingFastWindow = ScalingSlowWindow * 0.1
+
+	// ScalingDumpPercent is how much we erase on rescale
+	ScalingDumpPercent = 0.75
+
+	ScalingResetDeviation = 1.0
 
 	MaxBars = 1024
 )
@@ -21,7 +28,9 @@ type DataSet struct {
 	falloff []float64
 
 	peakHeight float64
-	window     *MovingWindow
+
+	slowWindow *MovingWindow
+	fastWindow *MovingWindow
 }
 
 // Spectrum is an audio spectrum in a buffer
@@ -40,9 +49,6 @@ type Spectrum struct {
 	// frameSize is the number of channels we expect per frame
 	frameSize int
 
-	// winMax is the maximum number of values in our sliding window
-	winMax int
-
 	// DataBuf is a slice of complex128 values
 	DataBuf []complex128
 
@@ -60,16 +66,18 @@ func (s *Spectrum) Init() error {
 
 	s.maxBins = MaxBars
 
-	s.winMax = int((AutoScalingSeconds*s.sampleRate)/float64(s.sampleSize)) * 2
+	slowMax := int((ScalingSlowWindow*s.sampleRate)/float64(s.sampleSize)) * 2
+	fastMax := int((ScalingFastWindow*s.sampleRate)/float64(s.sampleSize)) * 2
 
 	s.workSets = make([]*DataSet, s.frameSize)
 
 	for idx := 0; idx < s.frameSize; idx++ {
 		s.workSets[idx] = &DataSet{
-			id:      idx,
-			Data:    make([]float64, s.maxBins),
-			falloff: make([]float64, s.maxBins),
-			window:  NewMovingWindow(s.winMax),
+			id:         idx,
+			Data:       make([]float64, s.maxBins),
+			falloff:    make([]float64, s.maxBins),
+			slowWindow: NewMovingWindow(slowMax),
+			fastWindow: NewMovingWindow(fastMax),
 		}
 	}
 
@@ -187,10 +195,6 @@ func (s *Spectrum) Scale(height int) {
 
 	for _, vSet = range s.workSets {
 
-		if vSet.window.Points() >= s.winMax {
-			vSet.window.Drop(int(float64(s.winMax) * AutoScalingDumpPercent))
-		}
-
 		vSet.peakHeight = 0.125
 		vSilent = true
 
@@ -207,7 +211,16 @@ func (s *Spectrum) Scale(height int) {
 			return
 		}
 
-		vMean, vSD = vSet.window.Update(vSet.peakHeight)
+		vSet.fastWindow.Update(vSet.peakHeight)
+		vMean, vSD = vSet.slowWindow.Update(vSet.peakHeight)
+
+		if xBin = vSet.slowWindow.Points(); xBin > vSet.fastWindow.Capacity() {
+			vMag = math.Abs(vSet.fastWindow.Mean() - vMean)
+			if vMag > (ScalingResetDeviation * vSD) {
+				vSet.slowWindow.Drop(int(float64(xBin) * ScalingDumpPercent))
+				vMean, vSD = vSet.slowWindow.Stats()
+			}
+		}
 
 		vMag = math.Max(vMean+(2*vSD), 1.0)
 
