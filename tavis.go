@@ -19,16 +19,16 @@ const (
 	SampleRate = 96000
 
 	//LoCutFerq is the low end of our audio spectrum
-	LoCutFerq = 410
+	LoCutFerq = 20
 
 	// HiCutFreq is the high end of our audio spectrum
-	HiCutFreq = SampleRate / 3
+	HiCutFreq = 8000
 
 	// MonstercatFactor is how much do we want to look like monstercat
 	MonstercatFactor = 8.75
 
 	// Falloff weight
-	FalloffWeight = 0.910
+	FalloffWeight = 0.895
 
 	// BarWidth is the width of bars, in columns
 	BarWidth = 2
@@ -90,6 +90,9 @@ func Run() error {
 		winHeight int
 
 		pulseError error
+
+		vIterStart time.Time
+		vSince     time.Duration
 
 		mainTicker *time.Ticker
 	)
@@ -170,12 +173,17 @@ func Run() error {
 
 RunForRest: // , run!!!
 	for range mainTicker.C {
+		if vSince = time.Since(vIterStart); vSince < DrawDelay {
+			time.Sleep(DrawDelay - vSince)
+		}
 
 		select {
 		case <-rootCtx.Done():
 			break RunForRest
 		default:
 		}
+
+		vIterStart = time.Now()
 
 		winWidth, winHeight = display.Size()
 
@@ -213,7 +221,6 @@ RunForRest: // , run!!!
 
 			display.Draw()
 		}
-
 	}
 
 	rootCancel()
