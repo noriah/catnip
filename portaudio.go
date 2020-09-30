@@ -5,7 +5,6 @@ import (
 	"errors"
 	"fmt"
 	"strings"
-	"unsafe"
 
 	"github.com/noriah/tavis/portaudio"
 )
@@ -16,6 +15,9 @@ var (
 	ErrReadTimedOut error = errors.New("read timed out")
 )
 
+// SampleType is broken out because portaudio supports different types
+type SampleType = float32
+
 // Params are input params
 type Params struct {
 	Device   string  // name of device to look for
@@ -24,60 +26,25 @@ type Params struct {
 	Rate     float64 // sample rate
 }
 
-// SampleType is the datatype we want from our inputs
-type SampleType = float32
-
-// SampleBuffer is a slice of SampleType
-type SampleBuffer []SampleType
-
-// Ptr returns a pointer for use with CGO
-func (cb SampleBuffer) Ptr(n ...int) unsafe.Pointer {
-	if len(n) > 0 {
-		return unsafe.Pointer(&cb[n[0]])
-
-	}
-
-	return unsafe.Pointer(&cb[0])
-}
-
 // Portaudio is an input source that pulls from Portaudio
 //
 // The number of frames per read will be
 type Portaudio struct {
 	stream *portaudio.Stream // our input stream
 
-	sampleBuffer SampleBuffer // internal scratch buffer
+	sampleBuffer []SampleType // internal scratch buffer
 
-	deviceName string  // name of device to look for
-	frameSize  int     // number of channels per frame
-	sampleSize int     // number of frames per buffer write
-	sampleRate float64 // sample rate
-}
-
-// NewPortaudio returns a new portaudio input
-func NewPortaudio(pref Params) *Portaudio {
-
-	var sze int = pref.Samples * pref.Channels
-
-	var newBuf SampleBuffer = make(SampleBuffer, sze)
-
-	var pa *Portaudio = &Portaudio{
-		sampleBuffer: newBuf,
-		deviceName:   pref.Device,
-		frameSize:    pref.Channels,
-		sampleSize:   pref.Samples,
-		sampleRate:   pref.Rate,
-	}
-
-	if err := pa.init(); err != nil {
-		panic(err)
-	}
-
-	return pa
+	DeviceName string  // name of device to look for
+	FrameSize  int     // number of channels per frame
+	SampleSize int     // number of frames per buffer write
+	SampleRate float64 // sample rate
 }
 
 // Init sets up all the portaudio things we need to do
-func (pa *Portaudio) init() error {
+func (pa *Portaudio) Init() error {
+
+	pa.sampleBuffer = make([]SampleType, pa.SampleSize*pa.FrameSize)
+
 	var err error
 
 	if err = portaudio.Initialize(); err != nil {
@@ -93,7 +60,7 @@ func (pa *Portaudio) init() error {
 	var device *portaudio.DeviceInfo
 
 	for idx := 0; idx < len(devices); idx++ {
-		if strings.Compare(devices[idx].Name, pa.deviceName) == 0 {
+		if strings.Compare(devices[idx].Name, pa.DeviceName) == 0 {
 			device = devices[idx]
 			break
 		}
@@ -107,11 +74,11 @@ func (pa *Portaudio) init() error {
 		portaudio.StreamParameters{
 			Input: portaudio.StreamDeviceParameters{
 				Device:   device,
-				Channels: pa.frameSize,
+				Channels: pa.FrameSize,
 				Latency:  device.DefaultLowInputLatency,
 			},
-			SampleRate:      pa.sampleRate,
-			FramesPerBuffer: pa.sampleSize,
+			SampleRate:      pa.SampleRate,
+			FramesPerBuffer: pa.SampleSize,
 			Flags:           portaudio.ClipOff | portaudio.DitherOff,
 		}, &pa.sampleBuffer); err != nil {
 		return err
@@ -121,7 +88,7 @@ func (pa *Portaudio) init() error {
 }
 
 // Buffer returns a slice to our buffer
-func (pa *Portaudio) Buffer() SampleBuffer {
+func (pa *Portaudio) Buffer() []SampleType {
 	return pa.sampleBuffer
 }
 
@@ -134,7 +101,7 @@ func (pa *Portaudio) ReadyRead() int {
 // Read signals portaudio to dump some data into the buffer we gave it.
 // Will block if there is not enough data yet.
 func (pa *Portaudio) Read(ctx context.Context) error {
-	for pa.ReadyRead() < pa.sampleSize {
+	for pa.ReadyRead() < pa.SampleSize {
 		select {
 		case <-ctx.Done():
 			fmt.Println("read timed out")

@@ -104,9 +104,9 @@ func (s *Spectrum) Recalculate(bins int, lo, hi float64) int {
 	// so this came from dpayne/cli-visualizer
 	// until i can find a different solution
 	for xBin = 0; xBin <= s.numBins; xBin++ {
-		vFreq = (cFreq) + ((float64(xBin+1) / cBins) * cFreq)
+		vFreq = (cFreq * -1) + ((float64(xBin+1) / cBins) * cFreq)
 		vFreq = hi * math.Pow(10.0, vFreq)
-		vFreq = (vFreq / (float64(s.sampleSize) / 4.0)) / (s.sampleRate / 2.0)
+		vFreq = (vFreq / (s.sampleRate / 2.0)) / (float64(s.sampleSize) / 4.0)
 
 		s.loCuts[xBin] = int(math.Floor(vFreq))
 
@@ -126,33 +126,29 @@ func (s *Spectrum) Recalculate(bins int, lo, hi float64) int {
 func (s *Spectrum) Generate() {
 
 	var (
-
-		// Indexes
-
-		xBin int // bin index
-		xSet int // set index
-
+		xBin  int // bin index
+		xSet  int // set index
 		xFreq int // frequency index
 
-		vMag  float64 // Frequency Magnitude variable
-		boost float64 // Boost Factor
+		vMag   float64 // Frequency Magnitude variable
+		vBoost float64 // Boost Factor
 
 	)
 
 	for xSet = range s.workSets {
 
-		for xBin = 0; xBin < s.sampleSize; xBin++ {
+		for xBin = 0; xBin < s.numBins; xBin++ {
 
-			boost = math.Log2(float64(2+xBin)) * (100.0 / float64(s.numBins))
+			vBoost = math.Log2(float64(2+xBin)) * (100.0 / float64(s.numBins))
 
 			vMag = 0
 
-			for xFreq = s.loCuts[xBin]; xFreq <= s.hiCuts[xBin]; xFreq++ {
-				vMag += pyt(s.DataBuf[(xBin*s.frameSize)+xSet])
+			for xFreq = s.loCuts[xBin]; xFreq <= s.hiCuts[xBin] && xFreq < (s.sampleSize/2+1); xFreq++ {
+				vMag = vMag + pyt(s.DataBuf[(xFreq*s.frameSize)+xSet])
 			}
 
 			vMag = vMag / float64(s.hiCuts[xBin]-s.loCuts[xBin]+1)
-			vMag = vMag * boost
+			vMag = vMag * vBoost
 
 			s.workSets[xSet].Data[xBin] = math.Pow(vMag, 0.5)
 		}
@@ -167,7 +163,6 @@ func pyt(val complex128) float64 {
 func (s *Spectrum) Scale(height int) {
 	var (
 		xBin int // bin index
-		xChn int // channel index
 
 		cHeight float64 // height constant
 
@@ -180,15 +175,24 @@ func (s *Spectrum) Scale(height int) {
 	cHeight = float64(height)
 
 	for _, vSet = range s.workSets {
+
 		if vSet.window.Points() >= s.winMax {
 			vSet.window.Drop(int(float64(s.winMax) * AutoScalingDumpPercent))
+		}
+
+		vSet.peakHeight = 0.125
+
+		for xBin = 0; xBin < s.numBins; xBin++ {
+			if vSet.peakHeight < vSet.Data[xBin] {
+				vSet.peakHeight = vSet.Data[xBin]
+			}
 		}
 
 		vMean, vSD = vSet.window.Update(vSet.peakHeight)
 
 		vMag = math.Max(vMean+(2*vSD), 1.0)
 
-		for xBin = xChn; xBin < s.numBins*s.frameSize; xBin += s.frameSize {
+		for xBin = 0; xBin < s.numBins; xBin++ {
 			vSet.Data[xBin] = math.Min(cHeight-1, ((vSet.Data[xBin]/vMag)*cHeight)-1)
 		}
 	}
