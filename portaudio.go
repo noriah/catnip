@@ -16,15 +16,7 @@ var (
 )
 
 // SampleType is broken out because portaudio supports different types
-type SampleType = int32
-
-// Params are input params
-type Params struct {
-	Device   string  // name of device to look for
-	Channels int     // number of channels per frame
-	Samples  int     // number of frames per buffer write
-	Rate     float64 // sample rate
-}
+type SampleType = float32
 
 // Portaudio is an input source that pulls from Portaudio
 //
