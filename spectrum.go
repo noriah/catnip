@@ -276,7 +276,7 @@ func (s *Spectrum) Falloff(weight float64) {
 	for _, vSet = range s.workSets {
 		for xBin = 0; xBin <= s.numBins; xBin++ {
 			vMag = vSet.falloff[xBin]
-			vMag = math.Min(vMag*weight, vMag-1)
+			vMag = math.Min(vMag*weight, vMag)
 			vMag = math.Max(vMag, vSet.Data[xBin])
 			vSet.falloff[xBin] = vMag
 			vSet.Data[xBin] = vMag
