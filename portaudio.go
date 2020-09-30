@@ -16,7 +16,7 @@ var (
 )
 
 // SampleType is broken out because portaudio supports different types
-type SampleType = float32
+type SampleType = int32
 
 // Params are input params
 type Params struct {

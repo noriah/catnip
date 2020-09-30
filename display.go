@@ -87,7 +87,7 @@ func (d *Display) Close() error {
 // Returns number of bars able to show
 func (d *Display) SetWidths(bar, space int) int {
 	d.barWidth = bar
-	d.binWidth = (bar + space)
+	d.binWidth = bar + space
 
 	return d.Bars()
 }
@@ -118,6 +118,7 @@ func (d *Display) Draw() error {
 	var (
 		cHeight int
 		cWidth  int
+
 		cOffset int
 
 		xCol int
@@ -129,11 +130,17 @@ func (d *Display) Draw() error {
 		vDelta  int
 	)
 
+	// grab our dimensions
 	cWidth, cHeight = d.screen.Size()
+
+	// we want to break out when we have reached the max number of bars
+	// we are able to display, including spacing
 	cWidth = (d.binWidth * (cWidth / d.binWidth))
 
+	// we want to draw at half height
 	cHeight = cHeight / 2
 
+	// get our offset
 	cOffset = d.offset()
 
 	// this seems a bit too much
@@ -141,17 +148,22 @@ func (d *Display) Draw() error {
 	// TODO(winter): clean up draw loop
 	for _, vSet = range d.DataSets {
 
+		// our change per row will
 		vDelta = 1
 
-		// If we are looking at the second set (right channel)
-		// draw upside down
-		if vSet.id == 1 {
+		// If we are looking at the first set (left channel)
+		// we want to draw up
+		if vSet.id == 0 {
 			vDelta *= -1
 		}
 
+		// set up our loop. set the column by bin count on each loop
 		for xCol, xBin = 0, 0; xCol < cWidth; xCol = xBin * d.binWidth {
+
+			// work in our offset to center on the screen
 			xCol += cOffset
 
+			// we always want to target our bar height
 			vTarget = int(vSet.Data[xBin])
 
 			// Draw the bars for this data set
