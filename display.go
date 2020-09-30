@@ -121,9 +121,9 @@ func (d *Display) Draw() error {
 
 		xCol int
 		xRow int
-		xSet int
 		xBin int
 
+		vSet    *DataSet
 		vTarget int
 	)
 
@@ -147,18 +147,15 @@ func (d *Display) Draw() error {
 
 		xBin = (xCol / barSpaceWidth)
 
-		for xSet = range d.DataSets {
+		for _, vSet = range d.DataSets {
 			vTarget = cHeight
 
-			if xSet == 1 {
-				vTarget = cHeight + int(d.DataSets[xSet].Data[xBin])
+			if vSet.id == 1 {
+				vTarget = cHeight + 1 + int(vSet.Data[xBin])
 			}
 
-			xRow = vTarget - int(d.DataSets[xSet].Data[xBin])
-
-			for xRow < vTarget {
+			for xRow = vTarget - int(vSet.Data[xBin]); xRow < vTarget; xRow++ {
 				d.screen.SetContent(xCol, xRow, DisplayBar, nil, tcell.StyleDefault)
-				xRow++
 			}
 		}
 	}

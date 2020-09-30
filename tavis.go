@@ -27,7 +27,7 @@ const (
 	FalloffWeight = 0.910
 
 	// TargetFPS is how fast we want to redraw. Play with it
-	TargetFPS = 60
+	TargetFPS = 100
 
 	// ChannelCount is the number of channels we want to look at. DO NOT TOUCH
 	ChannelCount = 2
@@ -55,7 +55,7 @@ func Run() error {
 
 		audioInput *Portaudio
 
-		fftwBuffer []complex128
+		fftwBuffer []fftw.ComplexType
 		fftwPlan   *fftw.Plan // fftw plan
 
 		spectrum *Spectrum
@@ -87,7 +87,7 @@ func Run() error {
 	tmpBuf := make([]float64, BufferSize)
 
 	//FFTW complex data
-	fftwBuffer = make([]complex128, (SampleSize/2+1)*ChannelCount)
+	fftwBuffer = make([]fftw.ComplexType, (SampleSize/2+1)*ChannelCount)
 
 	audioBuf := audioInput.Buffer()
 
@@ -166,6 +166,8 @@ RunForRest: // , run!!!
 				}
 			}
 
+			// This "fix" is because the portaudio interface Im using does not
+			// work properly. I have rebuild the array for them
 			for x := 0; x < len(audioBuf); x++ {
 				tmpBuf[x] = float64(audioBuf[x])
 			}
@@ -180,8 +182,11 @@ RunForRest: // , run!!!
 			winHeight = (winHeight / 2)
 
 			spectrum.Generate()
-			// spectrum.Monstercat(MonstercatFactor)
-			// spectrum.Scale(winHeight)
+
+			spectrum.Monstercat(MonstercatFactor)
+
+			spectrum.Scale(winHeight)
+
 			spectrum.Falloff(FalloffWeight)
 			// go display.Draw()
 			display.Draw()

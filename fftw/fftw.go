@@ -14,6 +14,10 @@ import (
 	"unsafe"
 )
 
+type RealType = float64
+
+type ComplexType = complex128
+
 // Flag is an FFTW method flag
 type Flag uint
 
@@ -40,7 +44,7 @@ func (p *Plan) Destroy() {
 }
 
 // New returns a new FFTW Plan for use with FFTW
-func New(in []float64, out []complex128, d0, d1 int, flag Flag) *Plan {
+func New(in []RealType, out []ComplexType, d0, d1 int, flag Flag) *Plan {
 	var (
 		inC   = (*C.double)(unsafe.Pointer(&in[0]))
 		outC  = (*C.fftw_complex)(unsafe.Pointer(&out[0]))
