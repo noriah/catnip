@@ -14,8 +14,10 @@ import (
 	"unsafe"
 )
 
+// RealType is an alias for us
 type RealType = float64
 
+// ComplexType is an alias for us
 type ComplexType = complex128
 
 // Flag is an FFTW method flag

@@ -148,7 +148,6 @@ func Run() error {
 	audioInput.Start()
 
 	mainTicker = time.NewTicker(DrawDelay)
-	mainTicker.Reset(DrawDelay)
 
 RunForRest: // , run!!!
 	for range mainTicker.C {
@@ -157,6 +156,13 @@ RunForRest: // , run!!!
 		case <-rootCtx.Done():
 			break RunForRest
 		default:
+		}
+
+		winWidth, winHeight = display.Size()
+
+		if barCount != winWidth {
+			barCount = winWidth
+			spectrum.Recalculate(barCount, LoCutFerq, HiCutFreq)
 		}
 
 		if audioInput.ReadyRead() >= SampleSize {
@@ -168,17 +174,14 @@ RunForRest: // , run!!!
 
 			// This "fix" is because the portaudio interface Im using does not
 			// work properly. I have rebuild the array for them
-			for x := 0; x < len(audioBuf); x++ {
-				tmpBuf[x] = float64(audioBuf[x])
+			for s := 0; s < ChannelCount; s++ {
+				for x := 0; x < SampleSize; x++ {
+					// tmpBuf[x+(SampleSize*s)] = float64(audioBuf[(x*ChannelCount)+s])
+					tmpBuf[(x*ChannelCount)+s] = float64(audioBuf[(x*ChannelCount)+s])
+				}
 			}
 			fftwPlan.Execute()
 
-			winWidth, winHeight = display.Size()
-
-			if barCount != winWidth {
-				barCount = winWidth
-				spectrum.Recalculate(barCount, LoCutFerq, HiCutFreq)
-			}
 			winHeight = (winHeight / 2)
 
 			spectrum.Generate()

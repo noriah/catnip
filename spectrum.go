@@ -76,7 +76,7 @@ func (s *Spectrum) Init() error {
 	s.loCuts = make([]int, s.maxBins+1)
 	s.hiCuts = make([]int, s.maxBins+1)
 
-	s.Recalculate(s.maxBins, 20, s.sampleRate/2)
+	s.Recalculate(20, 20, s.sampleRate/2)
 
 	return nil
 }
@@ -103,16 +103,16 @@ func (s *Spectrum) Recalculate(bins int, lo, hi float64) int {
 		vFreq float64 // frequency variable
 	)
 
-	cBins = float64(s.numBins + 1.0)
+	cBins = float64(s.numBins + 1)
 
-	cFreq = math.Log10(lo/hi) / ((1.0 / cBins) - 1.0)
+	cFreq = math.Log10(lo/hi) / ((1 / cBins) - 1)
 
 	// so this came from dpayne/cli-visualizer
 	// until i can find a different solution
 	for xBin = 0; xBin <= s.numBins; xBin++ {
 		vFreq = (cFreq * -1) + ((float64(xBin+1) / cBins) * cFreq)
 		vFreq = hi * math.Pow(10.0, vFreq)
-		vFreq = (vFreq / (s.sampleRate / 2.0)) / (float64(s.sampleSize) / 4.0)
+		vFreq = (vFreq / (s.sampleRate / 2)) * (float64(s.sampleSize) / 4)
 
 		s.loCuts[xBin] = int(math.Floor(vFreq))
 
@@ -143,7 +143,7 @@ func (s *Spectrum) Generate() {
 
 	for xSet = range s.workSets {
 
-		for xBin = 0; xBin <= s.numBins; xBin++ {
+		for xBin = 0; xBin <= s.numBins+1; xBin++ {
 
 			vBoost = math.Log2(float64(2+xBin)) * (100.0 / float64(s.numBins))
 
@@ -151,7 +151,8 @@ func (s *Spectrum) Generate() {
 
 			for xFreq = s.loCuts[xBin]; xFreq <= s.hiCuts[xBin] &&
 				xFreq < s.sampleDataSize; xFreq++ {
-				vMag = vMag + pyt(s.DataBuf[xFreq+(s.sampleDataSize*xSet)])
+				vMag = vMag + pyt(s.DataBuf[(xFreq*s.frameSize)+xSet])
+				// vMag = vMag + pyt(s.DataBuf[xFreq+(s.sampleDataSize*xSet)])
 			}
 
 			vMag = vMag / float64(s.hiCuts[xBin]-s.loCuts[xBin]+1)
