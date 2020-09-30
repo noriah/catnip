@@ -34,9 +34,9 @@ const (
 	// SampleRate is the rate at which samples are read
 	SampleRate = 48000
 
-	LoCutFerq = 220
+	LoCutFerq = 410
 
-	HiCutFreq = 6000
+	HiCutFreq = 4000
 
 	MonstercatFactor = 3.64
 
@@ -109,20 +109,20 @@ func Run() error {
 	fftwPlan = fftw.New(
 		tmpBuf, fftwBuffer,
 		ChannelCount, SampleSize,
-		fftw.Forward, fftw.Estimate)
+		fftw.Estimate)
 
 	// Make a spectrum
 	spectrum = &Spectrum{
 		sampleRate: SampleRate,
 		sampleSize: SampleSize,
 		frameSize:  ChannelCount,
-		dataBuf:    fftwBuffer,
+		DataBuf:    fftwBuffer,
 	}
 
 	panicOnError(spectrum.Init())
 
 	display = &Display{
-		dataBuf: spectrum.workBins,
+		DataSets: spectrum.DataSets(),
 	}
 
 	panicOnError(display.Init())
@@ -193,8 +193,8 @@ RunForRest: // , run!!!
 		winHeight = (winHeight / 2)
 
 		spectrum.Generate()
-		spectrum.Monstercat(MonstercatFactor)
-		spectrum.Scale(winHeight)
+		// spectrum.Monstercat(MonstercatFactor)
+		// spectrum.Scale(winHeight)
 		spectrum.Falloff(FalloffWeight)
 
 		display.Draw()
