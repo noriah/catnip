@@ -16,18 +16,24 @@ const (
 	DeviceName = "VisOut"
 
 	// SampleRate is the rate at which samples are read
-	SampleRate = 48000
+	SampleRate = 96000
 
+	//LoCutFerq is the low end of our audio spectrum
 	LoCutFerq = 410
 
-	HiCutFreq = 4000
+	// HiCutFreq is the high end of our audio spectrum
+	HiCutFreq = 8000
 
-	MonstercatFactor = 3.64
+	// MonstercatFactor is how much do we want to look like monstercat
+	MonstercatFactor = 3.75
 
-	FalloffWeight = 0.910
+	// Falloff weight
+	FalloffWeight = 0.912
 
+	// BarWidth is the width of bars, in columns
 	BarWidth = 2
 
+	// SpaceWidth is the width of spaces, in columns
 	SpaceWidth = 1
 
 	// TargetFPS is how fast we want to redraw. Play with it
@@ -42,12 +48,14 @@ const (
 	// SampleSize is the number of frames per channel we want per read
 	SampleSize = SampleRate / TargetFPS
 
-	FFTWSize = (SampleSize / 2) + 1
+	// FFTWDataSize is the number of data points in an fftw data set return
+	FFTWDataSize = (SampleSize / 2) + 1
 
 	// BufferSize is the total size of our buffer (SampleSize * FrameSize)
 	SampleBufferSize = SampleSize * ChannelCount
 
-	FFTWBufferSize = FFTWSize * ChannelCount
+	// FFTWBufferSize is the total size of our fftw complex128 buffer
+	FFTWBufferSize = FFTWDataSize * ChannelCount
 
 	// DrawDelay is the time we wait between ticks to draw.
 	DrawDelay = time.Second / TargetFPS
@@ -64,7 +72,7 @@ func Run() error {
 		audioInput *Portaudio
 
 		fftwBuffer []complex128
-		fftwPlan   *fftw.Plan // fftw plan
+		fftwPlan   *fftw.Plan
 
 		spectrum *Spectrum
 
@@ -81,8 +89,8 @@ func Run() error {
 		winWidth  int
 		winHeight int
 
-		// last       time.Time // last tick time
-		// since      time.Duration
+		pulseError error
+
 		mainTicker *time.Ticker
 	)
 
@@ -112,7 +120,7 @@ func Run() error {
 	spectrum = &Spectrum{
 		sampleRate:     SampleRate,
 		sampleSize:     SampleSize,
-		sampleDataSize: FFTWSize,
+		sampleDataSize: FFTWDataSize,
 		frameSize:      ChannelCount,
 		DataBuf:        fftwBuffer,
 	}
@@ -179,17 +187,19 @@ RunForRest: // , run!!!
 		if audioInput.ReadyRead() >= SampleSize {
 			if err = audioInput.Read(rootCtx); err != nil {
 				if err != portaudio.InputOverflowed {
-					panic(err)
+					pulseError = err
+					break RunForRest
 				}
 			}
 
-			// This "fix" is because the portaudio interface Im using does not
-			// work properly. I have rebuild the array for them
+			// This "fix" is because the portaudio interface we are using does not
+			// work properly. I have to de-interleave the array
 			for xSet = 0; xSet < ChannelCount; xSet++ {
 				for xBuf = 0; xBuf < SampleSize; xBuf++ {
 					tmpBuf[xBuf+(SampleSize*xSet)] = float64(audioBuf[(xBuf*ChannelCount)+xSet])
 				}
 			}
+
 			fftwPlan.Execute()
 
 			spectrum.Generate()
@@ -221,6 +231,9 @@ RunForRest: // , run!!!
 	mainTicker.Stop()
 
 	fftwPlan.Destroy()
+
+	if pulseError != nil {
+	}
 
 	return nil
 }
