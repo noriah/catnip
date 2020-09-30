@@ -2,29 +2,14 @@ package tavis
 
 import (
 	"context"
+	"fmt"
 	"os"
 	"os/signal"
 	"time"
-	"unsafe"
 
 	"github.com/noriah/tavis/fftw"
 	"github.com/noriah/tavis/portaudio"
 )
-
-// BarType is the type of each bar value
-type BarType = float64
-
-// BarBuffer is a slice of CmplxType
-type BarBuffer []BarType
-
-// Ptr returns a pointer for use with CGO
-func (cb BarBuffer) Ptr(n ...int) unsafe.Pointer {
-	if len(n) > 0 {
-		return unsafe.Pointer(&cb[n[0]])
-	}
-
-	return unsafe.Pointer(&cb[0])
-}
 
 // constants for testing
 const (
@@ -91,14 +76,16 @@ func Run() error {
 		mainTicker *time.Ticker
 	)
 
-	audioInput = NewPortaudio(Params{
-		Device:   DeviceName,
-		Channels: ChannelCount,
-		Rate:     SampleRate,
-		Samples:  SampleSize,
-	})
+	audioInput = &Portaudio{
+		DeviceName: DeviceName,
+		FrameSize:  ChannelCount,
+		SampleSize: SampleSize,
+		SampleRate: SampleRate,
+	}
 
-	tmpBuf := make(BarBuffer, BufferSize)
+	panicOnError(audioInput.Init())
+
+	tmpBuf := make([]float64, BufferSize+4)
 
 	//FFTW complex data
 	fftwBuffer = make([]complex128, BufferSize)
@@ -161,10 +148,11 @@ func Run() error {
 	audioInput.Start()
 
 	mainTicker = time.NewTicker(DrawDelay)
+	mainTicker.Reset(DrawDelay)
 
 RunForRest: // , run!!!
 	for range mainTicker.C {
-		// last = time.Now()
+
 		select {
 		case <-rootCtx.Done():
 			break RunForRest
@@ -178,32 +166,34 @@ RunForRest: // , run!!!
 				}
 			}
 
-			for x := 0; x < len(tmpBuf); x++ {
+			for x := 0; x < len(audioBuf); x++ {
 				tmpBuf[x] = float64(audioBuf[x])
 			}
+			fftwPlan.Execute()
+
+			for x := 0; x < len(fftwBuffer); x++ {
+				if fftwBuffer[x] == 0 {
+					fmt.Println(SampleSize, BufferSize, x)
+					break
+				}
+			}
+
+			winWidth, winHeight = display.Size()
+
+			if barCount != winWidth {
+				barCount = winWidth
+				spectrum.Recalculate(barCount, LoCutFerq, HiCutFreq)
+			}
+			winHeight = (winHeight / 2)
+
+			spectrum.Generate()
+			spectrum.Monstercat(MonstercatFactor)
+			spectrum.Scale(winHeight)
+			spectrum.Falloff(FalloffWeight)
+			// go display.Draw()
+			display.Draw()
 		}
-		fftwPlan.Execute()
 
-		winWidth, winHeight = display.Size()
-
-		if barCount != winWidth {
-			barCount = winWidth
-			spectrum.Recalculate(barCount, LoCutFerq, HiCutFreq)
-		}
-		winHeight = (winHeight / 2)
-
-		spectrum.Generate()
-		// spectrum.Monstercat(MonstercatFactor)
-		// spectrum.Scale(winHeight)
-		spectrum.Falloff(FalloffWeight)
-
-		display.Draw()
-		// fmt.Println(spectrum.Bins())
-
-		// since = time.Since(last)
-		// if since > DrawDelay {
-		// 	fmt.Print("slow loop!\n", since)
-		// }
 	}
 
 	rootCancel()
@@ -212,13 +202,13 @@ RunForRest: // , run!!!
 
 	audioInput.Stop()
 
+	audioInput.Close()
+
 	display.Stop()
 
 	display.Close()
 
 	mainTicker.Stop()
-
-	audioInput.Close()
 
 	fftwPlan.Destroy()
 

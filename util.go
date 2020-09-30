@@ -12,14 +12,14 @@ type MovingWindow struct {
 	average  float64
 	points   float64
 	capacity float64
-	vals     chan float64
+	window   chan float64
 }
 
 // NewMovingWindow returns a new moving window
 func NewMovingWindow(points int) *MovingWindow {
 
 	return &MovingWindow{
-		vals:     make(chan float64, points),
+		window:   make(chan float64, points),
 		capacity: float64(points),
 	}
 }
@@ -53,10 +53,10 @@ func (mw *MovingWindow) Update(value float64) (float64, float64) {
 		mw.calcRaw(value, 0)
 		mw.points++
 	} else {
-		mw.calcRaw(value, <-mw.vals)
+		mw.calcRaw(value, <-mw.window)
 	}
 
-	mw.vals <- value
+	mw.window <- value
 	return mw.calcFinal()
 }
 
@@ -64,7 +64,7 @@ func (mw *MovingWindow) Update(value float64) (float64, float64) {
 func (mw *MovingWindow) Drop(count int) (float64, float64) {
 	for ; count > 0 && mw.points > 0; count-- {
 		mw.points--
-		mw.calcRaw(0, <-mw.vals)
+		mw.calcRaw(0, <-mw.window)
 	}
 
 	// If we dont have enough points for standard dev, clear variance

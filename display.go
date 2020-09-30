@@ -12,8 +12,6 @@ const (
 	MaxWidth = 5000
 )
 
-var directions = [2]int{1, -1}
-
 // Display handles drawing our visualizer
 type Display struct {
 	screen     tcell.Screen
@@ -134,9 +132,9 @@ func (d *Display) Draw() error {
 	cWidth, cHeight = d.screen.Size()
 
 	cHeight = cHeight / 2
-	if cHeight%2 == 0 {
-		cHeight--
-	}
+	// if cHeight%2 == 0 {
+	// 	cHeight++
+	// }
 
 	var offset int = 0
 
@@ -152,8 +150,8 @@ func (d *Display) Draw() error {
 		for xSet = range d.DataSets {
 			vTarget = cHeight
 
-			if xSet%2 == 1 {
-				vTarget = vTarget + int(d.DataSets[xSet].Data[xBin])
+			if xSet == 1 {
+				vTarget = cHeight + int(d.DataSets[xSet].Data[xBin])
 			}
 
 			xRow = vTarget - int(d.DataSets[xSet].Data[xBin])
