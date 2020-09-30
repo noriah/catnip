@@ -34,7 +34,10 @@ func (mw *MovingWindow) calcFinal() (float64, float64) {
 		mw.average = mw.sum / mw.points
 
 		if mw.points > 1 {
-			mw.stddev = math.Sqrt(mw.variance / (mw.points - 1))
+			// mw.stddev = math.Sqrt(mw.variance / (mw.points - 1))
+			// okay so this came from dpayne/cli-visualizer
+			mw.stddev = (mw.variance / mw.points) - math.Pow(mw.average, 2)
+			mw.stddev = math.Sqrt(mw.stddev)
 		} else {
 			mw.stddev = 0
 		}

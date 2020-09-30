@@ -2,6 +2,8 @@ package tavis
 
 import (
 	"math"
+
+	"github.com/noriah/tavis/fftw"
 )
 
 // Spectrum Constants
@@ -17,7 +19,8 @@ const (
 type DataSet struct {
 	id int
 
-	Data []float64
+	Data    []float64
+	falloff []float64
 
 	peakHeight float64
 	window     *MovingWindow
@@ -42,8 +45,8 @@ type Spectrum struct {
 	// winMax is the maximum number of values in our sliding window
 	winMax int
 
-	// DataBuf is a slice of complex128 values
-	DataBuf []complex128
+	// DataBuf is a slice of fftw.ComplexType values
+	DataBuf []fftw.ComplexType
 
 	// workSets is a slice of float64 values
 	workSets []*DataSet
@@ -63,9 +66,10 @@ func (s *Spectrum) Init() error {
 
 	for idx := 0; idx < s.frameSize; idx++ {
 		s.workSets[idx] = &DataSet{
-			id:     idx,
-			Data:   make([]float64, s.maxBins),
-			window: NewMovingWindow(s.winMax),
+			id:      idx,
+			Data:    make([]float64, s.maxBins),
+			falloff: make([]float64, s.maxBins),
+			window:  NewMovingWindow(s.winMax),
 		}
 	}
 
@@ -147,7 +151,7 @@ func (s *Spectrum) Generate() {
 
 			for xFreq = s.loCuts[xBin]; xFreq <= s.hiCuts[xBin] &&
 				xFreq < s.sampleDataSize; xFreq++ {
-				vMag = vMag + pyt(s.DataBuf[xFreq])
+				vMag = vMag + pyt(s.DataBuf[xFreq+(s.sampleDataSize*xSet)])
 			}
 
 			vMag = vMag / float64(s.hiCuts[xBin]-s.loCuts[xBin]+1)
@@ -158,8 +162,8 @@ func (s *Spectrum) Generate() {
 	}
 }
 
-func pyt(value complex128) float64 {
-	return math.Sqrt((real(value) * real(value)) + (imag(value) * imag(value)))
+func pyt(value fftw.ComplexType) float64 {
+	return math.Sqrt(float64((real(value) * real(value)) + (imag(value) * imag(value))))
 }
 
 // Scale scales the data
@@ -185,7 +189,7 @@ func (s *Spectrum) Scale(height int) {
 
 		vSet.peakHeight = 0.125
 
-		for xBin = 0; xBin < s.numBins; xBin++ {
+		for xBin = 0; xBin <= s.numBins; xBin++ {
 			if vSet.peakHeight < vSet.Data[xBin] {
 				vSet.peakHeight = vSet.Data[xBin]
 			}
@@ -195,8 +199,10 @@ func (s *Spectrum) Scale(height int) {
 
 		vMag = math.Max(vMean+(2*vSD), 1.0)
 
-		for xBin = 0; xBin < s.numBins; xBin++ {
-			vSet.Data[xBin] = math.Min(cHeight-1, ((vSet.Data[xBin]/vMag)*cHeight)-1)
+		for xBin = 0; xBin <= s.numBins; xBin++ {
+			vSet.Data[xBin] = ((vSet.Data[xBin] / vMag) * cHeight) - 1
+
+			vSet.Data[xBin] = math.Min(cHeight-1, vSet.Data[xBin])
 		}
 	}
 }
@@ -212,7 +218,7 @@ func (s *Spectrum) Monstercat(factor float64) {
 	)
 
 	for _, vSet = range s.workSets {
-		for xBin = 0; xBin < s.numBins; xBin++ {
+		for xBin = 0; xBin <= s.numBins; xBin++ {
 			if xBin > 0 {
 				for pass = xBin - 1; pass >= 0; pass-- {
 					tmp = vSet.Data[xBin] / math.Pow(factor, float64(xBin-pass))
@@ -221,7 +227,7 @@ func (s *Spectrum) Monstercat(factor float64) {
 					}
 				}
 
-				for pass = xBin + 1; pass < s.numBins; pass++ {
+				for pass = xBin + 1; pass <= s.numBins; pass++ {
 					tmp = vSet.Data[xBin] / math.Pow(factor, float64(pass-xBin))
 					if tmp > vSet.Data[xBin] {
 						vSet.Data[xBin] = tmp
@@ -241,9 +247,12 @@ func (s *Spectrum) Falloff(weight float64) {
 	)
 
 	for _, vSet = range s.workSets {
-		for xBin = 0; xBin < s.numBins; xBin++ {
-			vMag = math.Min(vSet.Data[xBin]*weight, vSet.Data[xBin]-1)
-			vSet.Data[xBin] = math.Max(vMag, vSet.Data[xBin])
+		for xBin = 0; xBin <= s.numBins; xBin++ {
+			vMag = vSet.falloff[xBin]
+			vMag = math.Min(vMag*weight, vMag-1)
+			vMag = math.Max(vMag, vSet.Data[xBin])
+			vSet.falloff[xBin] = vMag
+			vSet.Data[xBin] = vMag
 		}
 	}
 }
