@@ -2,7 +2,6 @@ package tavis
 
 import (
 	"context"
-	"fmt"
 	"os"
 	"os/signal"
 	"time"
@@ -85,10 +84,10 @@ func Run() error {
 
 	panicOnError(audioInput.Init())
 
-	tmpBuf := make([]float64, BufferSize+4)
+	tmpBuf := make([]float64, BufferSize)
 
 	//FFTW complex data
-	fftwBuffer = make([]complex128, BufferSize)
+	fftwBuffer = make([]complex128, (SampleSize/2+1)*ChannelCount)
 
 	audioBuf := audioInput.Buffer()
 
@@ -100,10 +99,11 @@ func Run() error {
 
 	// Make a spectrum
 	spectrum = &Spectrum{
-		sampleRate: SampleRate,
-		sampleSize: SampleSize,
-		frameSize:  ChannelCount,
-		DataBuf:    fftwBuffer,
+		sampleRate:     SampleRate,
+		sampleSize:     SampleSize,
+		sampleDataSize: SampleSize/2 + 1,
+		frameSize:      ChannelCount,
+		DataBuf:        fftwBuffer,
 	}
 
 	panicOnError(spectrum.Init())
@@ -171,13 +171,6 @@ RunForRest: // , run!!!
 			}
 			fftwPlan.Execute()
 
-			for x := 0; x < len(fftwBuffer); x++ {
-				if fftwBuffer[x] == 0 {
-					fmt.Println(SampleSize, BufferSize, x)
-					break
-				}
-			}
-
 			winWidth, winHeight = display.Size()
 
 			if barCount != winWidth {
@@ -187,8 +180,8 @@ RunForRest: // , run!!!
 			winHeight = (winHeight / 2)
 
 			spectrum.Generate()
-			spectrum.Monstercat(MonstercatFactor)
-			spectrum.Scale(winHeight)
+			// spectrum.Monstercat(MonstercatFactor)
+			// spectrum.Scale(winHeight)
 			spectrum.Falloff(FalloffWeight)
 			// go display.Draw()
 			display.Draw()
