@@ -49,6 +49,8 @@ type Spectrum struct {
 	// workSets is a slice of float64 values
 	workSets []*DataSet
 
+	mCatWeights []float64
+
 	loCuts []int
 	hiCuts []int
 }
@@ -97,7 +99,7 @@ func (s *Spectrum) Recalculate(bins int, lo, hi float64) int {
 
 	var (
 		cBins float64 // bin count constant
-		cFreq float64 // frequency step constant
+		cFreq float64 // frequency coeficient constant
 
 		xBin int // bin index
 
@@ -111,7 +113,7 @@ func (s *Spectrum) Recalculate(bins int, lo, hi float64) int {
 	// so this came from dpayne/cli-visualizer
 	// until i can find a different solution
 	for xBin = 0; xBin <= bins; xBin++ {
-		vFreq = ((float64(xBin+1) / cBins) * cFreq) - cFreq
+		vFreq = (((float64(xBin+1) / cBins) * cFreq) - cFreq)
 		vFreq = hi * math.Pow(10.0, vFreq)
 		vFreq = (vFreq / (s.sampleRate / 2)) * (float64(s.sampleSize) / 4)
 
@@ -153,7 +155,6 @@ func (s *Spectrum) Generate() {
 			for xFreq = s.loCuts[xBin]; xFreq <= s.hiCuts[xBin] &&
 				xFreq < s.sampleDataSize; xFreq++ {
 				vMag = vMag + pyt(s.DataBuf[xFreq+(s.sampleDataSize*xSet)])
-				// vMag = vMag + pyt(s.DataBuf[xFreq+(s.sampleDataSize*xSet)])
 			}
 
 			vMag = vMag / float64(s.hiCuts[xBin]-s.loCuts[xBin]+1)
@@ -213,24 +214,22 @@ func (s *Spectrum) Scale(height int) {
 func (s *Spectrum) Monstercat(factor float64) {
 
 	var (
-		xBin int
-		pass int
-		vSet *DataSet
-		tmp  float64
+		xBin  int
+		xPass int
+		vSet  *DataSet
+		tmp   float64
 	)
 
 	for _, vSet = range s.workSets {
-		for xBin = 0; xBin <= s.numBins; xBin++ {
-			if xBin > 0 {
-				for pass = xBin - 1; pass >= 0; pass-- {
-					tmp = vSet.Data[xBin] / math.Pow(factor, float64(xBin-pass))
-					if tmp > vSet.Data[xBin] {
-						vSet.Data[xBin] = tmp
-					}
-				}
 
-				for pass = xBin + 1; pass <= s.numBins; pass++ {
-					tmp = vSet.Data[xBin] / math.Pow(factor, float64(pass-xBin))
+		for xBin = 1; xBin <= s.numBins; xBin++ {
+
+			if xBin > 0 {
+
+				for xPass = 0; xPass <= s.numBins; xPass++ {
+
+					tmp = vSet.Data[xBin] / math.Pow(factor, absInt(xBin-xPass))
+
 					if tmp > vSet.Data[xBin] {
 						vSet.Data[xBin] = tmp
 					}
@@ -238,6 +237,13 @@ func (s *Spectrum) Monstercat(factor float64) {
 			}
 		}
 	}
+}
+
+func absInt(value int) float64 {
+	if value < 0 {
+		return float64(-value)
+	}
+	return float64(value)
 }
 
 // Falloff is a simple falloff function

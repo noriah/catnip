@@ -26,6 +26,10 @@ const (
 
 	FalloffWeight = 0.910
 
+	BarWidth = 2
+
+	SpaceWidth = 1
+
 	// TargetFPS is how fast we want to redraw. Play with it
 	TargetFPS = 100
 
@@ -121,10 +125,10 @@ func Run() error {
 
 	panicOnError(display.Init())
 
-	barCount = display.SetWidths(2, 1)
+	display.SetWidths(BarWidth, SpaceWidth)
 
 	// Set it up with our values
-	spectrum.Recalculate(barCount, LoCutFerq, HiCutFreq)
+	spectrum.Recalculate(1, LoCutFerq, HiCutFreq)
 
 	rootCtx, rootCancel = context.WithCancel(context.Background())
 
@@ -192,6 +196,7 @@ RunForRest: // , run!!!
 
 			spectrum.Monstercat(MonstercatFactor)
 
+			// winHeight = winHeight / 2
 			spectrum.Scale(winHeight / 2)
 
 			spectrum.Falloff(FalloffWeight)
