@@ -14,10 +14,10 @@ const (
 
 // Display handles drawing our visualizer
 type Display struct {
-	screen     tcell.Screen
-	DataSets   []*DataSet
-	barWidth   int
-	spaceWidth int
+	screen   tcell.Screen
+	DataSets []*DataSet
+	barWidth int
+	binWidth int
 }
 
 // Init sets up the display
@@ -89,7 +89,7 @@ func (d *Display) Close() error {
 // Returns number of bars able to show
 func (d *Display) SetWidths(bar, space int) int {
 	d.barWidth = bar
-	d.spaceWidth = space
+	d.binWidth = (bar + space)
 
 	return d.Bars()
 }
@@ -97,18 +97,23 @@ func (d *Display) SetWidths(bar, space int) int {
 // Bars returns the number of bars we will draw
 func (d *Display) Bars() int {
 	var width, _ int = d.screen.Size()
-	var perBar int = d.barWidth + d.spaceWidth
 
-	width = width / perBar
-
-	return width
+	return width / d.binWidth
 }
 
 // Size returns the width and height of the screen in bars and rows
 func (d *Display) Size() (int, int) {
-	var _, height int = d.screen.Size()
-	var width = d.Bars()
-	return width, height
+	var width, height int = d.screen.Size()
+	return (width / d.binWidth), height
+}
+
+func (d *Display) offset() int {
+	var width, _ int = d.screen.Size()
+	width = width - (d.binWidth * (width / d.binWidth))
+	if width > 1 {
+		return width / 2
+	}
+	return 0
 }
 
 // Draw takes data, and draws
@@ -116,8 +121,7 @@ func (d *Display) Draw() error {
 	var (
 		cHeight int
 		cWidth  int
-
-		barSpaceWidth int
+		cOffset int
 
 		xCol int
 		xRow int
@@ -125,37 +129,36 @@ func (d *Display) Draw() error {
 
 		vSet    *DataSet
 		vTarget int
+		vDelta  int
 	)
-
-	barSpaceWidth = d.barWidth + d.spaceWidth
 
 	cWidth, cHeight = d.screen.Size()
 
 	cHeight = cHeight / 2
-	// if cHeight%2 == 0 {
-	// 	cHeight++
-	// }
 
-	var offset int = 0
+	cOffset = d.offset()
 
-	for xCol = offset; xCol < cWidth; xCol++ {
-		if (xCol%barSpaceWidth)/d.barWidth > 0 {
-			continue
+	for _, vSet = range d.DataSets {
+
+		vDelta = 1
+
+		if vSet.id == 1 {
+			vDelta = -vDelta
 		}
 
-		d.screen.SetContent(xCol, cHeight, DisplayBar, nil, tcell.StyleDefault)
+		for xCol = 0; xCol < cWidth; xCol += d.binWidth {
 
-		xBin = (xCol / barSpaceWidth)
+			xBin = xCol / d.binWidth
 
-		for _, vSet = range d.DataSets {
-			vTarget = cHeight
+			vTarget = int(vSet.Data[xBin])
 
-			if vSet.id == 1 {
-				vTarget = cHeight + 1 + int(vSet.Data[xBin])
-			}
-
-			for xRow = vTarget - int(vSet.Data[xBin]); xRow < vTarget; xRow++ {
-				d.screen.SetContent(xCol, xRow, DisplayBar, nil, tcell.StyleDefault)
+			for xRow = 0; xRow < vTarget*d.barWidth; xRow++ {
+				d.screen.SetContent(
+					xCol+cOffset+(xRow/vTarget),
+					cHeight+(vDelta*(xRow%vTarget)),
+					DisplayBar, nil,
+					tcell.StyleDefault,
+				)
 			}
 		}
 	}

@@ -113,7 +113,7 @@ func (s *Spectrum) Recalculate(bins int, lo, hi float64) int {
 	// so this came from dpayne/cli-visualizer
 	// until i can find a different solution
 	for xBin = 0; xBin <= bins; xBin++ {
-		vFreq = (((float64(xBin+1) / cBins) * cFreq) - cFreq)
+		vFreq = (((float64(xBin+1) / cBins) - 1) * cFreq)
 		vFreq = hi * math.Pow(10.0, vFreq)
 		vFreq = (vFreq / (s.sampleRate / 2)) * (float64(s.sampleSize) / 4)
 
@@ -176,10 +176,11 @@ func (s *Spectrum) Scale(height int) {
 
 		cHeight float64 // height constant
 
-		vSet  *DataSet
-		vMag  float64 // magnitude variable
-		vMean float64 // average variable
-		vSD   float64 // standard deviation variable
+		vSet    *DataSet
+		vMag    float64 // magnitude variable
+		vMean   float64 // average variable
+		vSD     float64 // standard deviation variable
+		vSilent bool
 	)
 
 	cHeight = float64(height)
@@ -191,11 +192,19 @@ func (s *Spectrum) Scale(height int) {
 		}
 
 		vSet.peakHeight = 0.125
+		vSilent = true
 
 		for xBin = 0; xBin <= s.numBins; xBin++ {
-			if vSet.peakHeight < vSet.Data[xBin] {
-				vSet.peakHeight = vSet.Data[xBin]
+			if vSet.Data[xBin] > 0 {
+				vSilent = false
+				if vSet.peakHeight < vSet.Data[xBin] {
+					vSet.peakHeight = vSet.Data[xBin]
+				}
 			}
+		}
+
+		if vSilent {
+			return
 		}
 
 		vMean, vSD = vSet.window.Update(vSet.peakHeight)
@@ -224,15 +233,12 @@ func (s *Spectrum) Monstercat(factor float64) {
 
 		for xBin = 1; xBin <= s.numBins; xBin++ {
 
-			if xBin > 0 {
+			for xPass = 0; xPass <= s.numBins; xPass++ {
 
-				for xPass = 0; xPass <= s.numBins; xPass++ {
+				tmp = vSet.Data[xBin] / math.Pow(factor, absInt(xBin-xPass))
 
-					tmp = vSet.Data[xBin] / math.Pow(factor, absInt(xBin-xPass))
-
-					if tmp > vSet.Data[xBin] {
-						vSet.Data[xBin] = tmp
-					}
+				if tmp > vSet.Data[xBin] {
+					vSet.Data[xBin] = tmp
 				}
 			}
 		}
