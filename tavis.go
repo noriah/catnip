@@ -131,9 +131,6 @@ func Run(d Device) error {
 	defer mainTicker.Stop()
 
 	for range mainTicker.C {
-		if vSince := time.Since(vIterStart); vSince < drawDelay {
-			time.Sleep(drawDelay - vSince)
-		}
 
 		select {
 		case <-ctx.Done():
@@ -171,6 +168,10 @@ func Run(d Device) error {
 			}
 
 			display.Draw(winHeight/2, 1, sets...)
+		}
+
+		if vSince := time.Since(vIterStart); vSince < drawDelay {
+			time.Sleep(drawDelay - vSince)
 		}
 	}
 
