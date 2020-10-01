@@ -224,10 +224,10 @@ func deFrame(dest []float64, src []float32, count, size int) {
 
 	// This "fix" is because the portaudio interface we are using does not
 	// work properly. I have to de-interleave the array
-	for xID, xBuf := 0, 0; xID < count; xID++ {
-		for xCnt := 0; xCnt < size; xBuf++ {
-			dest[(xID*size)+xCnt] = float64(src[xBuf])
-			xCnt++
+	for xBuf, xOffset := 0, 0; xOffset < count*size; xOffset += size {
+		for xCnt := 0; xCnt < size; xCnt++ {
+			dest[xOffset+xCnt] = float64(src[xBuf])
+			xBuf++
 		}
 	}
 }
