@@ -4,7 +4,6 @@ import (
 	"context"
 	"errors"
 	"fmt"
-	"strings"
 
 	"github.com/noriah/tavis/portaudio"
 )
@@ -52,7 +51,7 @@ func (pa *Portaudio) Init() error {
 	var device *portaudio.DeviceInfo
 
 	for idx := 0; idx < len(devices); idx++ {
-		if strings.Compare(devices[idx].Name, pa.DeviceName) == 0 {
+		if devices[idx].Name == pa.DeviceName {
 			device = devices[idx]
 			break
 		}
