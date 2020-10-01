@@ -137,6 +137,11 @@ func (s *Spectrum) Recalculate(bins int, lo, hi float64) int {
 	// so this came from dpayne/cli-visualizer
 	// until i can find a different solution
 	for xBin := 0; xBin <= bins; xBin++ {
+		// Fix issue where recalculations may not be accurate due to
+		// previous runs
+		s.loCuts[xBin] = 0
+		s.hiCuts[xBin] = 0
+
 		vFreq := (((float64(xBin+1) / cBins) - 1) * cFreq)
 		vFreq = hi * math.Pow(10.0, vFreq)
 		vFreq = (vFreq / (s.sampleRate / 2)) * (float64(s.sampleSize) / 4)
