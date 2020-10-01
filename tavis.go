@@ -2,6 +2,7 @@ package tavis
 
 import (
 	"context"
+	"fmt"
 	"os"
 	"os/signal"
 	"time"
@@ -70,8 +71,6 @@ func Run() error {
 	var (
 		err error
 
-		audioInput *Portaudio
-
 		fftwBuffer []complex128
 		fftwPlan   *fftw.Plan
 
@@ -86,7 +85,7 @@ func Run() error {
 		mainTicker *time.Ticker
 	)
 
-	audioInput = &Portaudio{
+	var audioInput = &Portaudio{
 		DeviceName: DeviceName,
 		FrameSize:  ChannelCount,
 		SampleSize: SampleSize,
@@ -181,7 +180,7 @@ RunForRest: // , run!!!
 				}
 			}
 
-			deFrame(tmpBuf, audioBuf, ChannelCount)
+			deFrame(tmpBuf, audioBuf, ChannelCount, SampleSize)
 
 			fftwPlan.Execute()
 
@@ -215,17 +214,21 @@ RunForRest: // , run!!!
 	fftwPlan.Destroy()
 
 	if pulseError != nil {
+		fmt.Println(pulseError)
 	}
 
 	return nil
 }
 
-func deFrame(dest []float64, src []float32, t int) {
+func deFrame(dest []float64, src []float32, count, size int) {
 
 	// This "fix" is because the portaudio interface we are using does not
 	// work properly. I have to de-interleave the array
-	for xBuf := 0; xBuf < SampleBufferSize; xBuf++ {
-		dest[xBuf] = float64(src[(xBuf/t)+(xBuf%t)])
+	for xID, xBuf := 0, 0; xID < count; xID++ {
+		for xCnt := 0; xCnt < size; xBuf++ {
+			dest[(xID*size)+xCnt] = float64(src[xBuf])
+			xCnt++
+		}
 	}
 }
 

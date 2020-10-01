@@ -14,7 +14,6 @@
  - tcell
 
 <!-- Links -->
-[self]: https://github.com/noriah/code
 [noriah-dev]: https://noriah.dev
 [go-dev]: https://go.dev
 [betawhat]: https://google.com/search?q=betamax
