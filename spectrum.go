@@ -24,14 +24,22 @@ const (
 type DataSet struct {
 	id int
 
-	Data    []complex128
-	Bins    []float64
-	falloff []float64
+	dataSize int
+	numBins  int
+
+	DataBuf []complex128
+	binBuf  []float64
+	prevBuf []float64
 
 	peakHeight float64
 
 	slowWindow *MovingWindow
 	fastWindow *MovingWindow
+}
+
+// Bins returns the bins that we have as a silce
+func (ds *DataSet) Bins() []float64 {
+	return ds.binBuf[:ds.numBins]
 }
 
 // Spectrum is an audio spectrum in a buffer
@@ -50,34 +58,38 @@ type Spectrum struct {
 	// frameSize is the number of channels we expect per frame
 	frameSize int
 
-	// DataBuf is a slice of complex128 values
-	DataBuf []complex128
-
-	// workSets is a slice of float64 values
-	workSets []*DataSet
-
-	mCatWeights []float64
+	// dataSets is a slice of float64 values
+	dataSets []*DataSet
 
 	loCuts []int
 	hiCuts []int
 }
 
-// Init will set up our spectrum
-func (s *Spectrum) Init() error {
+// NewSpectrum will set up our spectrum
+func NewSpectrum(rate float64, sets, size int) *Spectrum {
+
+	var s = &Spectrum{
+		frameSize:  sets,
+		sampleSize: size,
+		sampleRate: rate,
+	}
 
 	s.maxBins = MaxBars
 
 	slowMax := int((ScalingSlowWindow*s.sampleRate)/float64(s.sampleSize)) * 2
 	fastMax := int((ScalingFastWindow*s.sampleRate)/float64(s.sampleSize)) * 2
 
-	s.workSets = make([]*DataSet, s.frameSize)
+	s.dataSets = make([]*DataSet, s.frameSize)
+
+	dataSize := (size / 2) + 1
 
 	for idx := 0; idx < s.frameSize; idx++ {
-		s.workSets[idx] = &DataSet{
-			id:         idx,
-			Data:       make([]complex128, s.maxBins),
-			Bins:       make([]float64, s.maxBins),
-			falloff:    make([]float64, s.maxBins),
+		s.dataSets[idx] = &DataSet{
+			id:       idx,
+			dataSize: dataSize,
+			// DataBuf:    make([]complex128, dataSize),
+			binBuf:     make([]float64, s.maxBins),
+			prevBuf:    make([]float64, s.maxBins),
 			slowWindow: NewMovingWindow(slowMax),
 			fastWindow: NewMovingWindow(fastMax),
 		}
@@ -88,12 +100,12 @@ func (s *Spectrum) Init() error {
 
 	s.Recalculate(s.maxBins, 20, s.sampleRate/2)
 
-	return nil
+	return s
 }
 
 // DataSets returns our sets of data
 func (s *Spectrum) DataSets() []*DataSet {
-	return s.workSets
+	return s.dataSets
 }
 
 // Recalculate rebuilds our frequency bins with bins bin counts
@@ -105,25 +117,20 @@ func (s *Spectrum) Recalculate(bins int, lo, hi float64) int {
 		bins = s.maxBins
 	}
 
+	for _, vSet := range s.dataSets {
+		vSet.numBins = bins
+	}
+
 	s.numBins = bins
 
-	var (
-		cBins float64 // bin count constant
-		cFreq float64 // frequency coeficient constant
+	var cBins = float64(bins + 1)
 
-		xBin int // bin index
-
-		vFreq float64 // frequency variable
-	)
-
-	cBins = float64(bins + 1)
-
-	cFreq = math.Log10(lo/hi) / ((1 / cBins) - 1)
+	var cFreq = math.Log10(lo/hi) / ((1 / cBins) - 1)
 
 	// so this came from dpayne/cli-visualizer
 	// until i can find a different solution
-	for xBin = 0; xBin <= bins; xBin++ {
-		vFreq = (((float64(xBin+1) / cBins) - 1) * cFreq)
+	for xBin := 0; xBin <= bins; xBin++ {
+		vFreq := (((float64(xBin+1) / cBins) - 1) * cFreq)
 		vFreq = hi * math.Pow(10.0, vFreq)
 		vFreq = (vFreq / (s.sampleRate / 2)) * (float64(s.sampleSize) / 4)
 
@@ -144,39 +151,30 @@ func (s *Spectrum) Recalculate(bins int, lo, hi float64) int {
 // Generate makes numBins and dumps them in the buffer
 func (s *Spectrum) Generate() {
 
-	var (
-		xBin  int // bin index
-		xSet  int // set index
-		xFreq int // frequency index
+	for _, vS := range s.dataSets {
 
-		vMag   float64 // Frequency Magnitude variable
-		vBoost float64 // Boost Factor
+		for xBin := 0; xBin <= vS.numBins; xBin++ {
 
-	)
+			var vM = 0.0
 
-	for xSet = range s.workSets {
+			for xF, vC := s.loCuts[xBin], complex128(0); xF <= s.hiCuts[xBin] &&
+				xF < vS.dataSize; xF++ {
 
-		for xBin = 0; xBin <= s.numBins; xBin++ {
+				vC = vS.DataBuf[xF]
 
-			vBoost = math.Log2(float64(2+xBin)) * (100.0 / float64(s.numBins))
-
-			vMag = 0
-
-			for xFreq = s.loCuts[xBin]; xFreq <= s.hiCuts[xBin] &&
-				xFreq < s.sampleDataSize; xFreq++ {
-				vMag = vMag + pyt(s.DataBuf[xFreq+(s.sampleDataSize*xSet)])
+				vM += math.Sqrt(
+					(real(vC) * real(vC)) +
+						(imag(vC) * imag(vC)))
 			}
 
-			vMag = vMag / float64(s.hiCuts[xBin]-s.loCuts[xBin]+1)
-			vMag = vMag * vBoost
+			vM /= float64(s.hiCuts[xBin] - s.loCuts[xBin] + 1)
 
-			s.workSets[xSet].Bins[xBin] = math.Pow(vMag, 0.5)
+			vM *= (math.Log2(float64(2+xBin)) *
+				(100.0 / float64(vS.numBins)))
+
+			vS.binBuf[xBin] = math.Pow(vM, 0.5)
 		}
 	}
-}
-
-func pyt(value complex128) float64 {
-	return math.Sqrt(float64((real(value) * real(value)) + (imag(value) * imag(value))))
 }
 
 // Scale scales the data
@@ -184,27 +182,21 @@ func (s *Spectrum) Scale(height int) {
 	var (
 		xBin int // bin index
 
-		cHeight float64 // height constant
-
-		vSet    *DataSet
-		vMag    float64 // magnitude variable
-		vMean   float64 // average variable
-		vSD     float64 // standard deviation variable
-		vSilent bool
+		vMag float64 // magnitude variable
 	)
 
-	cHeight = float64(height)
+	var cHeight = float64(height)
 
-	for _, vSet = range s.workSets {
+	for _, vSet := range s.dataSets {
 
 		vSet.peakHeight = 0.125
-		vSilent = true
+		var vSilent = true
 
 		for xBin = 0; xBin <= s.numBins; xBin++ {
-			if vSet.Bins[xBin] > 0 {
+			if vSet.binBuf[xBin] > 0 {
 				vSilent = false
-				if vSet.peakHeight < vSet.Bins[xBin] {
-					vSet.peakHeight = vSet.Bins[xBin]
+				if vSet.peakHeight < vSet.binBuf[xBin] {
+					vSet.peakHeight = vSet.binBuf[xBin]
 				}
 			}
 		}
@@ -214,9 +206,9 @@ func (s *Spectrum) Scale(height int) {
 		}
 
 		vSet.fastWindow.Update(vSet.peakHeight)
-		vMean, vSD = vSet.slowWindow.Update(vSet.peakHeight)
+		var vMean, vSD = vSet.slowWindow.Update(vSet.peakHeight)
 
-		if xBin = vSet.slowWindow.Points(); xBin > vSet.fastWindow.Capacity() {
+		if xBin = vSet.slowWindow.Len(); xBin > vSet.fastWindow.Cap() {
 			vMag = math.Abs(vSet.fastWindow.Mean() - vMean)
 			if vMag > (ScalingResetDeviation * vSD) {
 				vSet.slowWindow.Drop(int(float64(xBin) * ScalingDumpPercent))
@@ -227,33 +219,27 @@ func (s *Spectrum) Scale(height int) {
 		vMag = math.Max(vMean+(2*vSD), 1.0)
 
 		for xBin = 0; xBin <= s.numBins; xBin++ {
-			vSet.Bins[xBin] = ((vSet.Bins[xBin] / vMag) * cHeight) - 1
+			vSet.binBuf[xBin] = ((vSet.binBuf[xBin] / vMag) * cHeight) - 1
 
-			vSet.Bins[xBin] = math.Min(cHeight-1, vSet.Bins[xBin])
+			vSet.binBuf[xBin] = math.Min(cHeight-1, vSet.binBuf[xBin])
 		}
 	}
 }
 
 // Monstercat is not entirely understood yet.
+// We need to work on it
 func (s *Spectrum) Monstercat(factor float64) {
 
-	var (
-		xBin  int
-		xPass int
-		vSet  *DataSet
-		tmp   float64
-	)
+	for _, vSet := range s.dataSets {
 
-	for _, vSet = range s.workSets {
+		for xBin := 1; xBin <= vSet.numBins; xBin++ {
 
-		for xBin = 1; xBin <= s.numBins; xBin++ {
+			for xPass := 0; xPass <= vSet.numBins; xPass++ {
 
-			for xPass = 0; xPass <= s.numBins; xPass++ {
+				tmp := vSet.binBuf[xBin] / math.Pow(factor, absInt(xBin-xPass))
 
-				tmp = vSet.Bins[xBin] / math.Pow(factor, absInt(xBin-xPass))
-
-				if tmp > vSet.Bins[xBin] {
-					vSet.Bins[xBin] = tmp
+				if tmp > vSet.binBuf[xBin] {
+					vSet.binBuf[xBin] = tmp
 				}
 			}
 		}
@@ -267,21 +253,19 @@ func absInt(value int) float64 {
 	return float64(value)
 }
 
-// Falloff is a simple falloff function
+// Falloff does falling off things
 func (s *Spectrum) Falloff(weight float64) {
-	var (
-		xBin int
-		vMag float64
-		vSet *DataSet
-	)
 
-	for _, vSet = range s.workSets {
-		for xBin = 0; xBin <= s.numBins; xBin++ {
-			vMag = vSet.falloff[xBin]
+	for _, vSet := range s.dataSets {
+		for xBin := 0; xBin <= s.numBins; xBin++ {
+			vMag := vSet.prevBuf[xBin]
 			vMag = math.Min(vMag*weight, vMag-1)
-			vMag = math.Max(vMag, vSet.Bins[xBin])
-			vSet.falloff[xBin] = vMag
-			vSet.Bins[xBin] = vMag
+
+			// we want the higher value here because we just calculated the
+			// lower value without checking if we need it
+			vMag = math.Max(vMag, vSet.binBuf[xBin])
+			vSet.prevBuf[xBin] = vMag
+			vSet.binBuf[xBin] = vMag
 		}
 	}
 }

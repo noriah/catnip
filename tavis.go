@@ -42,7 +42,7 @@ func NewZeroDevice() Device {
 		LoCutFreq:        20,
 		HiCutFreq:        8000,
 		MonstercatFactor: 8.75,
-		FalloffWeight:    0.895,
+		FalloffWeight:    0.910,
 		BarWidth:         2,
 		SpaceWidth:       1,
 		TargetFPS:        60,
@@ -75,11 +75,6 @@ func (d Device) Run() error {
 	// MAIN LOOP PREP
 
 	var (
-		barCount int
-
-		xSet int
-		xBuf int
-
 		winWidth  int
 		winHeight int
 
@@ -87,7 +82,7 @@ func (d Device) Run() error {
 		vSince     time.Duration
 	)
 
-	audioInput := &Portaudio{
+	var audioInput = &Portaudio{
 		DeviceName: d.Name,
 		FrameSize:  d.ChannelCount,
 		SampleSize: sampleSize,
@@ -108,7 +103,7 @@ func (d Device) Run() error {
 	audioBuf := audioInput.Buffer()
 
 	// Our FFTW calculator
-	fftwPlan := fftw.New(
+	var fftwPlan = fftw.New(
 		tmpBuf, fftwBuffer,
 		d.ChannelCount, sampleSize,
 		fftw.Estimate,
@@ -117,31 +112,19 @@ func (d Device) Run() error {
 	defer fftwPlan.Destroy()
 
 	// Make a spectrum
-	spectrum := &Spectrum{
-		sampleRate:     d.SampleRate,
-		sampleSize:     sampleSize,
-		sampleDataSize: fftwDataSize,
-		frameSize:      d.ChannelCount,
-		DataBuf:        fftwBuffer,
+	var spectrum = NewSpectrum(d.SampleRate, d.ChannelCount, sampleSize)
+
+	for xSet, vSet := range spectrum.DataSets() {
+		vSet.DataBuf = fftwBuffer[xSet*fftwDataSize : (xSet+1)*fftwDataSize]
 	}
 
-	if err := spectrum.Init(); err != nil {
-		return errors.Wrap(err, "failed to initialize spectrum")
-	}
-
-	display := &Display{
-		DataSets: spectrum.DataSets(),
-	}
-
-	if err := display.Init(); err != nil {
-		return errors.Wrap(err, "failed to create display")
-	}
-
+	var display = NewDisplay(spectrum.DataSets())
 	defer display.Close()
-	display.SetWidths(d.BarWidth, d.SpaceWidth)
+
+	var barCount = display.SetWidths(d.BarWidth, d.SpaceWidth)
 
 	// Set it up with our values
-	spectrum.Recalculate(1, d.LoCutFreq, d.HiCutFreq)
+	spectrum.Recalculate(barCount, d.LoCutFreq, d.HiCutFreq)
 
 	ctx, cancel := context.WithCancel(context.Background())
 	defer cancel()
@@ -202,28 +185,27 @@ RunForRest: // , run!!!
 				}
 			}
 
-			// This "fix" is because the portaudio interface we are using does not
-			// work properly. I have to de-interleave the array
-			for xSet = 0; xSet < d.ChannelCount; xSet++ {
-				for xBuf = 0; xBuf < sampleSize; xBuf++ {
-					tmpBuf[xBuf+(sampleSize*xSet)] = float64(audioBuf[(xBuf*d.ChannelCount)+xSet])
-				}
-			}
+			deFrame(sampleBufferSize, tmpBuf, audioBuf, d.ChannelCount)
 
 			fftwPlan.Execute()
 
 			spectrum.Generate()
-
 			spectrum.Monstercat(d.MonstercatFactor)
-
 			// winHeight = winHeight / 2
 			spectrum.Scale(winHeight / 2)
-
 			spectrum.Falloff(d.FalloffWeight)
 
-			display.Draw(winHeight / 2)
+			display.Draw(winHeight/2, 1)
 		}
 	}
 
 	return nil
+}
+
+func deFrame(bufsz int, dest []float64, src []float32, t int) {
+	// This "fix" is because the portaudio interface we are using does not
+	// work properly. I have to de-interleave the array
+	for xBuf := 0; xBuf < bufsz; xBuf++ {
+		dest[xBuf] = float64(src[(xBuf/t)+(xBuf%t)])
+	}
 }
