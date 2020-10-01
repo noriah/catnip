@@ -89,7 +89,7 @@ func Run() error {
 	}
 
 	var display = NewDisplay()
-	defer display.Stop()
+	defer display.Close()
 
 	var barCount = display.SetWidths(BarWidth, SpaceWidth)
 
@@ -102,6 +102,7 @@ func Run() error {
 	var displayChan = make(chan bool, 1)
 
 	display.Start(displayChan)
+	defer display.Stop()
 
 	// Handle fanout of cancel
 	go func() {
