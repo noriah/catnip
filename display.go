@@ -114,10 +114,9 @@ func (d *Display) offset() int {
 }
 
 // Draw takes data, and draws
-func (d *Display) Draw() error {
+func (d *Display) Draw(height int) error {
 	var (
-		cHeight int
-		cWidth  int
+		cWidth int
 
 		cOffset int
 
@@ -126,19 +125,14 @@ func (d *Display) Draw() error {
 		xBin int
 
 		vSet    *DataSet
-		vTarget int
+		vLimCol int
+		vLimRow int
 		vDelta  int
 	)
 
-	// grab our dimensions
-	cWidth, cHeight = d.screen.Size()
-
 	// we want to break out when we have reached the max number of bars
 	// we are able to display, including spacing
-	cWidth = (d.binWidth * (cWidth / d.binWidth))
-
-	// we want to draw at half height
-	cHeight = cHeight / 2
+	cWidth = d.Bars() * d.binWidth
 
 	// get our offset
 	cOffset = d.offset()
@@ -151,9 +145,10 @@ func (d *Display) Draw() error {
 		// our change per row will
 		vDelta = 1
 
-		// If we are looking at the first set (left channel)
-		// we want to draw up
-		if vSet.id == 0 {
+		// If we are looking at not the first set (left channel)
+		// we want to draw down
+		// TODO(mariah): fix this to be dynamic on input channels
+		if vSet.id != 0 {
 			vDelta *= -1
 		}
 
@@ -164,39 +159,35 @@ func (d *Display) Draw() error {
 			xCol += cOffset
 
 			// we always want to target our bar height
-			vTarget = int(vSet.Data[xBin])
+			vLimRow = int(vSet.Bins[xBin])
 
-			// Draw the bars for this data set
-			for xRow = 0; xRow < vTarget*d.barWidth; xRow++ {
+			for vLimCol = xCol + d.barWidth; xCol < vLimCol; xCol++ {
+
+				// Draw our center line
 				d.screen.SetContent(
-
-					// this is so dirty looking
-					// it is done so we do not have two loops here, one for bar width,
-					// and one for row. it has not been benchmarked which is better
-
-					// TODO(nora): benchmark math vs. double loop
-
-					xCol+(xRow/vTarget),
-
-					cHeight+(vDelta*(1+(xRow%vTarget))),
-
-					// Just use our const character for now
-					DisplayBar, nil,
-
-					// Working on color bars
-					tcell.StyleDefault,
-				)
-			}
-
-			// Draw our center line
-			for xRow = xCol + d.barWidth; xCol < xRow; xCol++ {
-				d.screen.SetContent(
-					xCol, cHeight,
+					xCol, height,
 					DisplayBar, nil,
 					tcell.StyleDefault,
 				)
-			}
 
+				// Draw the bars for this data set
+				for xRow = 0; xRow < vLimRow; xRow++ {
+					d.screen.SetContent(
+
+						// TODO(nora): benchmark math (single loop) vs. double loop
+
+						xCol,
+
+						height-(vDelta*(1+xRow)),
+
+						// Just use our const character for now
+						DisplayBar, nil,
+
+						// Working on color bars
+						tcell.StyleDefault,
+					)
+				}
+			}
 			// increment the bin we are looking at.
 			xBin++
 		}

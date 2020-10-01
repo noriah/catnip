@@ -24,7 +24,8 @@ const (
 type DataSet struct {
 	id int
 
-	Data    []float64
+	Data    []complex128
+	Bins    []float64
 	falloff []float64
 
 	peakHeight float64
@@ -74,7 +75,8 @@ func (s *Spectrum) Init() error {
 	for idx := 0; idx < s.frameSize; idx++ {
 		s.workSets[idx] = &DataSet{
 			id:         idx,
-			Data:       make([]float64, s.maxBins),
+			Data:       make([]complex128, s.maxBins),
+			Bins:       make([]float64, s.maxBins),
 			falloff:    make([]float64, s.maxBins),
 			slowWindow: NewMovingWindow(slowMax),
 			fastWindow: NewMovingWindow(fastMax),
@@ -168,7 +170,7 @@ func (s *Spectrum) Generate() {
 			vMag = vMag / float64(s.hiCuts[xBin]-s.loCuts[xBin]+1)
 			vMag = vMag * vBoost
 
-			s.workSets[xSet].Data[xBin] = math.Pow(vMag, 0.5)
+			s.workSets[xSet].Bins[xBin] = math.Pow(vMag, 0.5)
 		}
 	}
 }
@@ -199,10 +201,10 @@ func (s *Spectrum) Scale(height int) {
 		vSilent = true
 
 		for xBin = 0; xBin <= s.numBins; xBin++ {
-			if vSet.Data[xBin] > 0 {
+			if vSet.Bins[xBin] > 0 {
 				vSilent = false
-				if vSet.peakHeight < vSet.Data[xBin] {
-					vSet.peakHeight = vSet.Data[xBin]
+				if vSet.peakHeight < vSet.Bins[xBin] {
+					vSet.peakHeight = vSet.Bins[xBin]
 				}
 			}
 		}
@@ -225,9 +227,9 @@ func (s *Spectrum) Scale(height int) {
 		vMag = math.Max(vMean+(2*vSD), 1.0)
 
 		for xBin = 0; xBin <= s.numBins; xBin++ {
-			vSet.Data[xBin] = ((vSet.Data[xBin] / vMag) * cHeight) - 1
+			vSet.Bins[xBin] = ((vSet.Bins[xBin] / vMag) * cHeight) - 1
 
-			vSet.Data[xBin] = math.Min(cHeight-1, vSet.Data[xBin])
+			vSet.Bins[xBin] = math.Min(cHeight-1, vSet.Bins[xBin])
 		}
 	}
 }
@@ -248,10 +250,10 @@ func (s *Spectrum) Monstercat(factor float64) {
 
 			for xPass = 0; xPass <= s.numBins; xPass++ {
 
-				tmp = vSet.Data[xBin] / math.Pow(factor, absInt(xBin-xPass))
+				tmp = vSet.Bins[xBin] / math.Pow(factor, absInt(xBin-xPass))
 
-				if tmp > vSet.Data[xBin] {
-					vSet.Data[xBin] = tmp
+				if tmp > vSet.Bins[xBin] {
+					vSet.Bins[xBin] = tmp
 				}
 			}
 		}
@@ -277,9 +279,9 @@ func (s *Spectrum) Falloff(weight float64) {
 		for xBin = 0; xBin <= s.numBins; xBin++ {
 			vMag = vSet.falloff[xBin]
 			vMag = math.Min(vMag*weight, vMag-1)
-			vMag = math.Max(vMag, vSet.Data[xBin])
+			vMag = math.Max(vMag, vSet.Bins[xBin])
 			vSet.falloff[xBin] = vMag
-			vSet.Data[xBin] = vMag
+			vSet.Bins[xBin] = vMag
 		}
 	}
 }

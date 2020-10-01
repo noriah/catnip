@@ -219,7 +219,7 @@ RunForRest: // , run!!!
 
 			spectrum.Falloff(FalloffWeight)
 
-			display.Draw()
+			display.Draw(winHeight / 2)
 		}
 	}
 
