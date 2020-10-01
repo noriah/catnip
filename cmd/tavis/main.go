@@ -6,16 +6,22 @@ import (
 	"os"
 
 	"github.com/noriah/tavis"
-	"github.com/noriah/tavis/input/portaudio/portaudio"
+	"github.com/noriah/tavis/input"
 	"github.com/pkg/errors"
 	"github.com/urfave/cli/v2"
+
+	// Input backends.
+	_ "github.com/noriah/tavis/input/ffmpeg"
+	_ "github.com/noriah/tavis/input/parec"
+)
+
+var (
+	device = tavis.NewZeroDevice()
 )
 
 func init() {
 	log.SetFlags(0)
 }
-
-var device = tavis.NewZeroDevice()
 
 func main() {
 	app := cli.App{
@@ -24,6 +30,11 @@ func main() {
 		Action: run,
 		Commands: []*cli.Command{
 			{
+				Name:        "list-backends",
+				Action:      listBackends,
+				Description: "List all available backends",
+			},
+			{
 				Name:        "list-devices",
 				Action:      listDevices,
 				Description: "List all visible input devices",
@@ -31,10 +42,13 @@ func main() {
 		},
 		Flags: []cli.Flag{
 			&cli.StringFlag{
-				Name:        "device-name",
-				Aliases:     []string{"d"},
-				Value:       device.Name,
-				Destination: &device.Name,
+				Name:    "backend",
+				Value:   "portaudio",
+				Aliases: []string{"b"},
+			},
+			&cli.StringFlag{
+				Name:    "device",
+				Aliases: []string{"d"},
 			},
 			&cli.Float64Flag{
 				Name:        "sample-rate",
@@ -83,55 +97,93 @@ func main() {
 	}
 
 	if err := app.Run(os.Args); err != nil {
-		log.Fatalln(err)
+		log.Fatalln("Error:", err)
 	}
 }
 
-func run(c *cli.Context) error {
-	return tavis.Run(device)
+func listBackends(c *cli.Context) error {
+	for _, backend := range input.Backends {
+		fmt.Printf("- %s\n", backend.Name)
+	}
+	return nil
+}
+
+func initBackend(c *cli.Context) error {
+	backendName := c.String("backend")
+
+	device.InputBackend = input.FindBackend(backendName)
+	if device.InputBackend == nil {
+		return fmt.Errorf("backend not found: %q", backendName)
+	}
+
+	if err := device.InputBackend.Init(); err != nil {
+		return errors.Wrap(err, "failed to initialize input backend")
+	}
+
+	return nil
 }
 
 func listDevices(c *cli.Context) error {
-	if err := portaudio.Initialize(); err != nil {
-		return errors.Wrap(err, "failed to initialize Portaudio")
+	if err := initBackend(c); err != nil {
+		return err
 	}
 
-	devices, err := portaudio.Devices()
+	devices, err := device.InputBackend.Devices()
 	if err != nil {
 		return errors.Wrap(err, "failed to get devices")
 	}
 
-	type host struct {
-		name    string
-		devices []*portaudio.DeviceInfo
-	}
+	// optional default device
+	defaultDevice, _ := device.InputBackend.DefaultDevice()
 
-	var hosts = []host{}
-
-DeviceLoop:
 	for _, device := range devices {
-		for i, host := range hosts {
-			if host.name == device.HostApi.Name {
-				host.devices = append(host.devices, device)
-				hosts[i] = host
+		fmt.Printf("- %v", device)
 
-				continue DeviceLoop
-			}
+		if defaultDevice != nil && device.String() == defaultDevice.String() {
+			fmt.Print(" (default)")
 		}
 
-		hosts = append(hosts, host{
-			name:    device.HostApi.Name,
-			devices: []*portaudio.DeviceInfo{device},
-		})
-	}
-
-	for _, host := range hosts {
-		fmt.Println("Host:", host.name)
-
-		for _, device := range host.devices {
-			fmt.Printf("  - %s\n", device.Name)
-		}
+		fmt.Println()
 	}
 
 	return nil
+}
+
+func initInputDevice(c *cli.Context) error {
+	deviceName := c.String("device")
+	if deviceName == "" {
+		def, err := device.InputBackend.DefaultDevice()
+		if err != nil {
+			return errors.Wrap(err, "failed to get default device")
+		}
+
+		device.InputDevice = def
+		return nil
+	}
+
+	devices, err := device.InputBackend.Devices()
+	if err != nil {
+		return errors.Wrap(err, "failed to get devices")
+	}
+
+	for _, d := range devices {
+		if d.String() == deviceName {
+			device.InputDevice = d
+			return nil
+		}
+	}
+
+	return fmt.Errorf("device %q not found; check list-devices", deviceName)
+}
+
+func run(c *cli.Context) error {
+	if err := initBackend(c); err != nil {
+		return err
+	}
+
+	if err := initInputDevice(c); err != nil {
+		return err
+	}
+
+	return device.Run()
 }

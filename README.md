@@ -6,9 +6,20 @@
 
 ### depends on
 
- - cgo
-  - portaudio-2.0
-  - fftw
+#### depends on
+
+- tcell
+- gonum
+- Optional:
+	- `CGO_ENABLED=1`
+		- portaudio-2.0
+		- fftw3
+	- ffmpeg (non-cgo fallback)
+		- avfoundation
+		- alsa
+		- pulse
+		- sndio
+	- parec (pulse only)
 
 <!-- Links -->
 [noriah-dev]: https://noriah.dev

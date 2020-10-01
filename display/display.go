@@ -43,7 +43,8 @@ var (
 	numRunes = len(barRunes)
 
 	styleDefault = tcell.StyleDefault.Bold(true)
-	styleCenter  = styleDefault.Foreground(tcell.ColorOrangeRed)
+	// styleCenter  = styleDefault.Foreground(tcell.ColorOrangeRed)
+	styleCenter  = styleDefault.Foreground(tcell.ColorDefault)
 	styleReverse = tcell.StyleDefault.Reverse(true).Bold(true)
 )
 
