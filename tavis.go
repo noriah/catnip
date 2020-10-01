@@ -50,9 +50,6 @@ func NewZeroDevice() Device {
 	}
 }
 
-// calculated constants
-const ()
-
 // Run starts to draw the visualizer on the tcell Screen.
 func (d Device) Run() error {
 	var (
@@ -185,7 +182,7 @@ RunForRest: // , run!!!
 				}
 			}
 
-			deFrame(sampleBufferSize, tmpBuf, audioBuf, d.ChannelCount)
+			deFrame(tmpBuf, audioBuf, d.ChannelCount, sampleSize)
 
 			fftwPlan.Execute()
 
@@ -202,10 +199,14 @@ RunForRest: // , run!!!
 	return nil
 }
 
-func deFrame(bufsz int, dest []float64, src []float32, t int) {
+func deFrame(dest []float64, src []float32, count, size int) {
+
 	// This "fix" is because the portaudio interface we are using does not
 	// work properly. I have to de-interleave the array
-	for xBuf := 0; xBuf < bufsz; xBuf++ {
-		dest[xBuf] = float64(src[(xBuf/t)+(xBuf%t)])
+	for xID, xBuf := 0, 0; xID < count; xID++ {
+		for xCnt := 0; xCnt < size; xBuf++ {
+			dest[(xID*size)+xCnt] = float64(src[xBuf])
+			xCnt++
+		}
 	}
 }
