@@ -1,43 +1,72 @@
 package tavis
 
 import (
+	"errors"
+	"sync"
+
 	"github.com/gdamore/tcell/v2"
 )
 
-// DisplayBar is the block we use for bars
 const (
-	DisplayBar   rune = '\u2588'
-	DisplaySpace rune = '\u0020'
+	// DisplayBar is the block we use for bars
+	DisplayBar rune = '\u2588'
 
+	// DisplaySpace is the block we use for space (if we were to print one)
+	// DisplaySpace rune = '\u0020'
+
+	// MaxWidth will be removed at some point
 	MaxWidth = 5000
 )
 
+// bar blocks for later
+// var (
+// 	barHeightRunes = [...]rune{
+// 		'\u2581',
+// 		'\u2582',
+// 		'\u2583',
+// 		'\u2584',
+// 		'\u2585',
+// 		'\u2586',
+// 		'\u2587',
+// 		'\u2588',
+// 	}
+// )
+
 // Display handles drawing our visualizer
 type Display struct {
-	screen   tcell.Screen
-	DataSets []*DataSet
 	barWidth int
 	binWidth int
+
+	dataSets []*DataSet
+	screen   tcell.Screen
+	drawWg   *sync.WaitGroup
 }
 
-// Init sets up the display
-func (d *Display) Init() error {
-	var err error
+// NewDisplay sets up the display
+// should we panic or return an error as well?
+// something to think about
+func NewDisplay(sets []*DataSet) *Display {
 
-	if d.screen, err = tcell.NewScreen(); err != nil {
-		return err
+	screen, err := tcell.NewScreen()
+
+	if err != nil {
+		panic(err)
 	}
 
-	if err = d.screen.Init(); err != nil {
-		return err
+	if err = screen.Init(); err != nil {
+		panic(err)
 	}
 
-	d.screen.DisableMouse()
-	d.screen.HideCursor()
+	screen.DisableMouse()
+	screen.HideCursor()
 
-	d.SetWidths(1, 1)
-
-	return nil
+	return &Display{
+		barWidth: 2,
+		binWidth: 3,
+		dataSets: sets,
+		screen:   screen,
+		drawWg:   &sync.WaitGroup{},
+	}
 }
 
 // Start display is bad
@@ -45,7 +74,7 @@ func (d *Display) Start(endCh chan<- bool) error {
 	go func() {
 		var ev tcell.Event
 		for ev = d.screen.PollEvent(); ev != nil; ev = d.screen.PollEvent() {
-			if d.HandleEvent(ev) {
+			if d.HandleEvent(ev) != nil {
 				break
 			}
 		}
@@ -56,12 +85,27 @@ func (d *Display) Start(endCh chan<- bool) error {
 }
 
 // HandleEvent will take events and do things with them
-func (d *Display) HandleEvent(ev tcell.Event) bool {
+// TODO(noraih): MAKE THIS MORE ROBUST LIKE PREGO TOMATO SAUCE LEVELS OF ROBUST
+func (d *Display) HandleEvent(ev tcell.Event) error {
 	switch ev := ev.(type) {
 	case *tcell.EventKey:
 		switch ev.Key() {
+		case tcell.KeyRune:
+			switch ev.Rune() {
+			case 'q', 'Q':
+				return errors.New("rename this better please")
+			default:
+			}
 		case tcell.KeyCtrlC:
-			return true
+			return errors.New("rename this better please")
+		case tcell.KeyUp:
+			d.setBarBin(d.barWidth+1, d.binWidth)
+		case tcell.KeyRight:
+			d.setBarBin(d.barWidth, d.binWidth+1)
+		case tcell.KeyDown:
+			d.setBarBin(d.barWidth-1, d.binWidth)
+		case tcell.KeyLeft:
+			d.setBarBin(d.barWidth, d.binWidth-1)
 		default:
 
 		}
@@ -69,7 +113,7 @@ func (d *Display) HandleEvent(ev tcell.Event) bool {
 	default:
 	}
 
-	return false
+	return nil
 }
 
 // Stop display not work
@@ -83,9 +127,33 @@ func (d *Display) Close() error {
 	return nil
 }
 
+func (d *Display) setBarBin(bar, bin int) {
+	if bar < 1 {
+		bar = 1
+	}
+
+	if bin < bar {
+		if bin < 1 {
+			bin = 0
+		}
+		bin += bar
+	}
+
+	d.barWidth = bar
+	d.binWidth = bin
+}
+
 // SetWidths takes a bar width and spacing width
 // Returns number of bars able to show
 func (d *Display) SetWidths(bar, space int) int {
+	if bar < 1 {
+		bar = 1
+	}
+
+	if space < 0 {
+		space = 0
+	}
+
 	d.barWidth = bar
 	d.binWidth = bar + space
 
@@ -113,89 +181,85 @@ func (d *Display) offset() int {
 	return 0
 }
 
+// temp for now
+
+var drawDir = [...]int{-1, 1}
+
 // Draw takes data, and draws
-func (d *Display) Draw(height int) error {
-	var (
-		cWidth int
-
-		cOffset int
-
-		xCol int
-		xRow int
-		xBin int
-
-		vSet    *DataSet
-		vLimCol int
-		vLimRow int
-		vDelta  int
-	)
+func (d *Display) Draw(height, delta int) error {
 
 	// we want to break out when we have reached the max number of bars
 	// we are able to display, including spacing
-	cWidth = d.Bars() * d.binWidth
+	var cWidth = d.Bars() * d.binWidth
 
 	// get our offset
-	cOffset = d.offset()
+	var cOffset = d.offset()
 
-	// this seems a bit too much
-	// can we do less work on draws, please?
-	// TODO(winter): clean up draw loop
-	for _, vSet = range d.DataSets {
-
-		// our change per row will
-		vDelta = 1
-
-		// If we are looking at not the first set (left channel)
-		// we want to draw down
-		// TODO(mariah): fix this to be dynamic on input channels
-		if vSet.id != 0 {
-			vDelta *= -1
-		}
-
-		// set up our loop. set the column by bin count on each loop
-		for xCol, xBin = 0, 0; xCol < cWidth; xCol = xBin * d.binWidth {
-
-			// work in our offset to center on the screen
-			xCol += cOffset
-
-			// we always want to target our bar height
-			vLimRow = int(vSet.Bins[xBin])
-
-			for vLimCol = xCol + d.barWidth; xCol < vLimCol; xCol++ {
-
-				// Draw our center line
-				d.screen.SetContent(
-					xCol, height,
-					DisplayBar, nil,
-					tcell.StyleDefault,
-				)
-
-				// Draw the bars for this data set
-				for xRow = 0; xRow < vLimRow; xRow++ {
-					d.screen.SetContent(
-
-						// TODO(nora): benchmark math (single loop) vs. double loop
-
-						xCol,
-
-						height-(vDelta*(1+xRow)),
-
-						// Just use our const character for now
-						DisplayBar, nil,
-
-						// Working on color bars
-						tcell.StyleDefault,
-					)
-				}
-			}
-			// increment the bin we are looking at.
-			xBin++
-		}
+	for xSet := range d.dataSets {
+		d.drawWg.Add(1)
+		go drawSet(
+			d.screen,
+			d.dataSets[xSet].Bins(),
+			cWidth, height,
+			d.barWidth, d.binWidth,
+			cOffset, (delta * drawDir[xSet%len(drawDir)]),
+			d.drawWg.Done,
+		)
 	}
+
+	for xCol := 0; xCol < cWidth; xCol++ {
+		if (xCol%d.binWidth)/d.barWidth > 0 {
+			continue
+		}
+
+		// Draw our center line
+		d.screen.SetContent(
+			xCol+cOffset, height,
+			DisplayBar, nil,
+			tcell.StyleDefault,
+		)
+	}
+
+	d.drawWg.Wait()
 
 	d.screen.Show()
 
 	d.screen.Clear()
 
 	return nil
+}
+
+func drawSet(s tcell.Screen, b []float64, w, h, bw, fw, o, d int, fn func()) {
+
+	// set up our loop. set the column by bin count on each iteration
+	// work in our offset to center on the screen
+	for xCol, xBin := 0, 0; xCol < w && xBin < len(b); xCol = (xBin * fw) {
+
+		// we always want to target our bar height
+		for xRow, lCol, lRow := 0, xCol+bw, int(b[xBin]); xRow < lRow; xRow++ {
+
+			for xCol = xBin * fw; xCol < lCol; xCol++ {
+				// Draw the bars for this data set
+				s.SetContent(
+
+					// TODO(nora): benchmark math (single loop) vs. double loop
+
+					o+xCol,
+
+					h+(d*xRow),
+
+					// Just use our const character for now
+					DisplayBar, nil,
+
+					// Working on color bars
+					tcell.StyleDefault,
+				)
+			}
+		}
+
+		// increment the bin we are looking at.
+		xBin++
+	}
+
+	fn()
 }

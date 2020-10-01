@@ -12,6 +12,7 @@ import (
 
 // constants for testing
 const (
+
 	// DeviceName is the name of the Device we want to listen to
 	DeviceName = "VisOut"
 
@@ -28,7 +29,7 @@ const (
 	MonstercatFactor = 8.75
 
 	// Falloff weight
-	FalloffWeight = 0.895
+	FalloffWeight = 0.910
 
 	// BarWidth is the width of bars, in columns
 	BarWidth = 2
@@ -74,18 +75,6 @@ func Run() error {
 		fftwBuffer []complex128
 		fftwPlan   *fftw.Plan
 
-		spectrum *Spectrum
-
-		display *Display
-
-		rootCtx    context.Context
-		rootCancel context.CancelFunc
-
-		barCount int
-
-		xSet int
-		xBuf int
-
 		winWidth  int
 		winHeight int
 
@@ -120,28 +109,20 @@ func Run() error {
 		fftw.Estimate)
 
 	// Make a spectrum
-	spectrum = &Spectrum{
-		sampleRate:     SampleRate,
-		sampleSize:     SampleSize,
-		sampleDataSize: FFTWDataSize,
-		frameSize:      ChannelCount,
-		DataBuf:        fftwBuffer,
+	var spectrum = NewSpectrum(SampleRate, ChannelCount, SampleSize)
+
+	for xSet, vSet := range spectrum.DataSets() {
+		vSet.DataBuf = fftwBuffer[xSet*FFTWDataSize : (xSet+1)*FFTWDataSize]
 	}
 
-	panicOnError(spectrum.Init())
+	var display = NewDisplay(spectrum.DataSets())
 
-	display = &Display{
-		DataSets: spectrum.DataSets(),
-	}
-
-	panicOnError(display.Init())
-
-	display.SetWidths(BarWidth, SpaceWidth)
+	var barCount = display.SetWidths(BarWidth, SpaceWidth)
 
 	// Set it up with our values
-	spectrum.Recalculate(1, LoCutFerq, HiCutFreq)
+	spectrum.Recalculate(barCount, LoCutFerq, HiCutFreq)
 
-	rootCtx, rootCancel = context.WithCancel(context.Background())
+	var rootCtx, rootCancel = context.WithCancel(context.Background())
 
 	// TODO(noriah): remove temprorary variables
 	displayChan := make(chan bool, 1)
@@ -200,13 +181,7 @@ RunForRest: // , run!!!
 				}
 			}
 
-			// This "fix" is because the portaudio interface we are using does not
-			// work properly. I have to de-interleave the array
-			for xSet = 0; xSet < ChannelCount; xSet++ {
-				for xBuf = 0; xBuf < SampleSize; xBuf++ {
-					tmpBuf[xBuf+(SampleSize*xSet)] = float64(audioBuf[(xBuf*ChannelCount)+xSet])
-				}
-			}
+			deFrame(tmpBuf, audioBuf, ChannelCount)
 
 			fftwPlan.Execute()
 
@@ -219,7 +194,7 @@ RunForRest: // , run!!!
 
 			spectrum.Falloff(FalloffWeight)
 
-			display.Draw(winHeight / 2)
+			display.Draw(winHeight/2, 1)
 		}
 	}
 
@@ -243,6 +218,15 @@ RunForRest: // , run!!!
 	}
 
 	return nil
+}
+
+func deFrame(dest []float64, src []float32, t int) {
+
+	// This "fix" is because the portaudio interface we are using does not
+	// work properly. I have to de-interleave the array
+	for xBuf := 0; xBuf < SampleBufferSize; xBuf++ {
+		dest[xBuf] = float64(src[(xBuf/t)+(xBuf%t)])
+	}
 }
 
 func panicOnError(err error) {
