@@ -46,7 +46,7 @@ func main() {
 				Name:        "low-cut-freq",
 				Aliases:     []string{"lf"},
 				Value:       device.LoCutFreq,
-				Destination: &device.HiCutFreq,
+				Destination: &device.LoCutFreq,
 			},
 			&cli.Float64Flag{
 				Name:        "high-cut-freq",
@@ -100,7 +100,7 @@ func main() {
 }
 
 func run(c *cli.Context) error {
-	return device.Run()
+	return tavis.Run(device)
 }
 
 func listDevices(c *cli.Context) error {

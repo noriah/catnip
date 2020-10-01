@@ -35,9 +35,7 @@ type Portaudio struct {
 func (pa *Portaudio) Init() error {
 	pa.sampleBuffer = make([]SampleType, pa.SampleSize*pa.FrameSize)
 
-	var err error
-
-	if err = portaudio.Initialize(); err != nil {
+	if err := portaudio.Initialize(); err != nil {
 		return err
 	}
 
@@ -90,7 +88,7 @@ func (pa *Portaudio) ReadyRead() int {
 // Read signals portaudio to dump some data into the buffer we gave it.
 // Will block if there is not enough data yet.
 func (pa *Portaudio) Read(ctx context.Context) error {
-	for pa.ReadyRead() < pa.SampleSize {
+	for pa.ReadyRead() < pa.SampleSize*pa.FrameSize {
 		select {
 		case <-ctx.Done():
 			log.Println("read timed out")
