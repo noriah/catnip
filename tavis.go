@@ -2,7 +2,6 @@ package tavis
 
 import (
 	"context"
-	"fmt"
 	"os"
 	"os/signal"
 	"time"
@@ -39,10 +38,10 @@ func NewZeroDevice() Device {
 	return Device{
 		Name:             "default",
 		SampleRate:       44100,
-		LoCutFreq:        20,
+		LoCutFreq:        410,
 		HiCutFreq:        8000,
-		MonstercatFactor: 8.75,
-		FalloffWeight:    0.910,
+		MonstercatFactor: 3.5,
+		FalloffWeight:    0.912,
 		BarWidth:         2,
 		SpaceWidth:       1,
 		TargetFPS:        60,
@@ -51,10 +50,10 @@ func NewZeroDevice() Device {
 }
 
 // Run starts to draw the visualizer on the tcell Screen.
-func (d Device) Run() error {
+func Run(d Device) error {
 	var (
 		// SampleSize is the number of frames per channel we want per read
-		sampleSize = int(d.SampleRate / float64(d.TargetFPS))
+		sampleSize = int(d.SampleRate) / d.TargetFPS
 
 		// BufferSize is the total size of our buffer (SampleSize * FrameSize)
 		sampleBufferSize = sampleSize * d.ChannelCount
@@ -66,15 +65,7 @@ func (d Device) Run() error {
 		winHeight int
 
 		vIterStart time.Time
-
-		caughtErr interface{}
 	)
-
-	defer func() {
-		if caughtErr != nil {
-			fmt.Println(caughtErr)
-		}
-	}()
 
 	var audioInput = &Portaudio{
 		DeviceName: d.Name,
@@ -89,7 +80,7 @@ func (d Device) Run() error {
 
 	defer audioInput.Close()
 
-	var fftwIn = make([]float64, sampleBufferSize)
+	var fftwIn = make([][]float64, d.ChannelCount)
 
 	var audioBuf = audioInput.Buffer()
 
@@ -99,7 +90,8 @@ func (d Device) Run() error {
 	var sets = make([]*DataSet, d.ChannelCount)
 
 	for xS := range sets {
-		sets[xS] = spectrum.DataSet(fftwIn[xS*sampleSize : (xS+1)*sampleSize])
+		fftwIn[xS] = make([]float64, sampleSize)
+		sets[xS] = spectrum.DataSet(fftwIn[xS])
 	}
 
 	var display = NewDisplay()
@@ -133,13 +125,6 @@ func (d Device) Run() error {
 		cancel()
 	}()
 
-	var catchMe = func() {
-		if rec := recover(); rec != nil {
-			caughtErr = rec
-			cancel()
-		}
-	}
-
 	display.Start(displayChan)
 	defer display.Stop()
 
@@ -148,8 +133,6 @@ func (d Device) Run() error {
 
 	mainTicker := time.NewTicker(drawDelay)
 	defer mainTicker.Stop()
-
-	defer catchMe()
 
 RunForRest: // , run!!!
 	for range mainTicker.C {
@@ -172,7 +155,7 @@ RunForRest: // , run!!!
 			spectrum.Recalculate(barCount, d.LoCutFreq, d.HiCutFreq)
 		}
 
-		if audioInput.ReadyRead() >= sampleSize {
+		if audioInput.ReadyRead() >= sampleBufferSize {
 			if err := audioInput.Read(ctx); err != nil {
 				if err != portaudio.InputOverflowed {
 					return errors.Wrap(err, "failed to read audio input")
@@ -180,7 +163,7 @@ RunForRest: // , run!!!
 				err = nil
 			}
 
-			deFrame(fftwIn, audioBuf, d.ChannelCount, sampleSize)
+			deFrame(fftwIn, audioBuf)
 
 			for _, vSet := range sets {
 				vSet.ExecuteFFTW()
@@ -199,13 +182,13 @@ RunForRest: // , run!!!
 	return nil
 }
 
-func deFrame(dest []float64, src []float32, count, size int) {
+func deFrame(dest [][]float64, src []float32) {
+
 	// This "fix" is because the portaudio interface we are using does not
 	// work properly. I have to de-interleave the array
-	for xBuf, xOffset := 0, 0; xOffset < count*size; xOffset += size {
-		for xCnt := 0; xCnt < size; xCnt++ {
-			dest[xBuf] = float64(src[xOffset+xCnt])
-			xBuf++
+	for xSet, sets := 0, len(dest); xSet < sets; xSet++ {
+		for xSmpl := range dest[xSet] {
+			dest[xSet][xSmpl] = float64(src[(xSmpl*sets)+xSet])
 		}
 	}
 }

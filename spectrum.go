@@ -171,7 +171,7 @@ func (s *Spectrum) Generate(dSet *DataSet) {
 			vM += math.Sqrt((real(vC) * real(vC)) + (imag(vC) * imag(vC)))
 		}
 
-		vM /= float64(s.hiCuts[xBin] - s.loCuts[xBin] + 1)
+		vM = vM / float64(s.hiCuts[xBin]-s.loCuts[xBin]+1)
 
 		vM *= (math.Log2(float64(2+xBin)) * (100.0 / float64(dSet.numBins)))
 
@@ -200,6 +200,7 @@ func (s *Spectrum) Scale(height int, dSet *DataSet) {
 	}
 
 	dSet.fastWindow.Update(dSet.peakHeight)
+
 	var vMean, vSD = dSet.slowWindow.Update(dSet.peakHeight)
 
 	if length := dSet.slowWindow.Len(); length > dSet.fastWindow.Cap() {
@@ -248,7 +249,7 @@ func (s *Spectrum) Falloff(weight float64, dSet *DataSet) {
 
 	for xBin := 0; xBin <= dSet.numBins; xBin++ {
 		vMag := dSet.prevBuf[xBin]
-		vMag = math.Min(vMag*weight, vMag-1)
+		vMag = math.Min(vMag*weight, vMag)
 
 		// we want the higher value here because we just calculated the
 		// lower value without checking if we need it
