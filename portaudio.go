@@ -33,7 +33,6 @@ type Portaudio struct {
 
 // Init sets up all the portaudio things we need to do
 func (pa *Portaudio) Init() error {
-
 	pa.sampleBuffer = make([]SampleType, pa.SampleSize*pa.FrameSize)
 
 	var err error
@@ -42,9 +41,8 @@ func (pa *Portaudio) Init() error {
 		return err
 	}
 
-	var devices []*portaudio.DeviceInfo
-
-	if devices, err = portaudio.Devices(); err != nil {
+	devices, err := portaudio.Devices()
+	if err != nil {
 		return err
 	}
 
