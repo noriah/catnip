@@ -80,13 +80,10 @@ func Run(d Device) error {
 
 	defer audioInput.Close()
 
-	var fftwIn = make([][]float64, d.ChannelCount)
-
-	var audioBuf = audioInput.Buffer()
-
 	// Make a spectrum
 	var spectrum = NewSpectrum(d.SampleRate, sampleSize)
 
+	var fftwIn = make([][]float64, d.ChannelCount)
 	var sets = make([]*DataSet, d.ChannelCount)
 
 	for xS := range sets {
@@ -113,7 +110,7 @@ func Run(d Device) error {
 
 	// Handle fanout of cancel
 	go func() {
-		endSig := make(chan os.Signal, 3)
+		var endSig = make(chan os.Signal, 3)
 		signal.Notify(endSig, os.Interrupt)
 
 		select {
@@ -125,16 +122,14 @@ func Run(d Device) error {
 		cancel()
 	}()
 
-	display.Start(displayChan)
-	defer display.Stop()
+	var audioBuf = audioInput.Buffer()
 
 	audioInput.Start()
 	defer audioInput.Stop()
 
-	mainTicker := time.NewTicker(drawDelay)
+	var mainTicker = time.NewTicker(drawDelay)
 	defer mainTicker.Stop()
 
-RunForRest: // , run!!!
 	for range mainTicker.C {
 		if vSince := time.Since(vIterStart); vSince < drawDelay {
 			time.Sleep(drawDelay - vSince)
@@ -142,7 +137,7 @@ RunForRest: // , run!!!
 
 		select {
 		case <-ctx.Done():
-			break RunForRest
+			return nil
 		default:
 		}
 
@@ -182,10 +177,9 @@ RunForRest: // , run!!!
 	return nil
 }
 
+// This "fix" is because the portaudio interface we are using does not
+// work properly. I have to de-interleave the array
 func deFrame(dest [][]float64, src []float32) {
-
-	// This "fix" is because the portaudio interface we are using does not
-	// work properly. I have to de-interleave the array
 	for xSet, sets := 0, len(dest); xSet < sets; xSet++ {
 		for xSmpl := range dest[xSet] {
 			dest[xSet][xSmpl] = float64(src[(xSmpl*sets)+xSet])
