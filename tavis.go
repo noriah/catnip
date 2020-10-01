@@ -9,14 +9,15 @@ import (
 	"github.com/noriah/tavis/display"
 	"github.com/noriah/tavis/dsp"
 	"github.com/noriah/tavis/dsp/n2s3"
-	"github.com/noriah/tavis/input/portaudio"
-
+	"github.com/noriah/tavis/input"
 	"github.com/pkg/errors"
 )
 
 type Device struct {
-	// Name is the name of the Device we want to listen to
-	Name string
+	// InputBackend is the backend that the input belongs to
+	InputBackend input.Backend
+	// InputDevice is the device we want to listen to
+	InputDevice input.Device
 	// SampleRate is the rate at which samples are read
 	SampleRate float64
 	//LoCutFrqq is the low end of our audio spectrum
@@ -36,7 +37,6 @@ type Device struct {
 // NewZeroDevice creates a new Device with the default variables.
 func NewZeroDevice() Device {
 	return Device{
-		Name:         "default",
 		SampleRate:   44100,
 		LoCutFreq:    20,
 		HiCutFreq:    22050,
@@ -48,26 +48,24 @@ func NewZeroDevice() Device {
 }
 
 // Run starts to draw the visualizer on the tcell Screen.
-func Run(d Device) error {
+func (d Device) Run() error {
 	var (
 		// SampleSize is the number of frames per channel we want per read
-		sampleSize = int(d.SampleRate) / d.TargetFPS
+		sampleSize = int(d.SampleRate / float64(d.TargetFPS))
 
 		// DrawDelay is the time we wait between ticks to draw.
 		drawDelay = time.Second / time.Duration(d.TargetFPS)
 	)
 
-	var audioInput = &portaudio.Portaudio{
-		DeviceName: d.Name,
+	s, err := d.InputBackend.Start(input.SessionConfig{
+		Device:     d.InputDevice,
 		FrameSize:  d.ChannelCount,
 		SampleSize: sampleSize,
 		SampleRate: d.SampleRate,
+	})
+	if err != nil {
+		return errors.Wrap(err, "failed to start the input backend")
 	}
-
-	if err := audioInput.Init(); err != nil {
-		return err
-	}
-	defer audioInput.Close()
 
 	var display = display.New()
 	defer display.Close()
@@ -89,19 +87,24 @@ func Run(d Device) error {
 	var endSig = make(chan os.Signal, 3)
 	signal.Notify(endSig, os.Interrupt)
 
+	var bufs = s.SampleBuffers()
 	var sets = make([]*dsp.DataSet, d.ChannelCount)
-
 	for xS := range sets {
-		sets[xS] = spectrum.DataSet(audioInput.Buffers()[xS])
+		sets[xS] = spectrum.DataSet(bufs[xS])
 	}
 
-	audioInput.Start()
-	defer audioInput.Stop()
+	if err := s.Start(); err != nil {
+		return errors.Wrap(err, "failed to start input session")
+	}
+	defer s.Stop()
 
 	var ctx, cancel = context.WithCancel(context.Background())
 	defer cancel()
 
-	var vIterStart = time.Now()
+	var ticker = time.NewTicker(drawDelay)
+	defer ticker.Stop()
+
+	var tick time.Time
 
 	for {
 		select {
@@ -111,14 +114,8 @@ func Run(d Device) error {
 			return nil
 		case <-endSig:
 			return nil
-		default:
+		case tick = <-ticker.C:
 		}
-
-		if vSince := time.Since(vIterStart); vSince < drawDelay {
-			time.Sleep(drawDelay - vSince)
-		}
-
-		vIterStart = time.Now()
 
 		var winWidth, winHeight = display.Size()
 		winHeight /= 2
@@ -128,19 +125,18 @@ func Run(d Device) error {
 			spectrum.Recalculate(barCount, d.LoCutFreq, d.HiCutFreq)
 		}
 
-		if audioInput.ReadyRead() < sampleSize {
+		if s.ReadyRead() < sampleSize {
 			continue
 		}
 
-		if err := audioInput.Read(ctx); err != nil {
+		if err := s.Read(ctx); err != nil {
 			return errors.Wrap(err, "failed to read audio input")
-
 		}
 
 		for _, vSet := range sets {
 			spectrum.Generate(vSet)
 
-			n2s3.N2S3(vSet.Bins(), vSet.Len(), vIterStart, vSet.N2S3State)
+			n2s3.N2S3(vSet.Bins(), vSet.Len(), tick, vSet.N2S3State)
 
 			dsp.Scale(vSet.Bins(), vSet.Len(), winHeight, vSet.ScaleState)
 		}

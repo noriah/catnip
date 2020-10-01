@@ -71,7 +71,7 @@ func (sp *Spectrum) DataSet(input []float64) *DataSet {
 		ScaleState: NewScaleState(sp.sampleRate, sp.sampleSize),
 	}
 
-	set.fftPlan = fft.New(set.inputBuf, set.fftBuf, sp.sampleSize, fft.Estimate)
+	set.fftPlan = fft.NewPlan(set.inputBuf, set.fftBuf, sp.sampleSize)
 
 	sp.setCount++
 

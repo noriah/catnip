@@ -15,6 +15,8 @@ import (
 	"sync"
 	"time"
 	"unsafe"
+
+	"github.com/noriah/tavis/input/utils/endian"
 )
 
 // Version returns the release number of PortAudio.
@@ -383,12 +385,7 @@ func (i24 *Int24) PutInt32(i32 int32) {
 	}
 }
 
-var littleEndian bool
-
-func init() {
-	x := 1
-	littleEndian = *(*byte)(unsafe.Pointer(&x)) == 1
-}
+var littleEndian = endian.IsLE()
 
 // Stream provides access to audio hardware represented
 // by one or more PaDevices. Depending on the underlying
