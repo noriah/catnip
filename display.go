@@ -37,15 +37,14 @@ type Display struct {
 	barWidth int
 	binWidth int
 
-	dataSets []*DataSet
-	screen   tcell.Screen
-	drawWg   *sync.WaitGroup
+	screen tcell.Screen
+	drawWg *sync.WaitGroup
 }
 
 // NewDisplay sets up the display
 // should we panic or return an error as well?
 // something to think about
-func NewDisplay(sets []*DataSet) *Display {
+func NewDisplay() *Display {
 
 	screen, err := tcell.NewScreen()
 
@@ -63,7 +62,6 @@ func NewDisplay(sets []*DataSet) *Display {
 	return &Display{
 		barWidth: 2,
 		binWidth: 3,
-		dataSets: sets,
 		screen:   screen,
 		drawWg:   &sync.WaitGroup{},
 	}
@@ -186,7 +184,7 @@ func (d *Display) offset() int {
 var drawDir = [...]int{-1, 1}
 
 // Draw takes data, and draws
-func (d *Display) Draw(height, delta int) error {
+func (d *Display) Draw(height, delta int, sets ...*DataSet) error {
 
 	// we want to break out when we have reached the max number of bars
 	// we are able to display, including spacing
@@ -195,14 +193,15 @@ func (d *Display) Draw(height, delta int) error {
 	// get our offset
 	var cOffset = d.offset()
 
-	for xSet := range d.dataSets {
+	for _, dSet := range sets {
+
 		d.drawWg.Add(1)
 		go drawSet(
 			d.screen,
-			d.dataSets[xSet].Bins(),
+			dSet.Bins(),
 			cWidth, height,
 			d.barWidth, d.binWidth,
-			cOffset, (delta * drawDir[xSet%len(drawDir)]),
+			cOffset, (delta * drawDir[dSet.ID()%len(drawDir)]),
 			d.drawWg.Done,
 		)
 	}

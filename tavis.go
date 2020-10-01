@@ -7,7 +7,6 @@ import (
 	"os/signal"
 	"time"
 
-	"github.com/noriah/tavis/fftw"
 	"github.com/noriah/tavis/portaudio"
 )
 
@@ -18,16 +17,16 @@ const (
 	DeviceName = "VisOut"
 
 	// SampleRate is the rate at which samples are read
-	SampleRate = 96000
+	SampleRate = 48000
 
 	//LoCutFerq is the low end of our audio spectrum
-	LoCutFerq = 20
+	LoCutFerq = 410
 
 	// HiCutFreq is the high end of our audio spectrum
-	HiCutFreq = 8000
+	HiCutFreq = 4000
 
 	// MonstercatFactor is how much do we want to look like monstercat
-	MonstercatFactor = 8.75
+	MonstercatFactor = 5.75
 
 	// Falloff weight
 	FalloffWeight = 0.910
@@ -66,25 +65,6 @@ const (
 // Run does the run things
 func Run() error {
 
-	// MAIN LOOP PREP
-
-	var (
-		err error
-
-		fftwBuffer []complex128
-		fftwPlan   *fftw.Plan
-
-		winWidth  int
-		winHeight int
-
-		pulseError error
-
-		vIterStart time.Time
-		vSince     time.Duration
-
-		mainTicker *time.Ticker
-	)
-
 	var audioInput = &Portaudio{
 		DeviceName: DeviceName,
 		FrameSize:  ChannelCount,
@@ -93,28 +73,23 @@ func Run() error {
 	}
 
 	panicOnError(audioInput.Init())
+	defer audioInput.Close()
 
-	tmpBuf := make([]float64, SampleBufferSize)
-
-	//FFTW complex data
-	fftwBuffer = make([]complex128, FFTWBufferSize)
+	var fftwIn = make([]float64, SampleBufferSize)
 
 	audioBuf := audioInput.Buffer()
 
-	// Our FFTW calculator
-	fftwPlan = fftw.New(
-		tmpBuf, fftwBuffer,
-		ChannelCount, SampleSize,
-		fftw.Estimate)
-
 	// Make a spectrum
-	var spectrum = NewSpectrum(SampleRate, ChannelCount, SampleSize)
+	var spectrum = NewSpectrum(SampleRate, SampleSize)
 
-	for xSet, vSet := range spectrum.DataSets() {
-		vSet.DataBuf = fftwBuffer[xSet*FFTWDataSize : (xSet+1)*FFTWDataSize]
+	var sets = make([]*DataSet, ChannelCount)
+
+	for xS := range sets {
+		sets[xS] = spectrum.DataSet(fftwIn[xS*SampleSize : (xS+1)*SampleSize])
 	}
 
-	var display = NewDisplay(spectrum.DataSets())
+	var display = NewDisplay()
+	defer display.Stop()
 
 	var barCount = display.SetWidths(BarWidth, SpaceWidth)
 
@@ -124,7 +99,9 @@ func Run() error {
 	var rootCtx, rootCancel = context.WithCancel(context.Background())
 
 	// TODO(noriah): remove temprorary variables
-	displayChan := make(chan bool, 1)
+	var displayChan = make(chan bool, 1)
+
+	display.Start(displayChan)
 
 	// Handle fanout of cancel
 	go func() {
@@ -143,13 +120,33 @@ func Run() error {
 		rootCancel()
 	}()
 
+	audioInput.Start()
+	defer audioInput.Stop()
+
 	// MAIN LOOP
 
-	display.Start(displayChan)
+	var (
+		winWidth  int
+		winHeight int
 
-	audioInput.Start()
+		vIterStart time.Time
+		vSince     time.Duration
 
-	mainTicker = time.NewTicker(DrawDelay)
+		err       error
+		caughtErr interface{}
+	)
+
+	var mainTicker = time.NewTicker(DrawDelay)
+	defer mainTicker.Stop()
+
+	var catchMe = func() {
+		if rec := recover(); rec != nil {
+			caughtErr = rec
+			rootCancel()
+		}
+	}
+
+	defer catchMe()
 
 RunForRest: // , run!!!
 	for range mainTicker.C {
@@ -175,46 +172,31 @@ RunForRest: // , run!!!
 		if audioInput.ReadyRead() >= SampleSize {
 			if err = audioInput.Read(rootCtx); err != nil {
 				if err != portaudio.InputOverflowed {
-					pulseError = err
 					break RunForRest
 				}
+				err = nil
 			}
 
-			deFrame(tmpBuf, audioBuf, ChannelCount, SampleSize)
+			deFrame(fftwIn, audioBuf, ChannelCount, SampleSize)
 
-			fftwPlan.Execute()
+			for _, vSet := range sets {
+				vSet.ExecuteFFTW()
 
-			spectrum.Generate()
+				spectrum.Generate(vSet)
+				spectrum.Monstercat(MonstercatFactor, vSet)
+				spectrum.Scale(winHeight/2, vSet)
+				spectrum.Falloff(FalloffWeight, vSet)
 
-			spectrum.Monstercat(MonstercatFactor)
+			}
 
-			// winHeight = winHeight / 2
-			spectrum.Scale(winHeight / 2)
-
-			spectrum.Falloff(FalloffWeight)
-
-			display.Draw(winHeight/2, 1)
+			display.Draw(winHeight/2, 1, sets...)
 		}
 	}
 
 	rootCancel()
 
-	// CLEANUP
-
-	audioInput.Stop()
-
-	audioInput.Close()
-
-	display.Stop()
-
-	display.Close()
-
-	mainTicker.Stop()
-
-	fftwPlan.Destroy()
-
-	if pulseError != nil {
-		fmt.Println(pulseError)
+	if caughtErr != nil {
+		fmt.Println(caughtErr)
 	}
 
 	return nil
@@ -226,7 +208,7 @@ func deFrame(dest []float64, src []float32, count, size int) {
 	// work properly. I have to de-interleave the array
 	for xBuf, xOffset := 0, 0; xOffset < count*size; xOffset += size {
 		for xCnt := 0; xCnt < size; xCnt++ {
-			dest[xOffset+xCnt] = float64(src[xBuf])
+			dest[xBuf] = float64(src[xOffset+xCnt])
 			xBuf++
 		}
 	}
