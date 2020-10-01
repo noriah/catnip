@@ -8,79 +8,73 @@ import (
 
 	"github.com/noriah/tavis/fftw"
 	"github.com/noriah/tavis/portaudio"
+	"github.com/pkg/errors"
 )
 
-// constants for testing
-const (
-	// DeviceName is the name of the Device we want to listen to
-	DeviceName = "VisOut"
-
+type Device struct {
+	// Name is the name of the Device we want to listen to
+	Name string
 	// SampleRate is the rate at which samples are read
-	SampleRate = 96000
-
-	//LoCutFerq is the low end of our audio spectrum
-	LoCutFerq = 20
-
+	SampleRate float64
+	//LoCutFrqq is the low end of our audio spectrum
+	LoCutFreq float64
 	// HiCutFreq is the high end of our audio spectrum
-	HiCutFreq = 8000
-
-	// MonstercatFactor is how much do we want to look like monstercat
-	MonstercatFactor = 8.75
-
-	// Falloff weight
-	FalloffWeight = 0.895
-
+	HiCutFreq float64
+	// MonstercatFactor is how much we want to look like Monstercat
+	MonstercatFactor float64
+	// FalloffWeight is the fall-off weight
+	FalloffWeight float64
 	// BarWidth is the width of bars, in columns
-	BarWidth = 2
-
+	BarWidth int
 	// SpaceWidth is the width of spaces, in columns
-	SpaceWidth = 1
-
+	SpaceWidth int
 	// TargetFPS is how fast we want to redraw. Play with it
-	TargetFPS = 100
-
+	TargetFPS int
 	// ChannelCount is the number of channels we want to look at. DO NOT TOUCH
-	ChannelCount = 2
-)
+	ChannelCount int
+}
+
+// NewZeroDevice creates a new Device with the default variables.
+func NewZeroDevice() Device {
+	return Device{
+		Name:             "default",
+		SampleRate:       44100,
+		LoCutFreq:        20,
+		HiCutFreq:        8000,
+		MonstercatFactor: 8.75,
+		FalloffWeight:    0.895,
+		BarWidth:         2,
+		SpaceWidth:       1,
+		TargetFPS:        60,
+		ChannelCount:     2,
+	}
+}
 
 // calculated constants
-const (
-	// SampleSize is the number of frames per channel we want per read
-	SampleSize = SampleRate / TargetFPS
+const ()
 
-	// FFTWDataSize is the number of data points in an fftw data set return
-	FFTWDataSize = (SampleSize / 2) + 1
+// Run starts to draw the visualizer on the tcell Screen.
+func (d Device) Run() error {
+	var (
+		// SampleSize is the number of frames per channel we want per read
+		sampleSize = int(d.SampleRate / float64(d.TargetFPS))
 
-	// BufferSize is the total size of our buffer (SampleSize * FrameSize)
-	SampleBufferSize = SampleSize * ChannelCount
+		// FFTWDataSize is the number of data points in an fftw data set return
+		fftwDataSize = (sampleSize / 2) + 1
 
-	// FFTWBufferSize is the total size of our fftw complex128 buffer
-	FFTWBufferSize = FFTWDataSize * ChannelCount
+		// BufferSize is the total size of our buffer (SampleSize * FrameSize)
+		sampleBufferSize = sampleSize * d.ChannelCount
 
-	// DrawDelay is the time we wait between ticks to draw.
-	DrawDelay = time.Second / TargetFPS
-)
+		// FFTWBufferSize is the total size of our fftw complex128 buffer
+		fftwBufferSize = fftwDataSize * d.ChannelCount
 
-// Run does the run things
-func Run() error {
+		// DrawDelay is the time we wait between ticks to draw.
+		drawDelay = time.Second / time.Duration(d.TargetFPS)
+	)
 
 	// MAIN LOOP PREP
 
 	var (
-		err error
-
-		audioInput *Portaudio
-
-		fftwBuffer []complex128
-		fftwPlan   *fftw.Plan
-
-		spectrum *Spectrum
-
-		display *Display
-
-		rootCtx    context.Context
-		rootCancel context.CancelFunc
-
 		barCount int
 
 		xSet int
@@ -89,96 +83,105 @@ func Run() error {
 		winWidth  int
 		winHeight int
 
-		pulseError error
-
 		vIterStart time.Time
 		vSince     time.Duration
-
-		mainTicker *time.Ticker
 	)
 
-	audioInput = &Portaudio{
-		DeviceName: DeviceName,
-		FrameSize:  ChannelCount,
-		SampleSize: SampleSize,
-		SampleRate: SampleRate,
+	audioInput := &Portaudio{
+		DeviceName: d.Name,
+		FrameSize:  d.ChannelCount,
+		SampleSize: sampleSize,
+		SampleRate: d.SampleRate,
 	}
 
-	panicOnError(audioInput.Init())
+	if err := audioInput.Init(); err != nil {
+		return err
+	}
 
-	tmpBuf := make([]float64, SampleBufferSize)
+	defer audioInput.Close()
+
+	tmpBuf := make([]float64, sampleBufferSize)
 
 	//FFTW complex data
-	fftwBuffer = make([]complex128, FFTWBufferSize)
+	fftwBuffer := make([]complex128, fftwBufferSize)
 
 	audioBuf := audioInput.Buffer()
 
 	// Our FFTW calculator
-	fftwPlan = fftw.New(
+	fftwPlan := fftw.New(
 		tmpBuf, fftwBuffer,
-		ChannelCount, SampleSize,
-		fftw.Estimate)
+		d.ChannelCount, sampleSize,
+		fftw.Estimate,
+	)
+
+	defer fftwPlan.Destroy()
 
 	// Make a spectrum
-	spectrum = &Spectrum{
-		sampleRate:     SampleRate,
-		sampleSize:     SampleSize,
-		sampleDataSize: FFTWDataSize,
-		frameSize:      ChannelCount,
+	spectrum := &Spectrum{
+		sampleRate:     d.SampleRate,
+		sampleSize:     sampleSize,
+		sampleDataSize: fftwDataSize,
+		frameSize:      d.ChannelCount,
 		DataBuf:        fftwBuffer,
 	}
 
-	panicOnError(spectrum.Init())
+	if err := spectrum.Init(); err != nil {
+		return errors.Wrap(err, "failed to initialize spectrum")
+	}
 
-	display = &Display{
+	display := &Display{
 		DataSets: spectrum.DataSets(),
 	}
 
-	panicOnError(display.Init())
+	if err := display.Init(); err != nil {
+		return errors.Wrap(err, "failed to create display")
+	}
 
-	display.SetWidths(BarWidth, SpaceWidth)
+	defer display.Close()
+	display.SetWidths(d.BarWidth, d.SpaceWidth)
 
 	// Set it up with our values
-	spectrum.Recalculate(1, LoCutFerq, HiCutFreq)
+	spectrum.Recalculate(1, d.LoCutFreq, d.HiCutFreq)
 
-	rootCtx, rootCancel = context.WithCancel(context.Background())
+	ctx, cancel := context.WithCancel(context.Background())
+	defer cancel()
 
 	// TODO(noriah): remove temprorary variables
 	displayChan := make(chan bool, 1)
 
 	// Handle fanout of cancel
 	go func() {
-
-		var endSig chan os.Signal
-
-		endSig = make(chan os.Signal, 3)
+		endSig := make(chan os.Signal, 3)
 		signal.Notify(endSig, os.Interrupt)
 
 		select {
-		case <-rootCtx.Done():
+		case <-ctx.Done():
 		case <-displayChan:
 		case <-endSig:
 		}
 
-		rootCancel()
+		cancel()
 	}()
 
 	// MAIN LOOP
 
 	display.Start(displayChan)
+	defer display.Stop()
 
 	audioInput.Start()
+	defer audioInput.Stop()
 
-	mainTicker = time.NewTicker(DrawDelay)
+	mainTicker := time.NewTicker(drawDelay)
+	defer mainTicker.Stop()
 
 RunForRest: // , run!!!
 	for range mainTicker.C {
-		if vSince = time.Since(vIterStart); vSince < DrawDelay {
-			time.Sleep(DrawDelay - vSince)
+		if vSince = time.Since(vIterStart); vSince < drawDelay {
+			time.Sleep(drawDelay - vSince)
 		}
 
 		select {
-		case <-rootCtx.Done():
+		case <-ctx.Done():
 			break RunForRest
 		default:
 		}
@@ -189,22 +192,21 @@ RunForRest: // , run!!!
 
 		if barCount != winWidth {
 			barCount = winWidth
-			spectrum.Recalculate(barCount, LoCutFerq, HiCutFreq)
+			spectrum.Recalculate(barCount, d.LoCutFreq, d.HiCutFreq)
 		}
 
-		if audioInput.ReadyRead() >= SampleSize {
-			if err = audioInput.Read(rootCtx); err != nil {
+		if audioInput.ReadyRead() >= sampleSize {
+			if err := audioInput.Read(ctx); err != nil {
 				if err != portaudio.InputOverflowed {
-					pulseError = err
-					break RunForRest
+					return errors.Wrap(err, "failed to read audio input")
 				}
 			}
 
 			// This "fix" is because the portaudio interface we are using does not
 			// work properly. I have to de-interleave the array
-			for xSet = 0; xSet < ChannelCount; xSet++ {
-				for xBuf = 0; xBuf < SampleSize; xBuf++ {
-					tmpBuf[xBuf+(SampleSize*xSet)] = float64(audioBuf[(xBuf*ChannelCount)+xSet])
+			for xSet = 0; xSet < d.ChannelCount; xSet++ {
+				for xBuf = 0; xBuf < sampleSize; xBuf++ {
+					tmpBuf[xBuf+(sampleSize*xSet)] = float64(audioBuf[(xBuf*d.ChannelCount)+xSet])
 				}
 			}
 
@@ -212,41 +214,16 @@ RunForRest: // , run!!!
 
 			spectrum.Generate()
 
-			spectrum.Monstercat(MonstercatFactor)
+			spectrum.Monstercat(d.MonstercatFactor)
 
 			// winHeight = winHeight / 2
 			spectrum.Scale(winHeight / 2)
 
-			spectrum.Falloff(FalloffWeight)
+			spectrum.Falloff(d.FalloffWeight)
 
 			display.Draw(winHeight / 2)
 		}
 	}
 
-	rootCancel()
-
-	// CLEANUP
-
-	audioInput.Stop()
-
-	audioInput.Close()
-
-	display.Stop()
-
-	display.Close()
-
-	mainTicker.Stop()
-
-	fftwPlan.Destroy()
-
-	if pulseError != nil {
-	}
-
 	return nil
-}
-
-func panicOnError(err error) {
-	if err != nil {
-		panic(err)
-	}
 }

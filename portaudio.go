@@ -3,8 +3,7 @@ package tavis
 import (
 	"context"
 	"errors"
-	"fmt"
-	"strings"
+	"log"
 
 	"github.com/noriah/tavis/portaudio"
 )
@@ -34,7 +33,6 @@ type Portaudio struct {
 
 // Init sets up all the portaudio things we need to do
 func (pa *Portaudio) Init() error {
-
 	pa.sampleBuffer = make([]SampleType, pa.SampleSize*pa.FrameSize)
 
 	var err error
@@ -43,17 +41,16 @@ func (pa *Portaudio) Init() error {
 		return err
 	}
 
-	var devices []*portaudio.DeviceInfo
-
-	if devices, err = portaudio.Devices(); err != nil {
+	devices, err := portaudio.Devices()
+	if err != nil {
 		return err
 	}
 
 	var device *portaudio.DeviceInfo
 
-	for idx := 0; idx < len(devices); idx++ {
-		if strings.Compare(devices[idx].Name, pa.DeviceName) == 0 {
-			device = devices[idx]
+	for _, d := range devices {
+		if d.Name == pa.DeviceName {
+			device = d
 			break
 		}
 	}
@@ -96,7 +93,7 @@ func (pa *Portaudio) Read(ctx context.Context) error {
 	for pa.ReadyRead() < pa.SampleSize {
 		select {
 		case <-ctx.Done():
-			fmt.Println("read timed out")
+			log.Println("read timed out")
 			return ErrReadTimedOut
 		default:
 		}
