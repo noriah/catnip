@@ -2,6 +2,8 @@ package tavis
 
 import (
 	"math"
+
+	"github.com/noriah/tavis/fftw"
 )
 
 // Spectrum Constants
@@ -17,19 +19,23 @@ const (
 
 	ScalingResetDeviation = 1.0
 
-	MaxBars = 1024
+	MaxBins = 1024
 )
 
 // DataSet represents a channel or sample index in a series frame
 type DataSet struct {
 	id int
 
-	dataSize int
-	numBins  int
+	spectrum *Spectrum
 
-	DataBuf []complex128
+	fftwPlan *fftw.Plan
+
+	dataBuf  []complex128
+	dataSize int
+
 	binBuf  []float64
 	prevBuf []float64
+	numBins int
 
 	peakHeight float64
 
@@ -37,9 +43,19 @@ type DataSet struct {
 	fastWindow *MovingWindow
 }
 
+// ID returns the set id
+func (ds *DataSet) ID() int {
+	return ds.id
+}
+
 // Bins returns the bins that we have as a silce
 func (ds *DataSet) Bins() []float64 {
 	return ds.binBuf[:ds.numBins]
+}
+
+// ExecuteFFTW executes fftw math on the source buffer
+func (ds *DataSet) ExecuteFFTW() {
+	ds.fftwPlan.Execute()
 }
 
 // Spectrum is an audio spectrum in a buffer
@@ -47,52 +63,28 @@ type Spectrum struct {
 	maxBins int
 	numBins int
 
+	setCount int
+
+	dataSize int
+
 	// sampleSize is the number of frames per sample
 	sampleSize int
 
 	// sampleRate is the frequency that samples are collected
 	sampleRate float64
 
-	sampleDataSize int
-
-	// frameSize is the number of channels we expect per frame
-	frameSize int
-
-	// dataSets is a slice of float64 values
-	dataSets []*DataSet
-
 	loCuts []int
 	hiCuts []int
 }
 
 // NewSpectrum will set up our spectrum
-func NewSpectrum(rate float64, sets, size int) *Spectrum {
+func NewSpectrum(rate float64, size int) *Spectrum {
 
 	var s = &Spectrum{
-		frameSize:  sets,
+		maxBins:    MaxBins,
+		dataSize:   (size / 2) + 1,
 		sampleSize: size,
 		sampleRate: rate,
-	}
-
-	s.maxBins = MaxBars
-
-	slowMax := int((ScalingSlowWindow*s.sampleRate)/float64(s.sampleSize)) * 2
-	fastMax := int((ScalingFastWindow*s.sampleRate)/float64(s.sampleSize)) * 2
-
-	s.dataSets = make([]*DataSet, s.frameSize)
-
-	dataSize := (size / 2) + 1
-
-	for idx := 0; idx < s.frameSize; idx++ {
-		s.dataSets[idx] = &DataSet{
-			id:       idx,
-			dataSize: dataSize,
-			// DataBuf:    make([]complex128, dataSize),
-			binBuf:     make([]float64, s.maxBins),
-			prevBuf:    make([]float64, s.maxBins),
-			slowWindow: NewMovingWindow(slowMax),
-			fastWindow: NewMovingWindow(fastMax),
-		}
 	}
 
 	s.loCuts = make([]int, s.maxBins+1)
@@ -103,9 +95,28 @@ func NewSpectrum(rate float64, sets, size int) *Spectrum {
 	return s
 }
 
-// DataSets returns our sets of data
-func (s *Spectrum) DataSets() []*DataSet {
-	return s.dataSets
+// DataSet reurns a new data set with settings matching this spectrum
+func (s *Spectrum) DataSet(input []float64) *DataSet {
+
+	slowMax := int((ScalingSlowWindow*s.sampleRate)/float64(s.sampleSize)) * 2
+	fastMax := int((ScalingFastWindow*s.sampleRate)/float64(s.sampleSize)) * 2
+
+	var set = &DataSet{
+		id:         s.setCount,
+		spectrum:   s,
+		dataSize:   s.dataSize,
+		dataBuf:    make([]complex128, s.dataSize),
+		binBuf:     make([]float64, s.maxBins),
+		prevBuf:    make([]float64, s.maxBins),
+		slowWindow: NewMovingWindow(slowMax),
+		fastWindow: NewMovingWindow(fastMax),
+	}
+
+	set.fftwPlan = fftw.New(input, set.dataBuf, s.sampleSize, fftw.Estimate)
+
+	s.setCount++
+
+	return set
 }
 
 // Recalculate rebuilds our frequency bins with bins bin counts
@@ -115,10 +126,6 @@ func (s *Spectrum) DataSets() []*DataSet {
 func (s *Spectrum) Recalculate(bins int, lo, hi float64) int {
 	if bins > s.maxBins {
 		bins = s.maxBins
-	}
-
-	for _, vSet := range s.dataSets {
-		vSet.numBins = bins
 	}
 
 	s.numBins = bins
@@ -149,98 +156,81 @@ func (s *Spectrum) Recalculate(bins int, lo, hi float64) int {
 }
 
 // Generate makes numBins and dumps them in the buffer
-func (s *Spectrum) Generate() {
+func (s *Spectrum) Generate(dSet *DataSet) {
+	dSet.numBins = s.numBins
 
-	for _, vS := range s.dataSets {
+	for xBin := 0; xBin <= dSet.numBins; xBin++ {
 
-		for xBin := 0; xBin <= vS.numBins; xBin++ {
+		var vM = 0.0
 
-			var vM = 0.0
+		for xF, vC := s.loCuts[xBin], complex128(0); xF <= s.hiCuts[xBin] &&
+			xF < dSet.dataSize; xF++ {
 
-			for xF, vC := s.loCuts[xBin], complex128(0); xF <= s.hiCuts[xBin] &&
-				xF < vS.dataSize; xF++ {
+			vC = dSet.dataBuf[xF]
 
-				vC = vS.DataBuf[xF]
-
-				vM += math.Sqrt(
-					(real(vC) * real(vC)) +
-						(imag(vC) * imag(vC)))
-			}
-
-			vM /= float64(s.hiCuts[xBin] - s.loCuts[xBin] + 1)
-
-			vM *= (math.Log2(float64(2+xBin)) *
-				(100.0 / float64(vS.numBins)))
-
-			vS.binBuf[xBin] = math.Pow(vM, 0.5)
+			vM += math.Sqrt((real(vC) * real(vC)) + (imag(vC) * imag(vC)))
 		}
+
+		vM /= float64(s.hiCuts[xBin] - s.loCuts[xBin] + 1)
+
+		vM *= (math.Log2(float64(2+xBin)) * (100.0 / float64(dSet.numBins)))
+
+		dSet.binBuf[xBin] = math.Pow(vM, 0.5)
 	}
 }
 
 // Scale scales the data
-func (s *Spectrum) Scale(height int) {
-	var (
-		xBin int // bin index
+func (s *Spectrum) Scale(height int, dSet *DataSet) {
 
-		vMag float64 // magnitude variable
-	)
+	dSet.peakHeight = 0.125
 
-	var cHeight = float64(height)
+	var vSilent = true
 
-	for _, vSet := range s.dataSets {
-
-		vSet.peakHeight = 0.125
-		var vSilent = true
-
-		for xBin = 0; xBin <= s.numBins; xBin++ {
-			if vSet.binBuf[xBin] > 0 {
-				vSilent = false
-				if vSet.peakHeight < vSet.binBuf[xBin] {
-					vSet.peakHeight = vSet.binBuf[xBin]
-				}
+	for xBin := 0; xBin <= dSet.numBins; xBin++ {
+		if dSet.binBuf[xBin] > 0 {
+			vSilent = false
+			if dSet.peakHeight < dSet.binBuf[xBin] {
+				dSet.peakHeight = dSet.binBuf[xBin]
 			}
 		}
+	}
 
-		if vSilent {
-			return
+	if vSilent {
+		return
+	}
+
+	dSet.fastWindow.Update(dSet.peakHeight)
+	var vMean, vSD = dSet.slowWindow.Update(dSet.peakHeight)
+
+	if length := dSet.slowWindow.Len(); length > dSet.fastWindow.Cap() {
+		var vMag = math.Abs(dSet.fastWindow.Mean() - vMean)
+		if vMag > (ScalingResetDeviation * vSD) {
+			dSet.slowWindow.Drop(int(float64(length) * ScalingDumpPercent))
+			vMean, vSD = dSet.slowWindow.Stats()
 		}
+	}
 
-		vSet.fastWindow.Update(vSet.peakHeight)
-		var vMean, vSD = vSet.slowWindow.Update(vSet.peakHeight)
+	var vMag = math.Max(vMean+(2*vSD), 1.0)
 
-		if xBin = vSet.slowWindow.Len(); xBin > vSet.fastWindow.Cap() {
-			vMag = math.Abs(vSet.fastWindow.Mean() - vMean)
-			if vMag > (ScalingResetDeviation * vSD) {
-				vSet.slowWindow.Drop(int(float64(xBin) * ScalingDumpPercent))
-				vMean, vSD = vSet.slowWindow.Stats()
-			}
-		}
+	for xBin, cHeight := 0, float64(height); xBin <= s.numBins; xBin++ {
+		dSet.binBuf[xBin] = ((dSet.binBuf[xBin] / vMag) * cHeight) - 1
 
-		vMag = math.Max(vMean+(2*vSD), 1.0)
-
-		for xBin = 0; xBin <= s.numBins; xBin++ {
-			vSet.binBuf[xBin] = ((vSet.binBuf[xBin] / vMag) * cHeight) - 1
-
-			vSet.binBuf[xBin] = math.Min(cHeight-1, vSet.binBuf[xBin])
-		}
+		dSet.binBuf[xBin] = math.Min(cHeight-1, dSet.binBuf[xBin])
 	}
 }
 
 // Monstercat is not entirely understood yet.
 // We need to work on it
-func (s *Spectrum) Monstercat(factor float64) {
+func (s *Spectrum) Monstercat(factor float64, dSet *DataSet) {
 
-	for _, vSet := range s.dataSets {
+	for xBin := 1; xBin <= dSet.numBins; xBin++ {
 
-		for xBin := 1; xBin <= vSet.numBins; xBin++ {
+		for xPass := 0; xPass <= dSet.numBins; xPass++ {
 
-			for xPass := 0; xPass <= vSet.numBins; xPass++ {
+			var tmp = dSet.binBuf[xBin] / math.Pow(factor, absInt(xBin-xPass))
 
-				tmp := vSet.binBuf[xBin] / math.Pow(factor, absInt(xBin-xPass))
-
-				if tmp > vSet.binBuf[xBin] {
-					vSet.binBuf[xBin] = tmp
-				}
+			if tmp > dSet.binBuf[xBin] {
+				dSet.binBuf[xBin] = tmp
 			}
 		}
 	}
@@ -254,18 +244,16 @@ func absInt(value int) float64 {
 }
 
 // Falloff does falling off things
-func (s *Spectrum) Falloff(weight float64) {
+func (s *Spectrum) Falloff(weight float64, dSet *DataSet) {
 
-	for _, vSet := range s.dataSets {
-		for xBin := 0; xBin <= s.numBins; xBin++ {
-			vMag := vSet.prevBuf[xBin]
-			vMag = math.Min(vMag*weight, vMag-1)
+	for xBin := 0; xBin <= dSet.numBins; xBin++ {
+		vMag := dSet.prevBuf[xBin]
+		vMag = math.Min(vMag*weight, vMag-1)
 
-			// we want the higher value here because we just calculated the
-			// lower value without checking if we need it
-			vMag = math.Max(vMag, vSet.binBuf[xBin])
-			vSet.prevBuf[xBin] = vMag
-			vSet.binBuf[xBin] = vMag
-		}
+		// we want the higher value here because we just calculated the
+		// lower value without checking if we need it
+		vMag = math.Max(vMag, dSet.binBuf[xBin])
+		dSet.prevBuf[xBin] = vMag
+		dSet.binBuf[xBin] = vMag
 	}
 }
