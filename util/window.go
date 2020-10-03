@@ -1,4 +1,4 @@
-package tavis
+package util
 
 import (
 	"math"
@@ -125,12 +125,12 @@ func (mw *MovingWindow) Drop(count int) (float64, float64) {
 
 // Len returns how many items in the window
 func (mw *MovingWindow) Len() int {
-	return int(mw.length)
+	return mw.length
 }
 
 // Cap returns max size of window
 func (mw *MovingWindow) Cap() int {
-	return int(mw.capacity)
+	return mw.capacity
 }
 
 // IsEmpty checks for window emptiness

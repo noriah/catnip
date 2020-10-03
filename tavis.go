@@ -6,6 +6,7 @@ import (
 	"os/signal"
 	"time"
 
+	"github.com/noriah/tavis/dsp"
 	"github.com/noriah/tavis/portaudio"
 	"github.com/pkg/errors"
 )
@@ -76,10 +77,10 @@ func Run(d Device) error {
 	defer audioInput.Close()
 
 	// Make a spectrum
-	var spectrum = NewSpectrum(d.SampleRate, sampleSize)
+	var spectrum = dsp.NewSpectrum(d.SampleRate, sampleSize)
 
 	var fftwIn = make([][]float64, d.ChannelCount)
-	var sets = make([]*DataSet, d.ChannelCount)
+	var sets = make([]*dsp.DataSet, d.ChannelCount)
 
 	for xS := range sets {
 		fftwIn[xS] = make([]float64, sampleSize)
@@ -117,25 +118,25 @@ func Run(d Device) error {
 		cancel()
 	}()
 
-	var audioBuf = audioInput.Buffer()
-
 	audioInput.Start()
 	defer audioInput.Stop()
 
+	var audioBuf = audioInput.Buffer()
+
 	var vIterStart = time.Now()
 
-	var mainTicker = time.NewTicker(drawDelay)
-	defer mainTicker.Stop()
+	// var mainTicker = time.NewTicker(drawDelay)
+	// defer mainTicker.Stop()
 
-	for range mainTicker.C {
-		if vSince := time.Since(vIterStart); vSince < drawDelay {
-			time.Sleep(drawDelay - vSince)
-		}
-
+	for {
 		select {
 		case <-ctx.Done():
 			return nil
 		default:
+		}
+
+		if vSince := time.Since(vIterStart); vSince < drawDelay {
+			time.Sleep(drawDelay - vSince)
 		}
 
 		vIterStart = time.Now()
@@ -161,17 +162,16 @@ func Run(d Device) error {
 				vSet.ExecuteFFTW()
 
 				spectrum.Generate(vSet)
-				Monstercat(d.MonstercatFactor, vSet)
-				Scale(winHeight/2, vSet)
-				Falloff(d.FalloffWeight, vSet)
+
+				dsp.Monstercat(d.MonstercatFactor, vSet)
+				dsp.Scale(float64(winHeight)/2, vSet)
+				dsp.Falloff(d.FalloffWeight, vSet)
 
 			}
 
 			display.Draw(winHeight/2, 1, sets...)
 		}
 	}
-
-	return nil
 }
 
 // This "fix" is because the portaudio interface we are using does not

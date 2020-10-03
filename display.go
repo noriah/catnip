@@ -6,6 +6,7 @@ import (
 	"sync"
 
 	"github.com/gdamore/tcell/v2"
+	"github.com/noriah/tavis/dsp"
 )
 
 const (
@@ -168,23 +169,14 @@ func (d *Display) SetWidths(bar, space int) int {
 
 // Bars returns the number of bars we will draw
 func (d *Display) Bars() int {
-	var width, _ int = d.screen.Size()
+	var width, _ = d.screen.Size()
 	return width / d.binWidth
 }
 
 // Size returns the width and height of the screen in bars and rows
 func (d *Display) Size() (int, int) {
-	var width, height int = d.screen.Size()
+	var width, height = d.screen.Size()
 	return (width / d.binWidth), height
-}
-
-func (d *Display) offset() int {
-	var width, _ int = d.screen.Size()
-	width = width - (d.binWidth * (width / d.binWidth))
-	if width > 1 {
-		return width / 2
-	}
-	return 0
 }
 
 // temp for now
@@ -192,15 +184,19 @@ func (d *Display) offset() int {
 var drawDir = [...]int{-1, 1}
 
 // Draw takes data, and draws
-func (d *Display) Draw(height, delta int, sets ...*DataSet) error {
+func (d *Display) Draw(height, delta int, sets ...*dsp.DataSet) error {
+
+	// get our offset
+	var cWidth, _ = d.screen.Size()
+	var cOffset = (cWidth / d.binWidth) - 1
+	cOffset *= d.binWidth
+	cOffset += d.barWidth
+	cWidth, cOffset = cOffset, cWidth-cOffset
+	cOffset /= 2
+	// cWidth -= cOffset
 
 	// we want to break out when we have reached the max number of bars
 	// we are able to display, including spacing
-	var cWidth = d.Bars() * d.binWidth
-
-	// get our offset
-	var cOffset = d.offset()
-
 	for _, dSet := range sets {
 
 		d.drawWg.Add(1)
@@ -220,7 +216,7 @@ func (d *Display) Draw(height, delta int, sets ...*DataSet) error {
 
 		// Draw our center line
 		d.screen.SetContent(
-			xCol+cOffset, height,
+			cOffset+xCol, height,
 			DisplayBar, nil,
 			styleCenter,
 		)
@@ -235,7 +231,7 @@ func (d *Display) Draw(height, delta int, sets ...*DataSet) error {
 	return nil
 }
 
-func drawSet(s tcell.Screen, ds *DataSet, h, bw, fw, o, d int, fn func()) {
+func drawSet(s tcell.Screen, ds *dsp.DataSet, h, bw, fw, o, d int, fn func()) {
 
 	for xBin, bin := range ds.Bins() {
 
@@ -256,16 +252,13 @@ func drawSet(s tcell.Screen, ds *DataSet, h, bw, fw, o, d int, fn func()) {
 
 					h+(d*(xRow+1)),
 
-					// Just use our const character for now
 					DisplayBar, nil,
 
-					// Working on color bars
 					styleDefault,
 				)
 			}
 
 			if vLast > 0 {
-				xRow++
 
 				// Draw the bars for this data set
 				if d < 0 {
@@ -273,12 +266,10 @@ func drawSet(s tcell.Screen, ds *DataSet, h, bw, fw, o, d int, fn func()) {
 					s.SetContent(
 						xCol,
 
-						h-xRow,
+						h+(d*(xRow+1)),
 
-						// Just use our const character for now
 						barHeightRunes[vLast], nil,
 
-						// Working on color bars
 						styleDefault,
 					)
 				} else {
@@ -286,12 +277,10 @@ func drawSet(s tcell.Screen, ds *DataSet, h, bw, fw, o, d int, fn func()) {
 					s.SetContent(
 						xCol,
 
-						h+(d*xRow),
+						h+(d*(xRow+1)),
 
-						// Just use our const character for now
 						barHeightRunes[numRunes-vLast], nil,
 
-						// Working on color bars
 						styleReverse,
 					)
 				}
@@ -303,7 +292,7 @@ func drawSet(s tcell.Screen, ds *DataSet, h, bw, fw, o, d int, fn func()) {
 }
 
 func toDrawVars(a float64) (int, int) {
-	whole, frac := math.Modf(math.Abs(a))
-	frac = math.Max(0, 9*math.Min(0.9, frac))
-	return int(whole), int(frac)
+	whole := int(math.Abs(a))
+	// frac = math.Max(0, 9*math.Min(0.9, frac))
+	return whole / 9, whole % 9
 }

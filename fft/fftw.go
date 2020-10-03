@@ -1,10 +1,10 @@
-// Package fftw contains specific Go bindings for the FFTW C library
+// Package fft contains specific Go bindings for the FFTW C library
 //
 // The only included bindings are those that are needed by tavis.
 // This includes the use of `fftw_plan_dft_r2c_2d`.
 // It is the only fftw plan we need, and the only one we have chosen to
 // implement here.
-package fftw
+package fft
 
 // #cgo pkg-config: fftw3
 // #include <fftw3.h>
