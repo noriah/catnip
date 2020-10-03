@@ -12,12 +12,12 @@ const (
 	ScalingSlowWindow = 10
 
 	// ScalingFastWindow in seconds
-	ScalingFastWindow = ScalingSlowWindow * 0.1
+	ScalingFastWindow = ScalingSlowWindow * 0.2
 
 	// ScalingDumpPercent is how much we erase on rescale
 	ScalingDumpPercent = 0.75
 
-	ScalingResetDeviation = 1.0
+	ScalingResetDeviation = 1
 
 	MaxBins = 1024
 )
@@ -51,6 +51,11 @@ func (ds *DataSet) ID() int {
 // Bins returns the bins that we have as a silce
 func (ds *DataSet) Bins() []float64 {
 	return ds.binBuf[:ds.numBins]
+}
+
+// Size returns the number of bins we have processed
+func (ds *DataSet) Size() int {
+	return ds.numBins
 }
 
 // ExecuteFFTW executes fftw math on the source buffer
@@ -168,15 +173,14 @@ func (s *Spectrum) Generate(dSet *DataSet) {
 
 		var vM = 0.0
 
-		for xF, vC := s.loCuts[xBin], complex128(0); xF <= s.hiCuts[xBin] &&
+		for xF := s.loCuts[xBin]; xF <= s.hiCuts[xBin] &&
+			xF > 0 &&
 			xF < dSet.dataSize; xF++ {
 
-			vC = dSet.dataBuf[xF]
-
-			vM += math.Sqrt((real(vC) * real(vC)) + (imag(vC) * imag(vC)))
+			vM += pyt(dSet.dataBuf[xF])
 		}
 
-		vM = vM / float64(s.hiCuts[xBin]-s.loCuts[xBin]+1)
+		vM /= float64(s.hiCuts[xBin] - s.loCuts[xBin] + 1)
 
 		vM *= (math.Log2(float64(2+xBin)) * (100.0 / float64(dSet.numBins)))
 
@@ -184,8 +188,12 @@ func (s *Spectrum) Generate(dSet *DataSet) {
 	}
 }
 
+func pyt(value complex128) float64 {
+	return math.Sqrt((real(value) * real(value)) + (imag(value) * imag(value)))
+}
+
 // Scale scales the data
-func (s *Spectrum) Scale(height int, dSet *DataSet) {
+func Scale(height int, dSet *DataSet) {
 
 	dSet.peakHeight = 0.125
 
@@ -216,24 +224,24 @@ func (s *Spectrum) Scale(height int, dSet *DataSet) {
 		}
 	}
 
-	var vMag = math.Max(vMean+(2*vSD), 1.0)
+	var vMag = math.Max(vMean+(2*vSD), 1)
 
-	for xBin, cHeight := 0, float64(height); xBin <= s.numBins; xBin++ {
-		dSet.binBuf[xBin] = ((dSet.binBuf[xBin] / vMag) * cHeight) - 1
+	for xBin, cHeight := 0, float64(height-1); xBin <= dSet.numBins; xBin++ {
+		dSet.binBuf[xBin] = ((dSet.binBuf[xBin] / vMag) * (cHeight))
 
-		dSet.binBuf[xBin] = math.Min(cHeight-1, dSet.binBuf[xBin])
+		dSet.binBuf[xBin] = math.Min(cHeight, dSet.binBuf[xBin])
 	}
 }
 
 // Monstercat is not entirely understood yet.
 // We need to work on it
-func (s *Spectrum) Monstercat(factor float64, dSet *DataSet) {
+func Monstercat(factor float64, dSet *DataSet) {
 
 	// "pow is probably doing that same logarithm in every call, so you're
 	//  extracting out half the work"
 	var lf = math.Log(factor)
 
-	for xBin := 1; xBin <= dSet.numBins; xBin++ {
+	for xBin := 0; xBin <= dSet.numBins; xBin++ {
 
 		for xPass := 0; xPass <= dSet.numBins; xPass++ {
 
@@ -251,16 +259,16 @@ func absInt(value int) float64 {
 }
 
 // Falloff does falling off things
-func (s *Spectrum) Falloff(weight float64, dSet *DataSet) {
+func Falloff(weight float64, dSet *DataSet) {
+	weight = math.Max(0.7, math.Min(1, weight))
 
 	for xBin := 0; xBin <= dSet.numBins; xBin++ {
-		vMag := dSet.prevBuf[xBin]
-		vMag = math.Min(vMag*weight, vMag)
-
-		// we want the higher value here because we just calculated the
-		// lower value without checking if we need it
-		vMag = math.Max(vMag, dSet.binBuf[xBin])
-		dSet.prevBuf[xBin] = vMag
-		dSet.binBuf[xBin] = vMag
+		mag := falloff(weight, dSet.prevBuf[xBin], dSet.binBuf[xBin])
+		dSet.binBuf[xBin] = mag
+		dSet.prevBuf[xBin] = mag
 	}
+}
+
+func falloff(weight, prev, now float64) float64 {
+	return math.Max(math.Min(prev-1, prev*weight), now)
 }
