@@ -60,11 +60,6 @@ func Run(d Device) error {
 
 		// DrawDelay is the time we wait between ticks to draw.
 		drawDelay = time.Second / time.Duration(d.TargetFPS)
-
-		winWidth  int
-		winHeight int
-
-		vIterStart time.Time
 	)
 
 	var audioInput = &Portaudio{
@@ -127,10 +122,15 @@ func Run(d Device) error {
 	audioInput.Start()
 	defer audioInput.Stop()
 
+	var vIterStart = time.Now()
+
 	var mainTicker = time.NewTicker(drawDelay)
 	defer mainTicker.Stop()
 
 	for range mainTicker.C {
+		if vSince := time.Since(vIterStart); vSince < drawDelay {
+			time.Sleep(drawDelay - vSince)
+		}
 
 		select {
 		case <-ctx.Done():
@@ -140,7 +140,7 @@ func Run(d Device) error {
 
 		vIterStart = time.Now()
 
-		winWidth, winHeight = display.Size()
+		var winWidth, winHeight = display.Size()
 
 		if barCount != winWidth {
 			barCount = winWidth
@@ -161,17 +161,13 @@ func Run(d Device) error {
 				vSet.ExecuteFFTW()
 
 				spectrum.Generate(vSet)
-				spectrum.Monstercat(d.MonstercatFactor, vSet)
-				spectrum.Scale(winHeight/2, vSet)
-				spectrum.Falloff(d.FalloffWeight, vSet)
+				Monstercat(d.MonstercatFactor, vSet)
+				Scale(winHeight/2, vSet)
+				Falloff(d.FalloffWeight, vSet)
 
 			}
 
 			display.Draw(winHeight/2, 1, sets...)
-		}
-
-		if vSince := time.Since(vIterStart); vSince < drawDelay {
-			time.Sleep(drawDelay - vSince)
 		}
 	}
 

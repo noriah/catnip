@@ -2,6 +2,7 @@ package tavis
 
 import (
 	"errors"
+	"math"
 	"sync"
 
 	"github.com/gdamore/tcell/v2"
@@ -19,18 +20,25 @@ const (
 )
 
 // bar blocks for later
-// var (
-// 	barHeightRunes = [...]rune{
-// 		'\u2581',
-// 		'\u2582',
-// 		'\u2583',
-// 		'\u2584',
-// 		'\u2585',
-// 		'\u2586',
-// 		'\u2587',
-// 		'\u2588',
-// 	}
-// )
+var (
+	barHeightRunes = [...]rune{
+		'\u0020',
+		'\u2581',
+		'\u2582',
+		'\u2583',
+		'\u2584',
+		'\u2585',
+		'\u2586',
+		'\u2587',
+		DisplayBar,
+	}
+
+	numRunes = len(barHeightRunes)
+
+	styleDefault = tcell.StyleDefault.Bold(true)
+	styleCenter  = styleDefault.Foreground(tcell.ColorOrangeRed)
+	styleReverse = tcell.StyleDefault.Reverse(true).Bold(true)
+)
 
 // Display handles drawing our visualizer
 type Display struct {
@@ -197,9 +205,8 @@ func (d *Display) Draw(height, delta int, sets ...*DataSet) error {
 
 		d.drawWg.Add(1)
 		go drawSet(
-			d.screen,
-			dSet.Bins(),
-			cWidth, height,
+			d.screen, dSet,
+			height,
 			d.barWidth, d.binWidth,
 			cOffset, (delta * drawDir[dSet.ID()%len(drawDir)]),
 			d.drawWg.Done,
@@ -215,7 +222,7 @@ func (d *Display) Draw(height, delta int, sets ...*DataSet) error {
 		d.screen.SetContent(
 			xCol+cOffset, height,
 			DisplayBar, nil,
-			tcell.StyleDefault,
+			styleCenter,
 		)
 	}
 
@@ -228,37 +235,75 @@ func (d *Display) Draw(height, delta int, sets ...*DataSet) error {
 	return nil
 }
 
-func drawSet(s tcell.Screen, b []float64, w, h, bw, fw, o, d int, fn func()) {
+func drawSet(s tcell.Screen, ds *DataSet, h, bw, fw, o, d int, fn func()) {
 
-	// set up our loop. set the column by bin count on each iteration
-	// work in our offset to center on the screen
-	for xCol, xBin := 0, 0; xCol < w && xBin < len(b); xCol = (xBin * fw) {
+	for xBin, bin := range ds.Bins() {
 
-		// we always want to target our bar height
-		for xRow, lCol, lRow := 0, xCol+bw, int(b[xBin]); xRow < lRow; xRow++ {
+		lCol := (xBin * fw) + o + bw
+		lRow, vLast := toDrawVars(bin)
 
-			for xCol = xBin * fw; xCol < lCol; xCol++ {
+		for xCol, xRow := lCol-bw, 0; xCol < lCol; xCol++ {
+
+			// we always want to target our bar height
+			for xRow = 0; xRow < lRow; xRow++ {
+
 				// Draw the bars for this data set
 				s.SetContent(
 
 					// TODO(nora): benchmark math (single loop) vs. double loop
 
-					o+xCol,
+					xCol,
 
-					h+(d*xRow),
+					h+(d*(xRow+1)),
 
 					// Just use our const character for now
 					DisplayBar, nil,
 
 					// Working on color bars
-					tcell.StyleDefault,
+					styleDefault,
 				)
 			}
-		}
 
-		// increment the bin we are looking at.
-		xBin++
+			if vLast > 0 {
+				xRow++
+
+				// Draw the bars for this data set
+				if d < 0 {
+
+					s.SetContent(
+						xCol,
+
+						h-xRow,
+
+						// Just use our const character for now
+						barHeightRunes[vLast], nil,
+
+						// Working on color bars
+						styleDefault,
+					)
+				} else {
+
+					s.SetContent(
+						xCol,
+
+						h+(d*xRow),
+
+						// Just use our const character for now
+						barHeightRunes[numRunes-vLast], nil,
+
+						// Working on color bars
+						styleReverse,
+					)
+				}
+			}
+		}
 	}
 
 	fn()
+}
+
+func toDrawVars(a float64) (int, int) {
+	whole, frac := math.Modf(math.Abs(a))
+	frac = math.Max(0, 9*math.Min(0.9, frac))
+	return int(whole), int(frac)
 }
