@@ -4,14 +4,11 @@
 [![made-with-go][withgo]][go-dev]
 [![betamax-was-a-thing][betamax]][betawhat]
 
-## work in progress
+### depends on
 
-#### depends on
-
- - cgo X(
- - portaudio-2.0
- - fftw3
- - tcell
+ - cgo
+  - portaudio-2.0
+  - fftw
 
 <!-- Links -->
 [noriah-dev]: https://noriah.dev
