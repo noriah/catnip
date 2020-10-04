@@ -5,6 +5,12 @@ import "math"
 // Scaling Constants
 const (
 
+	// ScalingFastWindow in seconds
+	ScalingSlowWindow = 10
+
+	// ScalingFastWindow in seconds
+	ScalingFastWindow = ScalingSlowWindow * 0.1
+
 	// ScalingDumpPercent is how much we erase on rescale
 	ScalingDumpPercent = 0.75
 
