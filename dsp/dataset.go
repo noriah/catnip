@@ -9,8 +9,6 @@ import (
 type DataSet struct {
 	id int
 
-	spectrum *Spectrum
-
 	inputBuf []float64
 
 	fftPlan *fft.Plan
