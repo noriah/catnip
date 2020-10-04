@@ -74,7 +74,7 @@ func (pa *Portaudio) Init() error {
 			},
 			SampleRate:      pa.SampleRate,
 			FramesPerBuffer: pa.SampleSize,
-			Flags:           portaudio.ClipOff | portaudio.DitherOff,
+			// Flags:           portaudio.ClipOff | portaudio.DitherOff,
 		}, pa.sampleBuf); err != nil {
 		return err
 	}
@@ -96,7 +96,7 @@ func (pa *Portaudio) ReadyRead() int {
 // Read signals portaudio to dump some data into the buffer we gave it.
 // Will block if there is not enough data yet.
 func (pa *Portaudio) Read(ctx context.Context) error {
-	for pa.ReadyRead() < pa.SampleSize*pa.FrameSize {
+	for pa.ReadyRead() < pa.SampleSize {
 		select {
 		case <-ctx.Done():
 			log.Println("read timed out")

@@ -60,7 +60,7 @@ func Run(d Device) error {
 		sampleSize = int(d.SampleRate) / d.TargetFPS
 
 		// BufferSize is the total size of our buffer (SampleSize * FrameSize)
-		sampleBufferSize = sampleSize * d.ChannelCount
+		// sampleBufferSize = sampleSize * d.ChannelCount
 
 		// DrawDelay is the time we wait between ticks to draw.
 		drawDelay = time.Second / time.Duration(d.TargetFPS)
@@ -147,7 +147,7 @@ func Run(d Device) error {
 			spectrum.Recalculate(barCount, d.LoCutFreq, d.HiCutFreq)
 		}
 
-		if audioInput.ReadyRead() < sampleBufferSize {
+		if audioInput.ReadyRead() < sampleSize {
 			continue
 		}
 

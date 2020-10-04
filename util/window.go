@@ -14,6 +14,8 @@ type MovingWindow struct {
 	root *node
 	tail *node
 
+	pool []*node
+
 	length   int
 	capacity int
 
@@ -29,23 +31,28 @@ func NewMovingWindow(size int) *MovingWindow {
 
 	var mw = &MovingWindow{
 		root:     &node{},
+		pool:     make([]*node, size),
 		capacity: size,
 	}
 
 	mw.root.next = mw.root
 	mw.tail = mw.root
 
+	for xNode := 0; xNode < size; xNode++ {
+		mw.pool[xNode] = &node{}
+	}
+
 	return mw
 }
 
 // TODO(noriah): resource pool for nodes would be nice
+// TODO(noriah): benchmark pool?
 
 func (mw *MovingWindow) enq(value float64) {
 
-	mw.tail.next = &node{
-		next:  mw.root,
-		value: value,
-	}
+	mw.tail.next = mw.pool[mw.length]
+	mw.tail.next.next = mw.root
+	mw.tail.next.value = value
 
 	mw.tail = mw.tail.next
 
@@ -57,12 +64,12 @@ func (mw *MovingWindow) deq() float64 {
 		return math.NaN()
 	}
 
-	value := mw.root.next.value
-	mw.root.next = mw.root.next.next
-
 	mw.length--
 
-	return value
+	mw.pool[mw.length] = mw.root.next
+	mw.root.next = mw.root.next.next
+
+	return mw.pool[mw.length].value
 }
 
 func (mw *MovingWindow) calcRaw(new, old float64) {
@@ -93,13 +100,13 @@ func (mw *MovingWindow) calcFinal() (float64, float64) {
 // Update updates the moving window
 // If the moving window is at capacity, pop the oldest, and push value
 func (mw *MovingWindow) Update(value float64) (float64, float64) {
-	mw.enq(value)
-
-	if mw.length > mw.capacity {
+	if mw.length >= mw.capacity {
 		mw.calcRaw(value, mw.deq())
 	} else {
 		mw.calcRaw(value, 0)
 	}
+
+	mw.enq(value)
 
 	return mw.calcFinal()
 }

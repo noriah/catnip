@@ -29,7 +29,3 @@ func Monstercat(factor float64, dSet *DataSet) {
 		}
 	}
 }
-
-func absInt(value int) float64 {
-	return math.Abs(float64(value))
-}

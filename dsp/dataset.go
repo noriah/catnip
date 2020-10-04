@@ -9,7 +9,8 @@ import (
 type DataSet struct {
 	id int
 
-	inputBuf []float64
+	inputBuf  []float64
+	inputSize int
 
 	fftPlan *fft.Plan
 	fftBuf  []complex128
@@ -40,8 +41,8 @@ func (ds *DataSet) Bins() []float64 {
 	return ds.binBuf[0:ds.numBins:ds.numBins]
 }
 
-// Size returns the number of bins we have processed
-func (ds *DataSet) Size() int {
+// BinCount returns the number of bins we have processed
+func (ds *DataSet) BinCount() int {
 	return ds.numBins
 }
 
