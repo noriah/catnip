@@ -23,7 +23,9 @@ type SampleType = float32
 type Portaudio struct {
 	stream *portaudio.Stream // our input stream
 
-	sampleBuffer []SampleType // internal scratch buffer
+	sampleBuf []SampleType // internal scratch buffer
+
+	retBufs [][]float64
 
 	DeviceName string  // name of device to look for
 	FrameSize  int     // number of channels per frame
@@ -33,7 +35,6 @@ type Portaudio struct {
 
 // Init sets up all the portaudio things we need to do
 func (pa *Portaudio) Init() error {
-	pa.sampleBuffer = make([]SampleType, pa.SampleSize*pa.FrameSize)
 
 	if err := portaudio.Initialize(); err != nil {
 		return err
@@ -57,6 +58,13 @@ func (pa *Portaudio) Init() error {
 		return ErrBadDevice
 	}
 
+	pa.sampleBuf = make([]SampleType, pa.SampleSize*pa.FrameSize)
+	pa.retBufs = make([][]float64, pa.FrameSize)
+
+	for xBuf := range pa.retBufs {
+		pa.retBufs[xBuf] = make([]float64, pa.SampleSize)
+	}
+
 	if pa.stream, err = portaudio.OpenStream(
 		portaudio.StreamParameters{
 			Input: portaudio.StreamDeviceParameters{
@@ -67,16 +75,16 @@ func (pa *Portaudio) Init() error {
 			SampleRate:      pa.SampleRate,
 			FramesPerBuffer: pa.SampleSize,
 			Flags:           portaudio.ClipOff | portaudio.DitherOff,
-		}, &pa.sampleBuffer); err != nil {
+		}, pa.sampleBuf); err != nil {
 		return err
 	}
 
 	return err
 }
 
-// Buffer returns a slice to our buffer
-func (pa *Portaudio) Buffer() []SampleType {
-	return pa.sampleBuffer
+// Buffers returns a slice to our buffers
+func (pa *Portaudio) Buffers() [][]float64 {
+	return pa.retBufs
 }
 
 // ReadyRead returns the number of frames ready to read
@@ -97,7 +105,13 @@ func (pa *Portaudio) Read(ctx context.Context) error {
 		}
 	}
 
-	return pa.stream.Read()
+	read := pa.stream.Read()
+	for xBuf := range pa.retBufs {
+		for xSmpl := range pa.retBufs[xBuf] {
+			pa.retBufs[xBuf][xSmpl] = float64(pa.sampleBuf[(xSmpl*pa.FrameSize)+xBuf])
+		}
+	}
+	return read
 }
 
 // Close closes the close close

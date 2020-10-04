@@ -1,8 +1,7 @@
-package tavis
+package display
 
 import (
 	"errors"
-	"math"
 	"sync"
 
 	"github.com/gdamore/tcell/v2"
@@ -10,11 +9,6 @@ import (
 )
 
 const (
-	// DisplayBar is the block we use for bars
-	DisplayBar rune = '\u2588'
-
-	// DisplaySpace is the block we use for space (if we were to print one)
-	// DisplaySpace rune = '\u0020'
 
 	// MaxWidth will be removed at some point
 	MaxWidth = 5000
@@ -22,20 +16,6 @@ const (
 
 // bar blocks for later
 var (
-	barHeightRunes = [...]rune{
-		'\u0020',
-		'\u2581',
-		'\u2582',
-		'\u2583',
-		'\u2584',
-		'\u2585',
-		'\u2586',
-		'\u2587',
-		DisplayBar,
-	}
-
-	numRunes = len(barHeightRunes)
-
 	styleDefault = tcell.StyleDefault.Bold(true)
 	styleCenter  = styleDefault.Foreground(tcell.ColorOrangeRed)
 	styleReverse = tcell.StyleDefault.Reverse(true).Bold(true)
@@ -47,13 +27,14 @@ type Display struct {
 	binWidth int
 
 	screen tcell.Screen
+
 	drawWg *sync.WaitGroup
 }
 
-// NewDisplay sets up the display
+// New sets up the display
 // should we panic or return an error as well?
 // something to think about
-func NewDisplay() *Display {
+func New() *Display {
 
 	screen, err := tcell.NewScreen()
 
@@ -179,18 +160,16 @@ func (d *Display) Size() (int, int) {
 	return (width / d.binWidth), height
 }
 
-// temp for now
-
-var drawDir = [...]int{-1, 1}
-
 // Draw takes data, and draws
 func (d *Display) Draw(height, delta int, sets ...*dsp.DataSet) error {
 
 	// get our offset
-	var cWidth, _ = d.screen.Size()
-	var cOffset = (cWidth / d.binWidth) - 1
+	var cOffset = d.Bars() - 1
 	cOffset *= d.binWidth
 	cOffset += d.barWidth
+
+	var cWidth, _ = d.screen.Size()
+
 	cWidth, cOffset = cOffset, cWidth-cOffset
 	cOffset /= 2
 	// cWidth -= cOffset
@@ -200,26 +179,19 @@ func (d *Display) Draw(height, delta int, sets ...*dsp.DataSet) error {
 	for _, dSet := range sets {
 
 		d.drawWg.Add(1)
-		go drawSet(
-			d.screen, dSet,
-			height,
-			d.barWidth, d.binWidth,
-			cOffset, (delta * drawDir[dSet.ID()%len(drawDir)]),
-			d.drawWg.Done,
-		)
+		go drawBars(d, dSet, height, cOffset, delta)
 	}
 
-	for xCol := 0; xCol < cWidth; xCol++ {
-		if (xCol%d.binWidth)/d.barWidth > 0 {
-			continue
+	for xCol, xBin := 0, 0; xCol < cWidth; xCol = xBin * d.binWidth {
+		for lCol := xCol + d.barWidth; xCol < lCol; xCol++ {
+			// Draw our center line
+			d.screen.SetContent(
+				cOffset+xCol, height,
+				DisplayBar, nil,
+				styleCenter,
+			)
 		}
-
-		// Draw our center line
-		d.screen.SetContent(
-			cOffset+xCol, height,
-			DisplayBar, nil,
-			styleCenter,
-		)
+		xBin++
 	}
 
 	d.drawWg.Wait()
@@ -229,70 +201,4 @@ func (d *Display) Draw(height, delta int, sets ...*dsp.DataSet) error {
 	d.screen.Clear()
 
 	return nil
-}
-
-func drawSet(s tcell.Screen, ds *dsp.DataSet, h, bw, fw, o, d int, fn func()) {
-
-	for xBin, bin := range ds.Bins() {
-
-		lCol := (xBin * fw) + o + bw
-		lRow, vLast := toDrawVars(bin)
-
-		for xCol, xRow := lCol-bw, 0; xCol < lCol; xCol++ {
-
-			// we always want to target our bar height
-			for xRow = 0; xRow < lRow; xRow++ {
-
-				// Draw the bars for this data set
-				s.SetContent(
-
-					// TODO(nora): benchmark math (single loop) vs. double loop
-
-					xCol,
-
-					h+(d*(xRow+1)),
-
-					DisplayBar, nil,
-
-					styleDefault,
-				)
-			}
-
-			if vLast > 0 {
-
-				// Draw the bars for this data set
-				if d < 0 {
-
-					s.SetContent(
-						xCol,
-
-						h+(d*(xRow+1)),
-
-						barHeightRunes[vLast], nil,
-
-						styleDefault,
-					)
-				} else {
-
-					s.SetContent(
-						xCol,
-
-						h+(d*(xRow+1)),
-
-						barHeightRunes[numRunes-vLast], nil,
-
-						styleReverse,
-					)
-				}
-			}
-		}
-	}
-
-	fn()
-}
-
-func toDrawVars(a float64) (int, int) {
-	whole := int(math.Abs(a))
-	// frac = math.Max(0, 9*math.Min(0.9, frac))
-	return whole / 9, whole % 9
 }

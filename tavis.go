@@ -4,10 +4,13 @@ import (
 	"context"
 	"os"
 	"os/signal"
+	"sync"
 	"time"
 
+	"github.com/noriah/tavis/display"
 	"github.com/noriah/tavis/dsp"
 	"github.com/noriah/tavis/portaudio"
+
 	"github.com/pkg/errors"
 )
 
@@ -73,21 +76,12 @@ func Run(d Device) error {
 	if err := audioInput.Init(); err != nil {
 		return err
 	}
-
 	defer audioInput.Close()
 
 	// Make a spectrum
 	var spectrum = dsp.NewSpectrum(d.SampleRate, sampleSize)
 
-	var fftwIn = make([][]float64, d.ChannelCount)
-	var sets = make([]*dsp.DataSet, d.ChannelCount)
-
-	for xS := range sets {
-		fftwIn[xS] = make([]float64, sampleSize)
-		sets[xS] = spectrum.DataSet(fftwIn[xS])
-	}
-
-	var display = NewDisplay()
+	var display = display.New()
 	defer display.Close()
 
 	var barCount = display.SetWidths(d.BarWidth, d.SpaceWidth)
@@ -118,15 +112,20 @@ func Run(d Device) error {
 		cancel()
 	}()
 
+	var sets = make([]*dsp.DataSet, d.ChannelCount)
+
+	for xS := range sets {
+		sets[xS] = spectrum.DataSet(audioInput.Buffers()[xS])
+	}
+
 	audioInput.Start()
 	defer audioInput.Stop()
 
-	var audioBuf = audioInput.Buffer()
+	var wg = &sync.WaitGroup{}
+
+	var pipe = defaultPipe(spectrum, d.MonstercatFactor, d.FalloffWeight, wg.Done)
 
 	var vIterStart = time.Now()
-
-	// var mainTicker = time.NewTicker(drawDelay)
-	// defer mainTicker.Stop()
 
 	for {
 		select {
@@ -148,38 +147,42 @@ func Run(d Device) error {
 			spectrum.Recalculate(barCount, d.LoCutFreq, d.HiCutFreq)
 		}
 
-		if audioInput.ReadyRead() >= sampleBufferSize {
-			if err := audioInput.Read(ctx); err != nil {
-				if err != portaudio.InputOverflowed {
-					return errors.Wrap(err, "failed to read audio input")
-				}
-				err = nil
-			}
-
-			deFrame(fftwIn, audioBuf)
-
-			for _, vSet := range sets {
-				vSet.ExecuteFFTW()
-
-				spectrum.Generate(vSet)
-
-				dsp.Monstercat(d.MonstercatFactor, vSet)
-				dsp.Scale(float64(winHeight)/2, vSet)
-				dsp.Falloff(d.FalloffWeight, vSet)
-
-			}
-
-			display.Draw(winHeight/2, 1, sets...)
+		if audioInput.ReadyRead() < sampleBufferSize {
+			continue
 		}
+
+		if err := audioInput.Read(ctx); err != nil {
+			if err != portaudio.InputOverflowed {
+				return errors.Wrap(err, "failed to read audio input")
+			}
+			err = nil
+		}
+
+		for xSet := range sets {
+			wg.Add(1)
+			go pipe(sets[xSet], winHeight/2)
+		}
+
+		wg.Wait()
+
+		display.Draw(winHeight/2, 1, sets...)
 	}
 }
 
-// This "fix" is because the portaudio interface we are using does not
-// work properly. I have to de-interleave the array
-func deFrame(dest [][]float64, src []float32) {
-	for xSet, sets := 0, len(dest); xSet < sets; xSet++ {
-		for xSmpl := range dest[xSet] {
-			dest[xSet][xSmpl] = float64(src[(xSmpl*sets)+xSet])
-		}
+type pipeline func(*dsp.DataSet, int)
+
+// pl is a pipeline
+func defaultPipe(sp *dsp.Spectrum, mf, fw float64, fn func()) pipeline {
+	return func(ds *dsp.DataSet, height int) {
+		ds.ExecuteFFTW()
+
+		dsp.Generate(sp, ds)
+
+		// dsp.Waves(0.9, ds)
+		dsp.Monstercat(mf, ds)
+		dsp.Scale(height, ds)
+		dsp.Falloff(fw, ds)
+
+		fn()
 	}
 }

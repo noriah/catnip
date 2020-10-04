@@ -5,7 +5,7 @@ import "math"
 const (
 	// MinFall is the minimum steps we take when our current value is lower
 	// than our old value.
-	MinFall = 1
+	MinFall = 0.6
 )
 
 // Falloff does falling off things
