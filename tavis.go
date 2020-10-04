@@ -172,7 +172,7 @@ func defaultPipe(sp *dsp.Spectrum, mf, fw float64) pipeline {
 
 		dsp.Generate(sp, ds)
 
-		// dsp.Waves(0.9, ds)
+		// dsp.Waves(1.9, ds)
 		dsp.Monstercat(mf, ds)
 		dsp.Falloff(fw, ds)
 		dsp.Scale(height, ds)

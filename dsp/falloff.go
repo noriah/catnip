@@ -3,9 +3,9 @@ package dsp
 import "math"
 
 const (
-	// MinChange is the minimum steps we take when our current value is lower
+	// MinDelta is the minimum steps we take when our current value is lower
 	// than our old value.
-	MinChange = 1
+	MinDelta = 1
 )
 
 // Falloff does falling off things
@@ -22,27 +22,25 @@ func Falloff(weight float64, ds *DataSet) {
 }
 
 func falloff(weight, prev, now float64) (float64, float64) {
-	change := math.Abs(prev - now)
 
-	if now > prev {
+	delta := math.Abs(prev - now)
 
-		if change >= MinChange {
-			change = math.Max(math.Min(prev/weight, prev+MinChange), now)
-			return change, change
+	if now >= prev {
+
+		if delta >= MinDelta {
+
+			return prev + (delta * 0.5), now - (delta * 0.5)
 		}
 
-		return prev + (change * 0.5), now - (change * 0.5)
+		delta = math.Max(math.Min(prev/weight, prev+MinDelta), now)
+		return delta, delta
 	}
 
-	if change >= MinChange {
-		change = math.Max(math.Min(prev*weight, prev-MinChange), now)
-		return change, change
+	if delta >= MinDelta {
+
+		delta = math.Max(math.Min(prev*weight, prev-MinDelta), now)
+		return delta, delta
 	}
 
-	return prev - (change * 0.5), now + (change * 0.5)
-	// if change > MinChange*2 {
-	// 	change = math.Max(math.Min(prev*weight, prev-MinChange*2), now)
-	// 	return change, change
-	// }
-
+	return prev - (delta * 0.5), now + (delta * 0.5)
 }
