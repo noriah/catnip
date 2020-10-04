@@ -66,7 +66,6 @@ func (s *Spectrum) DataSet(input []float64) *DataSet {
 
 	var set = &DataSet{
 		id:         s.setCount,
-		spectrum:   s,
 		fftSize:    fftSize,
 		inputBuf:   input,
 		fftBuf:     make([]complex128, fftSize),
