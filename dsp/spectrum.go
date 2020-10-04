@@ -25,8 +25,6 @@ type Spectrum struct {
 
 	setCount int
 
-	dataSize int
-
 	// sampleSize is the number of frames per sample
 	sampleSize int
 
@@ -42,7 +40,6 @@ func NewSpectrum(rate float64, size int) *Spectrum {
 
 	var s = &Spectrum{
 		maxBins:    MaxBins,
-		dataSize:   (size / 2) + 1,
 		sampleSize: size,
 		sampleRate: rate,
 	}
@@ -58,20 +55,28 @@ func NewSpectrum(rate float64, size int) *Spectrum {
 // DataSet reurns a new data set with settings matching this spectrum
 func (s *Spectrum) DataSet(input []float64) *DataSet {
 
+	if input == nil {
+		input = make([]float64, s.sampleSize)
+	}
+
 	slowMax := int((ScalingSlowWindow*s.sampleRate)/float64(s.sampleSize)) * 2
 	fastMax := int((ScalingFastWindow*s.sampleRate)/float64(s.sampleSize)) * 2
 
+	var fftSize = (s.sampleSize / 2) + 1
+
 	var set = &DataSet{
 		id:         s.setCount,
-		dataSize:   s.dataSize,
-		dataBuf:    make([]complex128, s.dataSize),
+		spectrum:   s,
+		fftSize:    fftSize,
+		inputBuf:   input,
+		fftBuf:     make([]complex128, fftSize),
 		binBuf:     make([]float64, s.maxBins),
 		prevBuf:    make([]float64, s.maxBins),
 		slowWindow: util.NewMovingWindow(slowMax),
 		fastWindow: util.NewMovingWindow(fastMax),
 	}
 
-	set.fftPlan = fft.New(input, set.dataBuf, s.sampleSize, fft.Estimate)
+	set.fftPlan = fft.New(set.inputBuf, set.fftBuf, s.sampleSize, fft.Estimate)
 
 	s.setCount++
 
@@ -117,31 +122,4 @@ func (s *Spectrum) Recalculate(bins int, lo, hi float64) int {
 	}
 
 	return s.numBins
-}
-
-// Generate makes numBins and dumps them in the buffer
-func (s *Spectrum) Generate(dSet *DataSet) {
-	dSet.numBins = s.numBins
-
-	for xBin := 0; xBin <= dSet.numBins; xBin++ {
-
-		var vM = 0.0
-
-		for xF := s.loCuts[xBin]; xF <= s.hiCuts[xBin] &&
-			xF >= 0 &&
-			xF < dSet.dataSize; xF++ {
-
-			vM += pyt(dSet.dataBuf[xF])
-		}
-
-		vM /= float64(s.hiCuts[xBin] - s.loCuts[xBin] + 1)
-
-		vM *= (math.Log2(float64(2+xBin)) * (100.0 / float64(dSet.numBins)))
-
-		dSet.binBuf[xBin] = math.Pow(vM, 0.5)
-	}
-}
-
-func pyt(value complex128) float64 {
-	return math.Sqrt((real(value) * real(value)) + (imag(value) * imag(value)))
 }

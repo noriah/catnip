@@ -11,10 +11,11 @@ type DataSet struct {
 
 	spectrum *Spectrum
 
-	fftPlan *fft.Plan
+	inputBuf []float64
 
-	dataBuf  []complex128
-	dataSize int
+	fftPlan *fft.Plan
+	fftBuf  []complex128
+	fftSize int
 
 	binBuf  []float64
 	prevBuf []float64
@@ -31,9 +32,14 @@ func (ds *DataSet) ID() int {
 	return ds.id
 }
 
+// Input returns the buffer we read from
+func (ds *DataSet) Input() []float64 {
+	return ds.inputBuf
+}
+
 // Bins returns the bins that we have as a silce
 func (ds *DataSet) Bins() []float64 {
-	return ds.binBuf[:ds.numBins]
+	return ds.binBuf[0:ds.numBins:ds.numBins]
 }
 
 // Size returns the number of bins we have processed

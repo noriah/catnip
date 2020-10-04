@@ -12,11 +12,9 @@ const (
 )
 
 // Scale scales the data
-func Scale(height float64, dSet *DataSet) {
-	// 9 substeps
-	height *= 9
+func Scale(height int, dSet *DataSet) {
 
-	dSet.peakHeight = 1
+	dSet.peakHeight = 0.125
 
 	var vSilent = true
 
@@ -47,7 +45,7 @@ func Scale(height float64, dSet *DataSet) {
 
 	var vMag = math.Max(vMean+(2*vSD), 1)
 
-	for xBin, cHeight := 0, math.Floor(height-1); xBin <= dSet.numBins; xBin++ {
+	for xBin, cHeight := 0, float64(height-1); xBin <= dSet.numBins; xBin++ {
 		dSet.binBuf[xBin] = math.Min(cHeight, (dSet.binBuf[xBin]/vMag)*cHeight)
 	}
 }

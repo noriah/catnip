@@ -562,6 +562,19 @@ func (s *Stream) initBuffers(p StreamParameters, args ...interface{}) error {
 	return nil
 }
 
+// FormatFlag is a port format
+type FormatFlag int
+
+// Port format constants
+const (
+	NonInterleaved FormatFlag = C.paNonInterleaved
+	Float32        FormatFlag = C.paFloat32
+	Int32          FormatFlag = C.paInt32
+	Int16          FormatFlag = C.paInt16
+	Int8           FormatFlag = C.paInt8
+	Uint8          FormatFlag = C.paUInt8
+)
+
 func sampleFormat(b reflect.Type) (f C.PaSampleFormat) {
 	if b.Kind() != reflect.Slice {
 		return 0

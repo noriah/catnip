@@ -3,34 +3,30 @@ package dsp
 import "math"
 
 // Monstercat is not entirely understood yet.
-// We need to work on it
+// https://github.com/karlstav/cava/blob/master/cava.c#L157
 func Monstercat(factor float64, dSet *DataSet) {
 
 	// "pow is probably doing that same logarithm in every call, so you're
 	//  extracting out half the work"
 	var lf = math.Log(factor)
 
-	for xBin := 1; xBin < dSet.numBins; xBin++ {
+	for xPass := 0; xPass < dSet.numBins; xPass++ {
 
-		for xPass := 0; xPass <= dSet.numBins; xPass++ {
+		for xBin := xPass - 1; xBin >= 0; xBin-- {
 
-			var tmp = dSet.binBuf[xBin] / math.Exp(lf*absInt(xBin-xPass))
-			// var tmp = dSet.binBuf[xBin] / math.Pow(factor, absInt(xBin-xPass))
+			var tmp = dSet.binBuf[xPass] / math.Exp(lf*float64(xPass-xBin))
 
-			if tmp > dSet.binBuf[xPass] {
-				dSet.binBuf[xPass] = tmp
+			if tmp > dSet.binBuf[xBin] {
+				dSet.binBuf[xBin] = tmp
 			}
 		}
 
-		// for xPass := dSet.numBins - 2; xPass > 0; xPass++ {
-
-		// 	var tmp = dSet.binBuf[xBin] / math.Exp(lf*absInt(xBin-xPass))
-		// 	// var tmp = dSet.binBuf[xBin] / math.Pow(factor, absInt(xBin-xPass))
-
-		// 	if tmp > dSet.binBuf[xPass] {
-		// 		dSet.binBuf[xPass] = tmp
-		// 	}
-		// }
+		for xBin := dSet.numBins + 1; xBin < dSet.numBins; xBin++ {
+			var tmp = dSet.binBuf[xPass] / math.Exp(lf*float64(xBin-xPass))
+			if tmp > dSet.binBuf[xBin] {
+				dSet.binBuf[xBin] = tmp
+			}
+		}
 	}
 }
 
