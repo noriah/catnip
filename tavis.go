@@ -4,7 +4,6 @@ import (
 	"context"
 	"os"
 	"os/signal"
-	"sync"
 	"time"
 
 	"github.com/noriah/tavis/display"
@@ -121,9 +120,7 @@ func Run(d Device) error {
 	audioInput.Start()
 	defer audioInput.Stop()
 
-	var wg = &sync.WaitGroup{}
-
-	var pipe = defaultPipe(spectrum, d.MonstercatFactor, d.FalloffWeight, wg.Done)
+	var pipe = defaultPipe(spectrum, d.MonstercatFactor, d.FalloffWeight)
 
 	var vIterStart = time.Now()
 
@@ -159,11 +156,8 @@ func Run(d Device) error {
 		}
 
 		for xSet := range sets {
-			wg.Add(1)
-			go pipe(sets[xSet], winHeight/2)
+			pipe(sets[xSet], winHeight/2)
 		}
-
-		wg.Wait()
 
 		display.Draw(winHeight/2, 1, sets...)
 	}
@@ -172,7 +166,7 @@ func Run(d Device) error {
 type pipeline func(*dsp.DataSet, int)
 
 // pl is a pipeline
-func defaultPipe(sp *dsp.Spectrum, mf, fw float64, fn func()) pipeline {
+func defaultPipe(sp *dsp.Spectrum, mf, fw float64) pipeline {
 	return func(ds *dsp.DataSet, height int) {
 		ds.ExecuteFFTW()
 
@@ -180,9 +174,8 @@ func defaultPipe(sp *dsp.Spectrum, mf, fw float64, fn func()) pipeline {
 
 		// dsp.Waves(0.9, ds)
 		dsp.Monstercat(mf, ds)
-		dsp.Scale(height, ds)
 		dsp.Falloff(fw, ds)
+		dsp.Scale(height, ds)
 
-		fn()
 	}
 }

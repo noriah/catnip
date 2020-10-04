@@ -9,12 +9,6 @@ import (
 
 // Spectrum Constants
 const (
-	// ScalingFastWindow in seconds
-	ScalingSlowWindow = 10
-
-	// ScalingFastWindow in seconds
-	ScalingFastWindow = ScalingSlowWindow * 0.1
-
 	MaxBins = 1024
 )
 
