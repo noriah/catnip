@@ -1,6 +1,8 @@
 package dsp
 
-import "math"
+import (
+	"math"
+)
 
 // Scaling Constants
 const (
@@ -9,49 +11,52 @@ const (
 	ScalingSlowWindow = 10
 
 	// ScalingFastWindow in seconds
-	ScalingFastWindow = ScalingSlowWindow * 0.1
+	ScalingFastWindow = ScalingSlowWindow * 0.2
 
 	// ScalingDumpPercent is how much we erase on rescale
-	ScalingDumpPercent = 0.75
+	ScalingDumpPercent = 0.6
 
 	ScalingResetDeviation = 1
 )
 
 // Scale scales the data
-func Scale(height int, dSet *DataSet) {
+func Scale(height int, ds *DataSet) {
 
-	dSet.peakHeight = 0.125
+	var peak = 0.125
 
 	var vSilent = true
 
-	for xBin := 0; xBin <= dSet.numBins; xBin++ {
-		if dSet.binBuf[xBin] > 0 {
+	for xBin := 0; xBin < ds.numBins; xBin++ {
+
+		if ds.binBuf[xBin] > 0 {
+
 			vSilent = false
-			if dSet.peakHeight < dSet.binBuf[xBin] {
-				dSet.peakHeight = dSet.binBuf[xBin]
+
+			if peak < ds.binBuf[xBin] {
+				peak = ds.binBuf[xBin]
 			}
 		}
 	}
 
-	if vSilent {
-		return
+	if !vSilent {
+		ds.fastWindow.Update(peak)
+		ds.slowWindow.Update(peak)
 	}
 
-	dSet.fastWindow.Update(dSet.peakHeight)
+	var vMean, vSD = ds.slowWindow.Stats()
 
-	var vMean, vSD = dSet.slowWindow.Update(dSet.peakHeight)
+	if length := ds.slowWindow.Len(); length >= ds.fastWindow.Cap() {
 
-	if length := dSet.slowWindow.Len(); length > dSet.fastWindow.Cap() {
-		var vMag = math.Abs(dSet.fastWindow.Mean() - vMean)
-		if vMag > (ScalingResetDeviation * vSD) {
-			dSet.slowWindow.Drop(int(float64(length) * ScalingDumpPercent))
-			vMean, vSD = dSet.slowWindow.Stats()
+		if math.Abs(ds.fastWindow.Mean()-vMean) > (ScalingResetDeviation * vSD) {
+
+			ds.slowWindow.Drop(int(float64(length) * ScalingDumpPercent))
+			vMean, vSD = ds.slowWindow.Stats()
 		}
 	}
 
 	var vMag = math.Max(vMean+(2*vSD), 1)
 
-	for xBin, cHeight := 0, float64(height-1); xBin <= dSet.numBins; xBin++ {
-		dSet.binBuf[xBin] = math.Min(cHeight, (dSet.binBuf[xBin]/vMag)*cHeight)
+	for xBin, cHeight := 0, float64(height-1); xBin <= ds.numBins; xBin++ {
+		ds.binBuf[xBin] = math.Min(cHeight, (ds.binBuf[xBin]/vMag)*cHeight)
 	}
 }

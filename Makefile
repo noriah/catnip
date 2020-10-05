@@ -23,22 +23,13 @@ LDFLAGS :=  -ldflags "\
 build:
 	go build $(LDFLAGS) -o $(BIN_FILE) $(MAIN_PATH)
 
-.PHONY: build
-
-run: build
-	$(BIN_FILE)
-
-.PHONY: run
-
 clean:
 	rm $(BIN_FILE)
 
 .PHONY: clean
 
-$(PROGRAM): run
+$(PROGRAM): build
 
-.PHONY: $(PROGRAM)
 
-all: run 
+all: build
 
-.PHONY: all

@@ -12,15 +12,15 @@ type DataSet struct {
 	inputBuf  []float64
 	inputSize int
 
-	fftPlan *fft.Plan
 	fftBuf  []complex128
 	fftSize int
 
+	fftPlan *fft.Plan
+
 	binBuf  []float64
-	prevBuf []float64
 	numBins int
 
-	peakHeight float64
+	prevBuf []float64
 
 	slowWindow *util.MovingWindow
 	fastWindow *util.MovingWindow
@@ -41,8 +41,8 @@ func (ds *DataSet) Bins() []float64 {
 	return ds.binBuf[0:ds.numBins:ds.numBins]
 }
 
-// BinCount returns the number of bins we have processed
-func (ds *DataSet) BinCount() int {
+// Len returns the number of bins we have processed
+func (ds *DataSet) Len() int {
 	return ds.numBins
 }
 
