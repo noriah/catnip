@@ -43,7 +43,7 @@ func NewZeroDevice() Device {
 		SampleRate:       44100,
 		LoCutFreq:        20,
 		HiCutFreq:        22050,
-		MonstercatFactor: 1.75,
+		MonstercatFactor: 2.5,
 		FalloffWeight:    0.01,
 		BarWidth:         2,
 		SpaceWidth:       1,
@@ -126,6 +126,7 @@ func Run(d Device) error {
 		vIterStart = time.Now()
 
 		var winWidth, winHeight = display.Size()
+		winHeight /= 2
 
 		if barCount != winWidth {
 			barCount = winWidth
@@ -144,14 +145,14 @@ func Run(d Device) error {
 		for xSet := range sets {
 			sets[xSet].ExecuteFFTW()
 
-			dsp.Generate(spectrum, sets[xSet])
+			spectrum.Generate(sets[xSet])
 
 			// dsp.Waves(1.9, ds)
 			// dsp.Monstercat(d.MonstercatFactor, sets[xSet])
+			dsp.Scale(winHeight, sets[xSet])
 			dsp.Falloff(d.FalloffWeight, sets[xSet])
-			dsp.Scale(winHeight/2, sets[xSet])
 		}
 
-		display.Draw(winHeight/2, 1, sets...)
+		display.Draw(winHeight, 1, sets...)
 	}
 }
