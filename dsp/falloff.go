@@ -1,46 +1,65 @@
 package dsp
 
-import "math"
+import (
+	"math"
+)
 
 const (
 	// MinDelta is the minimum steps we take when our current value is lower
 	// than our old value.
-	MinDelta = 1
+	MinDelta = 0.1
+
+	MajorDelta = 0.2
+
+	MinCharDelta = 1 / 9
 )
 
-// Falloff does falling off things
+// Falloff does smoothing off things
 func Falloff(weight float64, ds *DataSet) {
-	weight = math.Max(0.7, math.Min(1, weight))
-
-	for xBin := 0; xBin <= ds.numBins; xBin++ {
-		ds.binBuf[xBin], ds.prevBuf[xBin] = falloff(
+	for xBin := 0; xBin <= ds.Len(); xBin++ {
+		ds.binBuf[xBin], ds.prevBuf[xBin] = zeroPlus(falloff(
 			weight,
-			ds.prevBuf[xBin],
 			ds.binBuf[xBin],
-		)
+			ds.prevBuf[xBin],
+		))
 	}
 }
 
-func falloff(weight, prev, now float64) (float64, float64) {
+func falloff(weight, now, prev float64) (float64, float64) {
 
-	delta := math.Abs(prev - now)
+	var delta = math.Abs(now - prev)
 
-	if now >= prev {
+	if delta < MinDelta {
+		return prev, now
+	}
 
-		if delta >= MinDelta {
-
-			return prev + (delta * 0.5), now - (delta * 0.5)
+	if now > prev {
+		if delta >= MajorDelta {
+			delta = math.Max(now, math.Min(prev+(delta*weight), prev+MinDelta))
+			return delta, delta
 		}
 
-		delta = math.Max(math.Min(prev/weight, prev+MinDelta), now)
-		return delta, delta
+		if delta >= MinDelta {
+			return prev + (delta * 0.5), prev + (delta * 0.5)
+		}
+
+		return prev + (delta * 0.5), prev + (delta * 0.5)
+	}
+
+	var last = now + (delta * 0.)
+
+	if delta >= MajorDelta {
+		delta = math.Max(now, math.Min(prev-(delta*weight), prev-MinDelta))
+		return delta, last
 	}
 
 	if delta >= MinDelta {
-
-		delta = math.Max(math.Min(prev*weight, prev-MinDelta), now)
-		return delta, delta
+		return prev - (delta * 0.75), now + (delta * 0.125)
 	}
 
-	return prev - (delta * 0.5), now + (delta * 0.5)
+	return prev - (delta * 0.5), last
+}
+
+func zeroPlus(a, b float64) (float64, float64) {
+	return math.Max(0, a), math.Max(0, b)
 }

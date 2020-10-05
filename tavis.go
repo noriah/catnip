@@ -8,7 +8,7 @@ import (
 
 	"github.com/noriah/tavis/display"
 	"github.com/noriah/tavis/dsp"
-	"github.com/noriah/tavis/portaudio"
+	"github.com/noriah/tavis/input/portaudio"
 
 	"github.com/pkg/errors"
 )
@@ -41,10 +41,10 @@ func NewZeroDevice() Device {
 	return Device{
 		Name:             "default",
 		SampleRate:       44100,
-		LoCutFreq:        410,
-		HiCutFreq:        8000,
-		MonstercatFactor: 3.5,
-		FalloffWeight:    0.912,
+		LoCutFreq:        20,
+		HiCutFreq:        22050,
+		MonstercatFactor: 1.75,
+		FalloffWeight:    0.01,
 		BarWidth:         2,
 		SpaceWidth:       1,
 		TargetFPS:        60,
@@ -58,14 +58,11 @@ func Run(d Device) error {
 		// SampleSize is the number of frames per channel we want per read
 		sampleSize = int(d.SampleRate) / d.TargetFPS
 
-		// BufferSize is the total size of our buffer (SampleSize * FrameSize)
-		// sampleBufferSize = sampleSize * d.ChannelCount
-
 		// DrawDelay is the time we wait between ticks to draw.
 		drawDelay = time.Second / time.Duration(d.TargetFPS)
 	)
 
-	var audioInput = &Portaudio{
+	var audioInput = &portaudio.Portaudio{
 		DeviceName: d.Name,
 		FrameSize:  d.ChannelCount,
 		SampleSize: sampleSize,
@@ -80,6 +77,9 @@ func Run(d Device) error {
 	// Make a spectrum
 	var spectrum = dsp.NewSpectrum(d.SampleRate, sampleSize)
 
+	// TODO(noriah): remove temprorary variables
+	var displayChan = make(chan bool, 1)
+
 	var display = display.New()
 	defer display.Close()
 
@@ -88,28 +88,11 @@ func Run(d Device) error {
 	// Set it up with our values
 	spectrum.Recalculate(barCount, d.LoCutFreq, d.HiCutFreq)
 
-	var ctx, cancel = context.WithCancel(context.Background())
-	defer cancel()
-
-	// TODO(noriah): remove temprorary variables
-	var displayChan = make(chan bool, 1)
-
 	display.Start(displayChan)
 	defer display.Stop()
 
-	// Handle fanout of cancel
-	go func() {
-		var endSig = make(chan os.Signal, 3)
-		signal.Notify(endSig, os.Interrupt)
-
-		select {
-		case <-ctx.Done():
-		case <-displayChan:
-		case <-endSig:
-		}
-
-		cancel()
-	}()
+	var endSig = make(chan os.Signal, 3)
+	signal.Notify(endSig, os.Interrupt)
 
 	var sets = make([]*dsp.DataSet, d.ChannelCount)
 
@@ -120,13 +103,18 @@ func Run(d Device) error {
 	audioInput.Start()
 	defer audioInput.Stop()
 
-	var pipe = defaultPipe(spectrum, d.MonstercatFactor, d.FalloffWeight)
+	var ctx, cancel = context.WithCancel(context.Background())
+	defer cancel()
 
 	var vIterStart = time.Now()
 
 	for {
 		select {
 		case <-ctx.Done():
+			return nil
+		case <-displayChan:
+			return nil
+		case <-endSig:
 			return nil
 		default:
 		}
@@ -149,33 +137,21 @@ func Run(d Device) error {
 		}
 
 		if err := audioInput.Read(ctx); err != nil {
-			if err != portaudio.InputOverflowed {
-				return errors.Wrap(err, "failed to read audio input")
-			}
-			err = nil
+			return errors.Wrap(err, "failed to read audio input")
+
 		}
 
 		for xSet := range sets {
-			pipe(sets[xSet], winHeight/2)
+			sets[xSet].ExecuteFFTW()
+
+			dsp.Generate(spectrum, sets[xSet])
+
+			// dsp.Waves(1.9, ds)
+			// dsp.Monstercat(d.MonstercatFactor, sets[xSet])
+			dsp.Falloff(d.FalloffWeight, sets[xSet])
+			dsp.Scale(winHeight/2, sets[xSet])
 		}
 
 		display.Draw(winHeight/2, 1, sets...)
-	}
-}
-
-type pipeline func(*dsp.DataSet, int)
-
-// pl is a pipeline
-func defaultPipe(sp *dsp.Spectrum, mf, fw float64) pipeline {
-	return func(ds *dsp.DataSet, height int) {
-		ds.ExecuteFFTW()
-
-		dsp.Generate(sp, ds)
-
-		// dsp.Waves(1.9, ds)
-		dsp.Monstercat(mf, ds)
-		dsp.Falloff(fw, ds)
-		dsp.Scale(height, ds)
-
 	}
 }

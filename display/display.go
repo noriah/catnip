@@ -210,7 +210,7 @@ func (d *Display) Draw(height, delta int, sets ...*dsp.DataSet) error {
 
 	// we want to break out when we have reached the max number of bars
 	// we are able to display, including spacing
-	var xBin, lBin = 0, sets[0].BinCount()
+	var xBin, lBin = 0, sets[0].Len()
 
 	// TODO(nora): benchmark
 	for xBin < lBin {

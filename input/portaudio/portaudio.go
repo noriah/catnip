@@ -1,11 +1,11 @@
-package tavis
+package portaudio
 
 import (
 	"context"
 	"errors"
 	"log"
 
-	"github.com/noriah/tavis/portaudio"
+	"github.com/noriah/tavis/input/portaudio/portaudio"
 )
 
 // errors
@@ -105,13 +105,18 @@ func (pa *Portaudio) Read(ctx context.Context) error {
 		}
 	}
 
-	read := pa.stream.Read()
+	err := pa.stream.Read()
 	for xBuf := range pa.retBufs {
 		for xSmpl := range pa.retBufs[xBuf] {
 			pa.retBufs[xBuf][xSmpl] = float64(pa.sampleBuf[(xSmpl*pa.FrameSize)+xBuf])
 		}
 	}
-	return read
+
+	if err != portaudio.InputOverflowed {
+		return err
+	}
+
+	return nil
 }
 
 // Close closes the close close

@@ -6,7 +6,7 @@ import (
 	"os"
 
 	"github.com/noriah/tavis"
-	"github.com/noriah/tavis/portaudio"
+	"github.com/noriah/tavis/input/portaudio/portaudio"
 	"github.com/pkg/errors"
 	"github.com/urfave/cli/v2"
 )
