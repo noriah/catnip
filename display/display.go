@@ -182,7 +182,7 @@ func (d *Display) Size() (int, int) {
 
 func drawVars(bin float64) (int, int) {
 	var whole, frac = math.Modf(bin)
-	frac = float64(numRunes) * frac
+	frac = float64(numRunes) * math.Abs(frac)
 	return int(whole), int(frac)
 }
 
@@ -241,10 +241,13 @@ func (d *Display) Draw(height, delta int, sets ...*dsp.DataSet) error {
 					xRow++
 				}
 
-				// Draw the top bar for this data set
-				d.screen.SetContent(
-					xCol, height+(vDelta*xRow),
-					barRunes[vLast][xSet], nil, vStyle)
+				if vLast >= 0 {
+
+					// Draw the top bar for this data set
+					d.screen.SetContent(
+						xCol, height+(vDelta*xRow),
+						barRunes[vLast][xSet], nil, vStyle)
+				}
 
 				// we will only ever allow 2 loops
 				// we are done with the first, set up the second

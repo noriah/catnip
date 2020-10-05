@@ -32,47 +32,47 @@ type Spectrum struct {
 // NewSpectrum will set up our spectrum
 func NewSpectrum(rate float64, size int) *Spectrum {
 
-	var s = &Spectrum{
+	var sp = &Spectrum{
 		maxBins:    MaxBins,
 		sampleSize: size,
 		sampleRate: rate,
 	}
 
-	s.loCuts = make([]int, s.maxBins+1)
-	s.hiCuts = make([]int, s.maxBins+1)
+	sp.loCuts = make([]int, sp.maxBins+1)
+	sp.hiCuts = make([]int, sp.maxBins+1)
 
-	s.Recalculate(s.maxBins, 20, s.sampleRate/2)
+	sp.Recalculate(sp.maxBins, 20, sp.sampleRate/2)
 
-	return s
+	return sp
 }
 
 // DataSet reurns a new data set with settings matching this spectrum
-func (s *Spectrum) DataSet(input []float64) *DataSet {
+func (sp *Spectrum) DataSet(input []float64) *DataSet {
 
 	if input == nil {
-		input = make([]float64, s.sampleSize)
+		input = make([]float64, sp.sampleSize)
 	}
 
-	slowMax := int((ScalingSlowWindow*s.sampleRate)/float64(s.sampleSize)) * 2
-	fastMax := int((ScalingFastWindow*s.sampleRate)/float64(s.sampleSize)) * 2
+	slowMax := int((ScalingSlowWindow*sp.sampleRate)/float64(sp.sampleSize)) * 2
+	fastMax := int((ScalingFastWindow*sp.sampleRate)/float64(sp.sampleSize)) * 2
 
-	var fftSize = (s.sampleSize / 2) + 1
+	var fftSize = (sp.sampleSize / 2) + 1
 
 	var set = &DataSet{
-		id:         s.setCount,
+		id:         sp.setCount,
 		inputBuf:   input,
 		inputSize:  len(input),
 		fftSize:    fftSize,
 		fftBuf:     make([]complex128, fftSize),
-		binBuf:     make([]float64, s.maxBins),
-		prevBuf:    make([]float64, s.maxBins),
+		binBuf:     make([]float64, sp.maxBins),
+		prevBuf:    make([]float64, sp.maxBins),
 		slowWindow: util.NewMovingWindow(slowMax),
 		fastWindow: util.NewMovingWindow(fastMax),
 	}
 
-	set.fftPlan = fft.New(set.inputBuf, set.fftBuf, s.sampleSize, fft.Estimate)
+	set.fftPlan = fft.New(set.inputBuf, set.fftBuf, sp.sampleSize, fft.Estimate)
 
-	s.setCount++
+	sp.setCount++
 
 	return set
 }
@@ -81,12 +81,12 @@ func (s *Spectrum) DataSet(input []float64) *DataSet {
 //
 // reference: https://github.com/karlstav/cava/blob/master/cava.c#L654
 // reference: https://github.com/noriah/cli-visualizer/blob/master/src/Transformer/SpectrumTransformer.cpp#L598
-func (s *Spectrum) Recalculate(bins int, lo, hi float64) int {
-	if bins > s.maxBins {
-		bins = s.maxBins
+func (sp *Spectrum) Recalculate(bins int, lo, hi float64) int {
+	if bins > sp.maxBins {
+		bins = sp.maxBins
 	}
 
-	s.numBins = bins
+	sp.numBins = bins
 
 	var cBins = float64(bins + 1)
 
@@ -97,23 +97,50 @@ func (s *Spectrum) Recalculate(bins int, lo, hi float64) int {
 	for xBin := 0; xBin <= bins; xBin++ {
 		// Fix issue where recalculations may not be accurate due to
 		// previous runs
-		s.loCuts[xBin] = 0
-		s.hiCuts[xBin] = 0
+		sp.loCuts[xBin] = 0
+		sp.hiCuts[xBin] = 0
 
 		vFreq := (((float64(xBin+1) / cBins) - 1) * cFreq)
 		vFreq = hi * math.Pow(10.0, vFreq)
-		vFreq = (vFreq / (s.sampleRate / 2)) * (float64(s.sampleSize) / 4)
+		vFreq = (vFreq / (sp.sampleRate / 2)) * (float64(sp.sampleSize) / 4)
 
-		s.loCuts[xBin] = int(math.Floor(vFreq))
+		sp.loCuts[xBin] = int(math.Floor(vFreq))
 
 		if xBin > 0 {
-			if s.loCuts[xBin] <= s.loCuts[xBin-1] {
-				s.loCuts[xBin] = s.loCuts[xBin-1] + 1
+			if sp.loCuts[xBin] <= sp.loCuts[xBin-1] {
+				sp.loCuts[xBin] = sp.loCuts[xBin-1] + 1
 			}
 
-			s.hiCuts[xBin-1] = s.loCuts[xBin-1]
+			sp.hiCuts[xBin-1] = sp.loCuts[xBin-1]
 		}
 	}
 
-	return s.numBins
+	return sp.numBins
+}
+
+// Generate makes numBins and dumps them in the buffer
+func (sp *Spectrum) Generate(ds *DataSet) {
+	ds.numBins = sp.numBins
+
+	for xBin := 0; xBin < ds.numBins; xBin++ {
+
+		var vM = 0.0
+
+		for xF := sp.loCuts[xBin]; xF <= sp.hiCuts[xBin] &&
+			xF >= 0 &&
+			xF < ds.fftSize; xF++ {
+
+			vM += pyt(ds.fftBuf[xF])
+		}
+
+		vM /= float64(sp.hiCuts[xBin] - sp.loCuts[xBin] + 1)
+
+		vM *= (math.Log2(float64(2+xBin)) * (100.0 / float64(ds.numBins)))
+
+		ds.binBuf[xBin] = math.Pow(vM, 0.5)
+	}
+}
+
+func pyt(value complex128) float64 {
+	return math.Sqrt((real(value) * real(value)) + (imag(value) * imag(value)))
 }

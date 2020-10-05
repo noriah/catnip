@@ -56,7 +56,7 @@ func Scale(height int, ds *DataSet) {
 
 	var vMag = math.Max(vMean+(2*vSD), 1)
 
-	for xBin, cHeight := 0, float64(height-1); xBin <= ds.numBins; xBin++ {
+	for xBin, cHeight := 0, float64(height-1); xBin < ds.numBins; xBin++ {
 		ds.binBuf[xBin] = math.Min(cHeight, (ds.binBuf[xBin]/vMag)*cHeight)
 	}
 }
