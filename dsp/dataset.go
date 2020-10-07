@@ -1,6 +1,7 @@
 package dsp
 
 import (
+	"github.com/noriah/tavis/dsp/n2s3"
 	"github.com/noriah/tavis/fft"
 	"github.com/noriah/tavis/util"
 )
@@ -24,6 +25,8 @@ type DataSet struct {
 	numBins int
 
 	prevBuf []float64
+
+	n2s3 *n2s3.State
 
 	slowWindow *util.MovingWindow
 	fastWindow *util.MovingWindow
@@ -59,3 +62,7 @@ func (ds *DataSet) Props() (float64, int) {
 	return ds.sampleHz, ds.sampleSize
 }
 
+// N2S3State returns n2s3 state
+func (ds *DataSet) N2S3State() *n2s3.State {
+	return ds.n2s3
+}

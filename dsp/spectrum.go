@@ -3,6 +3,7 @@ package dsp
 import (
 	"math"
 
+	"github.com/noriah/tavis/dsp/n2s3"
 	"github.com/noriah/tavis/fft"
 	"github.com/noriah/tavis/util"
 )
@@ -69,6 +70,8 @@ func (sp *Spectrum) DataSet(input []float64) *DataSet {
 
 		sampleHz:   sp.sampleRate,
 		sampleSize: sp.sampleSize,
+
+		n2s3: n2s3.NewState(sp.sampleRate, sp.sampleSize, sp.maxBins),
 
 		slowWindow: util.NewMovingWindow(slowMax),
 		fastWindow: util.NewMovingWindow(fastMax),

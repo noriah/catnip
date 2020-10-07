@@ -8,6 +8,7 @@ import (
 
 	"github.com/noriah/tavis/display"
 	"github.com/noriah/tavis/dsp"
+	"github.com/noriah/tavis/dsp/n2s3"
 	"github.com/noriah/tavis/input/portaudio"
 
 	"github.com/pkg/errors"
@@ -145,7 +146,7 @@ func Run(d Device) error {
 		for _, vSet := range sets {
 			spectrum.Generate(vSet)
 
-			dsp.Falloff(d.FalloffWeight, vSet)
+			n2s3.N2S3(vSet.Bins(), vSet.Len(), vIterStart, vSet.N2S3State())
 
 			dsp.Scale(winHeight, vSet)
 		}
