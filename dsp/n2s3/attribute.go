@@ -1,7 +1,5 @@
 package n2s3
 
-import "math"
-
 type attr struct {
 	value float64
 	delta float64
@@ -14,6 +12,7 @@ func (a *attr) setV(v float64) {
 func (a *attr) set(value interface{}) float64 {
 	a.delta = attrGetFloat(value) - a.value
 	a.value += a.delta
+
 	return a.delta
 }
 
@@ -58,6 +57,8 @@ func (a *attr) div(value interface{}) float64 {
 
 func attrGetFloat(value interface{}) float64 {
 	switch v := value.(type) {
+	case attr:
+		return v.value
 	case *attr:
 		return v.value
 	case float64:
@@ -65,6 +66,6 @@ func attrGetFloat(value interface{}) float64 {
 	case int:
 		return float64(v)
 	default:
-		return math.NaN()
+		return 0
 	}
 }
