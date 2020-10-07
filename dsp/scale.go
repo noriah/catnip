@@ -14,7 +14,7 @@ const (
 	ScalingFastWindow = ScalingSlowWindow * 0.2
 
 	// ScalingDumpPercent is how much we erase on rescale
-	ScalingDumpPercent = 0.6
+	ScalingDumpPercent = 0.75
 
 	ScalingResetDeviation = 1
 )

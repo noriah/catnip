@@ -74,19 +74,19 @@ func Run(d Device) error {
 	}
 	defer audioInput.Close()
 
-	// Make a spectrum
-	var spectrum = dsp.NewSpectrum(d.SampleRate, sampleSize)
-
-	// TODO(noriah): remove temprorary variables
-	var displayChan = make(chan bool, 1)
-
 	var display = display.New()
 	defer display.Close()
 
 	var barCount = display.SetWidths(d.BarWidth, d.SpaceWidth)
 
+	// Make a spectrum
+	var spectrum = dsp.NewSpectrum(d.SampleRate, sampleSize)
+
 	// Set it up with our values
 	spectrum.Recalculate(barCount, d.LoCutFreq, d.HiCutFreq)
+
+	// TODO(noriah): remove temprorary variables
+	var displayChan = make(chan bool, 2)
 
 	display.Start(displayChan)
 	defer display.Stop()
@@ -142,15 +142,12 @@ func Run(d Device) error {
 
 		}
 
-		for xSet := range sets {
-			sets[xSet].ExecuteFFTW()
+		for _, vSet := range sets {
+			spectrum.Generate(vSet)
 
-			spectrum.Generate(sets[xSet])
+			dsp.Falloff(d.FalloffWeight, vSet)
 
-			// dsp.Waves(1.9, ds)
-			// dsp.Monstercat(d.MonstercatFactor, sets[xSet])
-			dsp.Scale(winHeight, sets[xSet])
-			dsp.Falloff(d.FalloffWeight, sets[xSet])
+			dsp.Scale(winHeight, vSet)
 		}
 
 		display.Draw(winHeight, 1, sets...)

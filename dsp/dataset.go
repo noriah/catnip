@@ -9,6 +9,9 @@ import (
 type DataSet struct {
 	id int
 
+	sampleSize int
+	sampleHz   float64
+
 	inputBuf  []float64
 	inputSize int
 
@@ -50,3 +53,9 @@ func (ds *DataSet) Len() int {
 func (ds *DataSet) ExecuteFFTW() {
 	ds.fftPlan.Execute()
 }
+
+// Props returns the samle hz and size
+func (ds *DataSet) Props() (float64, int) {
+	return ds.sampleHz, ds.sampleSize
+}
+

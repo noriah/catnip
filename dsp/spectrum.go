@@ -59,13 +59,17 @@ func (sp *Spectrum) DataSet(input []float64) *DataSet {
 	var fftSize = (sp.sampleSize / 2) + 1
 
 	var set = &DataSet{
-		id:         sp.setCount,
-		inputBuf:   input,
-		inputSize:  len(input),
-		fftSize:    fftSize,
-		fftBuf:     make([]complex128, fftSize),
-		binBuf:     make([]float64, sp.maxBins),
-		prevBuf:    make([]float64, sp.maxBins),
+		id:        sp.setCount,
+		inputBuf:  input,
+		inputSize: len(input),
+		fftSize:   fftSize,
+		fftBuf:    make([]complex128, fftSize),
+		binBuf:    make([]float64, sp.maxBins),
+		prevBuf:   make([]float64, sp.maxBins),
+
+		sampleHz:   sp.sampleRate,
+		sampleSize: sp.sampleSize,
+
 		slowWindow: util.NewMovingWindow(slowMax),
 		fastWindow: util.NewMovingWindow(fastMax),
 	}
@@ -120,6 +124,9 @@ func (sp *Spectrum) Recalculate(bins int, lo, hi float64) int {
 
 // Generate makes numBins and dumps them in the buffer
 func (sp *Spectrum) Generate(ds *DataSet) {
+
+	ds.ExecuteFFTW()
+
 	ds.numBins = sp.numBins
 
 	for xBin := 0; xBin < ds.numBins; xBin++ {
