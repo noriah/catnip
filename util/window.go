@@ -60,10 +60,6 @@ func (mw *MovingWindow) enq(value float64) {
 }
 
 func (mw *MovingWindow) deq() float64 {
-	if mw.tail == mw.root {
-		return math.NaN()
-	}
-
 	mw.length--
 
 	mw.pool[mw.length] = mw.root.next
@@ -113,8 +109,9 @@ func (mw *MovingWindow) Update(value float64) (float64, float64) {
 
 // Drop removes count items from the window
 func (mw *MovingWindow) Drop(count int) (float64, float64) {
-	for ; count > 0 && mw.length > 0; count-- {
+	for count > 0 && mw.length > 0 {
 		mw.calcRaw(0, mw.deq())
+		count--
 	}
 
 	// If we dont have enough length for standard dev, clear variance
@@ -138,11 +135,6 @@ func (mw *MovingWindow) Len() int {
 // Cap returns max size of window
 func (mw *MovingWindow) Cap() int {
 	return mw.capacity
-}
-
-// IsEmpty checks for window emptiness
-func (mw *MovingWindow) IsEmpty() bool {
-	return mw.tail == mw.root
 }
 
 // Mean is the moving window average

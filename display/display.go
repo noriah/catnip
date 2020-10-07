@@ -223,17 +223,21 @@ func (d *Display) Draw(height, delta int, sets ...*dsp.DataSet) error {
 
 		for xCol < lCol {
 
+			// Draw Center Line
+			d.screen.SetContent(
+				xCol, height,
+				DisplayBar, nil, styleCenter)
+
 			// Invert delta becauase we draw up first
 			// Set the style of the top block to be default
 			var vDelta, vStyle = -delta, styleDefault
 			var xSet = 0
 
 			for xSet < cSetCount {
-
 				// start at row 1 as row 0 is the center line. we handle that separate
 				var xRow = 1
 
-				for xRow <= lRow {
+				for xRow <= lRow && xRow < height {
 					d.screen.SetContent(
 						xCol, height+(vDelta*xRow),
 						DisplayBar, nil, styleDefault)
@@ -251,9 +255,6 @@ func (d *Display) Draw(height, delta int, sets ...*dsp.DataSet) error {
 
 				// we will only ever allow 2 loops
 				// we are done with the first, set up the second
-
-				// Reset our row for the next iteration
-				xRow = 1
 
 				// Invert the direction of drawing (up/down)
 				vDelta = -vDelta
@@ -276,11 +277,6 @@ func (d *Display) Draw(height, delta int, sets ...*dsp.DataSet) error {
 
 				xSet++
 			}
-
-			// Draw Center Line
-			d.screen.SetContent(
-				xCol, height,
-				DisplayBar, nil, styleCenter)
 
 			xCol++
 		}
