@@ -1,5 +1,7 @@
 package n2s3
 
+import "math"
+
 type attr struct {
 	value float64
 	delta float64
@@ -23,10 +25,10 @@ func (a *attr) add(value interface{}) float64 {
 	return a.value
 }
 
-func (a *attr) addZero(value interface{}) float64 {
-	if a.add(value) < 0 {
-		a.delta -= a.value
-		a.value = 0
+func (a *attr) addClamp(min, max float64, value interface{}) float64 {
+	if x := math.Min(max, math.Max(min, a.add(value))); x != a.value {
+		a.delta += x - a.value
+		a.value = x
 	}
 
 	return a.value

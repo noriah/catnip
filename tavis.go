@@ -23,10 +23,6 @@ type Device struct {
 	LoCutFreq float64
 	// HiCutFreq is the high end of our audio spectrum
 	HiCutFreq float64
-	// MonstercatFactor is how much we want to look like Monstercat
-	MonstercatFactor float64
-	// FalloffWeight is the fall-off weight
-	FalloffWeight float64
 	// BarWidth is the width of bars, in columns
 	BarWidth int
 	// SpaceWidth is the width of spaces, in columns
@@ -40,16 +36,14 @@ type Device struct {
 // NewZeroDevice creates a new Device with the default variables.
 func NewZeroDevice() Device {
 	return Device{
-		Name:             "default",
-		SampleRate:       44100,
-		LoCutFreq:        20,
-		HiCutFreq:        22050,
-		MonstercatFactor: 2.5,
-		FalloffWeight:    0.01,
-		BarWidth:         2,
-		SpaceWidth:       1,
-		TargetFPS:        60,
-		ChannelCount:     2,
+		Name:         "default",
+		SampleRate:   44100,
+		LoCutFreq:    20,
+		HiCutFreq:    22050,
+		BarWidth:     2,
+		SpaceWidth:   1,
+		TargetFPS:    60,
+		ChannelCount: 2,
 	}
 }
 
@@ -146,9 +140,9 @@ func Run(d Device) error {
 		for _, vSet := range sets {
 			spectrum.Generate(vSet)
 
-			n2s3.N2S3(vSet.Bins(), vSet.Len(), vIterStart, vSet.N2S3State())
+			n2s3.N2S3(vSet.Bins(), vSet.Len(), vIterStart, vSet.N2S3State)
 
-			dsp.Scale(winHeight, vSet)
+			dsp.Scale(vSet.Bins(), vSet.Len(), winHeight, vSet.ScaleState)
 		}
 
 		display.Draw(winHeight, 1, sets...)

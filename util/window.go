@@ -4,14 +4,27 @@ import (
 	"math"
 )
 
+// as long as we know what comes next, we can keep a chain
 type node struct {
-	next  *node
 	value float64
+	next  *node
 }
 
 // MovingWindow is a moving window
+//
+// we only keep a reference to the tail node
+// the tail node is not a value hold node, but is referenced by the last
+// valid node, and points to the "first" valid node.
+// we add new items to the window by setting the tail "value" attribute,
+// make a new node, point that node "next" to the first valid value.
+// then set the current tail to point to this new node
+// then set our tail to be this new node
+//
+// removal of a value is much simpler, remove the node from the list
+// by removing the "first" node. set the current tail to point to the
+// node referenced by this removed node
+// return value of removed node
 type MovingWindow struct {
-	root *node
 	tail *node
 
 	pool []*node
@@ -30,47 +43,23 @@ type MovingWindow struct {
 func NewMovingWindow(size int) *MovingWindow {
 
 	var mw = &MovingWindow{
-		root:     &node{},
-		pool:     make([]*node, size),
+		pool:     make([]*node, size+1),
 		capacity: size,
 	}
 
-	mw.root.next = mw.root
-	mw.tail = mw.root
-
-	for xNode := 0; xNode < size; xNode++ {
+	for xNode := 0; xNode < size+1; xNode++ {
 		mw.pool[xNode] = &node{}
 	}
+
+	mw.tail = mw.pool[mw.length]
+	mw.tail.next = mw.tail
 
 	return mw
 }
 
-// TODO(noriah): resource pool for nodes would be nice
-// TODO(noriah): benchmark pool?
-
-func (mw *MovingWindow) enq(value float64) {
-
-	mw.tail.next = mw.pool[mw.length]
-	mw.tail.next.next = mw.root
-	mw.tail.next.value = value
-
-	mw.tail = mw.tail.next
-
-	mw.length++
-}
-
-func (mw *MovingWindow) deq() float64 {
-	mw.length--
-
-	mw.pool[mw.length] = mw.root.next
-	mw.root.next = mw.root.next.next
-
-	return mw.pool[mw.length].value
-}
-
 func (mw *MovingWindow) calcRaw(new, old float64) {
-	mw.variance = mw.variance + (new * new) - (old * old)
-	mw.sum = mw.sum + (new - old)
+	mw.variance += (new * new) - (old * old)
+	mw.sum += (new - old)
 }
 
 func (mw *MovingWindow) calcFinal() (float64, float64) {
@@ -94,24 +83,39 @@ func (mw *MovingWindow) calcFinal() (float64, float64) {
 }
 
 // Update updates the moving window
-// If the moving window is at capacity, pop the oldest, and push value
 func (mw *MovingWindow) Update(value float64) (float64, float64) {
-	if mw.length >= mw.capacity {
-		mw.calcRaw(value, mw.deq())
-	} else {
+
+	if mw.length < mw.capacity {
+		mw.length++
+		mw.pool[mw.length].next = mw.tail.next
+		mw.tail.next = mw.pool[mw.length]
+
 		mw.calcRaw(value, 0)
+	} else {
+		mw.calcRaw(value, mw.tail.next.value)
 	}
 
-	mw.enq(value)
+	mw.tail.value = value
+	mw.tail = mw.tail.next
 
 	return mw.calcFinal()
 }
 
 // Drop removes count items from the window
 func (mw *MovingWindow) Drop(count int) (float64, float64) {
+	if mw.length <= 0 {
+		return mw.calcFinal()
+	}
+
 	for count > 0 && mw.length > 0 {
-		mw.calcRaw(0, mw.deq())
+		mw.calcRaw(0, mw.tail.next.value)
+
+		mw.pool[mw.length] = mw.tail.next
+		mw.tail.next = mw.tail.next.next
+
+		mw.length--
 		count--
+
 	}
 
 	// If we dont have enough length for standard dev, clear variance
@@ -129,6 +133,7 @@ func (mw *MovingWindow) Drop(count int) (float64, float64) {
 
 // Len returns how many items in the window
 func (mw *MovingWindow) Len() int {
+	// logical length
 	return mw.length
 }
 

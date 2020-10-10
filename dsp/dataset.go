@@ -3,7 +3,6 @@ package dsp
 import (
 	"github.com/noriah/tavis/dsp/n2s3"
 	"github.com/noriah/tavis/fft"
-	"github.com/noriah/tavis/util"
 )
 
 // DataSet represents a channel or sample index in a series frame
@@ -21,15 +20,14 @@ type DataSet struct {
 
 	fftPlan *fft.Plan
 
-	binBuf  []float64
 	numBins int
+
+	binBuf []float64
 
 	prevBuf []float64
 
-	n2s3 *n2s3.State
-
-	slowWindow *util.MovingWindow
-	fastWindow *util.MovingWindow
+	N2S3State  *n2s3.State
+	ScaleState *ScaleState
 }
 
 // ID returns the set id
@@ -60,9 +58,4 @@ func (ds *DataSet) ExecuteFFTW() {
 // Props returns the samle hz and size
 func (ds *DataSet) Props() (float64, int) {
 	return ds.sampleHz, ds.sampleSize
-}
-
-// N2S3State returns n2s3 state
-func (ds *DataSet) N2S3State() *n2s3.State {
-	return ds.n2s3
 }
