@@ -31,7 +31,7 @@ func (p AVFoundation) Close() error {
 // kernel-specific and is only known to work on OpenBSD.
 func (p AVFoundation) Devices() ([]input.Device, error) {
 	cmd := exec.Command(
-		"ffmpeg", "-hide_banner", "-loglevel", "error",
+		"ffmpeg", "-hide_banner", "-loglevel", "info",
 		"-f", "avfoundation", "-list_devices", "true",
 		"-i", "",
 	)
