@@ -2,6 +2,8 @@ package dsp
 
 import (
 	"math"
+
+	"github.com/noriah/tavis/util"
 )
 
 // Scaling Constants
@@ -19,44 +21,60 @@ const (
 	ScalingResetDeviation = 1
 )
 
+type ScaleState struct {
+	slowWindow *util.MovingWindow
+	fastWindow *util.MovingWindow
+}
+
+func NewScaleState(hz float64, samples int) *ScaleState {
+
+	slowMax := int((ScalingSlowWindow*hz)/float64(samples)) * 2
+	fastMax := int((ScalingFastWindow*hz)/float64(samples)) * 2
+
+	return &ScaleState{
+		slowWindow: util.NewMovingWindow(slowMax),
+		fastWindow: util.NewMovingWindow(fastMax),
+	}
+}
+
 // Scale scales the data
-func Scale(height int, ds *DataSet) {
+func Scale(bins []float64, count int, height int, state *ScaleState) {
 
-	var peak = 0.125
+	var peak = 0.0
 
-	var vSilent = true
+	var vSound bool
 
-	for xBin := 0; xBin < ds.numBins; xBin++ {
+	for xBin := 0; xBin < count; xBin++ {
 
-		if ds.binBuf[xBin] > 0 {
+		if bins[xBin] > 0 {
+			vSound = true
 
-			vSilent = false
-
-			if peak < ds.binBuf[xBin] {
-				peak = ds.binBuf[xBin]
+			if peak < bins[xBin] {
+				peak = bins[xBin]
 			}
 		}
 	}
 
-	if !vSilent {
-		ds.fastWindow.Update(peak)
-		ds.slowWindow.Update(peak)
+	if vSound {
+
+		state.fastWindow.Update(peak)
+		state.slowWindow.Update(peak)
 	}
 
-	var vMean, vSD = ds.slowWindow.Stats()
+	var vMean, vSD = state.slowWindow.Stats()
 
-	if length := ds.slowWindow.Len(); length >= ds.fastWindow.Cap() {
+	if length := state.slowWindow.Len(); length >= state.fastWindow.Cap() {
 
-		if math.Abs(ds.fastWindow.Mean()-vMean) > (ScalingResetDeviation * vSD) {
+		if math.Abs(state.fastWindow.Mean()-vMean) > (ScalingResetDeviation * vSD) {
+			state.slowWindow.Drop(int(float64(length) * ScalingDumpPercent))
 
-			ds.slowWindow.Drop(int(float64(length) * ScalingDumpPercent))
-			vMean, vSD = ds.slowWindow.Stats()
+			vMean, vSD = state.slowWindow.Stats()
 		}
 	}
 
 	var vMag = math.Max(vMean+(2*vSD), 1)
 
-	for xBin, cHeight := 0, float64(height-1); xBin < ds.numBins; xBin++ {
-		ds.binBuf[xBin] = math.Min(cHeight, (ds.binBuf[xBin]/vMag)*cHeight)
+	for xBin, cHeight := 0, float64(height-1); xBin < count; xBin++ {
+		bins[xBin] = math.Min(cHeight, (bins[xBin]/vMag)*cHeight)
 	}
 }

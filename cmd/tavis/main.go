@@ -54,18 +54,6 @@ func main() {
 				Value:       device.HiCutFreq,
 				Destination: &device.HiCutFreq,
 			},
-			&cli.Float64Flag{
-				Name:        "monstercat-factor",
-				Aliases:     []string{"mf"},
-				Value:       device.MonstercatFactor,
-				Destination: &device.MonstercatFactor,
-			},
-			&cli.Float64Flag{
-				Name:        "falloff-weight",
-				Aliases:     []string{"fw"},
-				Value:       device.FalloffWeight,
-				Destination: &device.FalloffWeight,
-			},
 			&cli.IntFlag{
 				Name:        "bar-width",
 				Aliases:     []string{"bw"},

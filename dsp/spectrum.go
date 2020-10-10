@@ -5,7 +5,6 @@ import (
 
 	"github.com/noriah/tavis/dsp/n2s3"
 	"github.com/noriah/tavis/fft"
-	"github.com/noriah/tavis/util"
 )
 
 // Spectrum Constants
@@ -54,9 +53,6 @@ func (sp *Spectrum) DataSet(input []float64) *DataSet {
 		input = make([]float64, sp.sampleSize)
 	}
 
-	slowMax := int((ScalingSlowWindow*sp.sampleRate)/float64(sp.sampleSize)) * 2
-	fastMax := int((ScalingFastWindow*sp.sampleRate)/float64(sp.sampleSize)) * 2
-
 	var fftSize = (sp.sampleSize / 2) + 1
 
 	var set = &DataSet{
@@ -71,10 +67,8 @@ func (sp *Spectrum) DataSet(input []float64) *DataSet {
 		sampleHz:   sp.sampleRate,
 		sampleSize: sp.sampleSize,
 
-		n2s3: n2s3.NewState(sp.sampleRate, sp.sampleSize, sp.maxBins),
-
-		slowWindow: util.NewMovingWindow(slowMax),
-		fastWindow: util.NewMovingWindow(fastMax),
+		N2S3State:  n2s3.NewState(sp.sampleRate, sp.sampleSize, sp.maxBins),
+		ScaleState: NewScaleState(sp.sampleRate, sp.sampleSize),
 	}
 
 	set.fftPlan = fft.New(set.inputBuf, set.fftBuf, sp.sampleSize, fft.Estimate)
