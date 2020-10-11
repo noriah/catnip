@@ -1,10 +1,7 @@
 package display
 
 import (
-	"math"
-
 	"github.com/gdamore/tcell/v2"
-	"github.com/noriah/tavis/dsp"
 
 	"github.com/pkg/errors"
 )
@@ -18,7 +15,7 @@ const (
 	DrawCenterSpaces = false
 
 	// DrawPaddingSpaces do we draw the outside padded spacing?
-	DrawPaddingSpaces = true
+	DrawPaddingSpaces = false
 
 	// DisplayBar is the block we use for bars
 	DisplayBar rune = '\u2588'
@@ -28,30 +25,42 @@ const (
 )
 
 var (
-	barRunes = [...][2]rune{
-		{DisplaySpace, DisplayBar},
-		{'\u2581', '\u2587'},
-		{'\u2582', '\u2586'},
-		{'\u2583', '\u2585'},
-		{'\u2584', '\u2584'},
-		{'\u2585', '\u2583'},
-		{'\u2586', '\u2582'},
-		{'\u2587', '\u2581'},
-		{DisplayBar, DisplaySpace},
+	barRunes = [2][8]rune{
+		{
+			DisplaySpace,
+			'\u2581',
+			'\u2582',
+			'\u2583',
+			'\u2584',
+			'\u2585',
+			'\u2586',
+			'\u2587',
+		},
+		{
+			DisplayBar,
+			'\u2587',
+			'\u2586',
+			'\u2585',
+			'\u2584',
+			'\u2583',
+			'\u2582',
+			'\u2581',
+		},
 	}
 
-	numRunes = len(barRunes)
+	numRunes = 8
 
-	styleDefault = tcell.StyleDefault.Bold(true)
-	// styleCenter  = styleDefault.Foreground(tcell.ColorOrangeRed)
-	styleCenter  = styleDefault.Foreground(tcell.ColorDefault)
+	styleDefault = tcell.StyleDefault.Bold(false)
+	styleCenter  = styleDefault.Foreground(tcell.ColorOrangeRed)
+	// styleCenter  = styleDefault.Foreground(tcell.ColorDefault)
 	styleReverse = tcell.StyleDefault.Reverse(true).Bold(true)
 )
 
 // Display handles drawing our visualizer
 type Display struct {
-	barWidth int
-	binWidth int
+	barWidth   int
+	spaceWidth int
+	binWidth   int
 
 	screen tcell.Screen
 }
@@ -74,11 +83,13 @@ func New() *Display {
 	screen.DisableMouse()
 	screen.HideCursor()
 
-	return &Display{
-		barWidth: 2,
-		binWidth: 3,
-		screen:   screen,
+	var d = &Display{
+		screen: screen,
 	}
+
+	d.SetWidths(2, 1)
+
+	return d
 }
 
 // Start display is bad
@@ -111,13 +122,13 @@ func (d *Display) HandleEvent(ev tcell.Event) error {
 		case tcell.KeyCtrlC:
 			return errors.New("rename this better please")
 		case tcell.KeyUp:
-			d.setBarBin(d.barWidth+1, d.binWidth)
+			d.SetWidths(d.barWidth+1, d.spaceWidth)
 		case tcell.KeyRight:
-			d.setBarBin(d.barWidth, d.binWidth+1)
+			d.SetWidths(d.barWidth, d.spaceWidth+1)
 		case tcell.KeyDown:
-			d.setBarBin(d.barWidth-1, d.binWidth)
+			d.SetWidths(d.barWidth-1, d.spaceWidth)
 		case tcell.KeyLeft:
-			d.setBarBin(d.barWidth, d.binWidth-1)
+			d.SetWidths(d.barWidth, d.spaceWidth-1)
 		default:
 
 		}
@@ -139,19 +150,6 @@ func (d *Display) Close() error {
 	return nil
 }
 
-func (d *Display) setBarBin(bar, bin int) {
-	if bar < 1 {
-		bar = 1
-	}
-
-	if bin < bar {
-		bin = bar
-	}
-
-	d.barWidth = bar
-	d.binWidth = bin
-}
-
 // SetWidths takes a bar width and spacing width
 // Returns number of bars able to show
 func (d *Display) SetWidths(bar, space int) int {
@@ -164,15 +162,15 @@ func (d *Display) SetWidths(bar, space int) int {
 	}
 
 	d.barWidth = bar
+	d.spaceWidth = space
 	d.binWidth = bar + space
-
 	return d.Bars()
 }
 
 // Bars returns the number of bars we will draw
 func (d *Display) Bars() int {
 	var width, _ = d.screen.Size()
-	return (width + (d.binWidth - d.barWidth)) / d.binWidth
+	return (width + d.binWidth - d.barWidth) / d.binWidth
 }
 
 // Size returns the width and height of the screen in bars and rows
@@ -181,102 +179,88 @@ func (d *Display) Size() (int, int) {
 	return d.Bars(), height
 }
 
-func drawVars(bin float64) (int, int) {
-	var whole, frac = math.Modf(bin)
-	frac = float64(numRunes) * math.Abs(frac)
-	return int(whole), int(frac)
-}
-
 // Draw takes data and draws
-func (d *Display) Draw(height, delta int, sets ...*dsp.DataSet) error {
-	var cSetCount = len(sets)
-
-	if cSetCount < 1 {
-		return errors.New("not enough sets to draw")
-	}
-
-	if cSetCount > 2 {
-		return errors.New("too many sets to draw")
+func (d *Display) Draw(height, delta, count int, left, right []float64) {
+	var cSetCount = 1
+	if right != nil {
+		cSetCount++
 	}
 
 	// We dont keep track of the offset/width because we have to assume that
 	// the user changed the window always. It is easier to do this now, and
 	// implement SIGWINCH handling later on (or not?)
-	var cWidth = d.Bars() * d.binWidth
-	var cPaddedWidth, _ = d.screen.Size()
+	var cPaddedWidth, cHeight = d.screen.Size()
+	var cWidth = (d.binWidth * (count - 1)) + d.barWidth
+
+	if cWidth > cPaddedWidth || cWidth < 0 {
+		cWidth = cPaddedWidth
+	}
+
 	var cOffset = (cPaddedWidth - cWidth) / 2
 
-	// xCol will be our column index.
-	var xCol = cOffset
+	if DrawPaddingSpaces {
+		for xCol := 0; xCol < cOffset; xCol++ {
+			d.screen.SetContent(xCol, height, DisplayBar, nil, styleCenter)
+		}
+	}
 
 	// we want to break out when we have reached the max number of bars
 	// we are able to display, including spacing
-	var xBin, lBin = 0, sets[0].Len()
+	var xBin = 0
+	var xCol = cOffset
 
 	// TODO(nora): benchmark
-	for xBin < lBin {
+	for xCol < cWidth {
 
 		// We don't want to be calling lookups for the same value over and over
 		// we also dont know how wide the bars are going to be
-		var lRow, vLast = drawVars(sets[0].Bins()[xBin])
-		var lRowN, vLastN = drawVars(sets[1%cSetCount].Bins()[xBin])
+		var leftPart = int(left[xBin] * float64(numRunes))
+
+		var rightPart = 0
+		if right != nil {
+			rightPart = int(right[xBin] * float64(numRunes))
+		}
+
+		var startRow = height - (((leftPart / numRunes) + 1) * delta)
+
+		var lRow = startRow + (((leftPart / numRunes) + (rightPart / numRunes) + 2) * delta)
+
+		if lRow > cHeight {
+			lRow = cHeight
+		}
+
+		leftPart %= numRunes
+		rightPart %= numRunes
+
 		var lCol = xCol + d.barWidth
 
 		for xCol < lCol {
 
-			// Draw Center Line
-			d.screen.SetContent(
-				xCol, height,
-				DisplayBar, nil, styleCenter)
+			var xRow = startRow
 
-			// Invert delta becauase we draw up first
-			// Set the style of the top block to be default
-			var vDelta, vStyle = -delta, styleDefault
-			var xSet = 0
+			if leftPart > 0 {
+				d.screen.SetContent(
+					xCol, xRow, barRunes[0][leftPart], nil, styleDefault)
+			}
 
-			for xSet < cSetCount {
-				// start at row 1 as row 0 is the center line. we handle that separate
-				var xRow = 1
+			xRow += delta
 
-				for xRow <= lRow && xRow < height {
-					d.screen.SetContent(
-						xCol, height+(vDelta*xRow),
-						DisplayBar, nil, styleDefault)
+			for xRow < height {
+				d.screen.SetContent(xCol, xRow, DisplayBar, nil, styleDefault)
+				xRow += delta
+			}
 
-					xRow++
-				}
+			d.screen.SetContent(xCol, xRow, DisplayBar, nil, styleCenter)
+			xRow += delta
 
-				if vLast >= 0 {
+			for xRow < lRow {
+				d.screen.SetContent(xCol, xRow, DisplayBar, nil, styleDefault)
+				xRow += delta
+			}
 
-					// Draw the top bar for this data set
-					d.screen.SetContent(
-						xCol, height+(vDelta*xRow),
-						barRunes[vLast][xSet], nil, vStyle)
-				}
-
-				// we will only ever allow 2 loops
-				// we are done with the first, set up the second
-
-				// Invert the direction of drawing (up/down)
-				vDelta = -vDelta
-
-				// set the top bar rune cell style to be inverse of the default
-				// We do this because unicode does not yet have standardized
-				// codepoints for upper eighth/quarter blocks.
-				// To get around this, we print the inverse character, with the
-				// style reversed to appear as we do have the needed blocks
-				vStyle = styleReverse
-
-				// Swap our row limits with the next/previous set.
-				// Each time this loop exits, it is called again on a new column
-				// and we want to do everything again.
-				// Same for our last block index
-				// These will be updated to new values (both sets), when we change
-				// bin index (xBin)
-				lRow, lRowN = lRowN, lRow
-				vLast, vLastN = vLastN, vLast
-
-				xSet++
+			if rightPart > 0 {
+				d.screen.SetContent(
+					xCol, xRow, barRunes[1][rightPart], nil, styleReverse)
 			}
 
 			xCol++
@@ -284,26 +268,31 @@ func (d *Display) Draw(height, delta int, sets ...*dsp.DataSet) error {
 
 		xBin++
 
-		// do we want to draw a center line throughout the entire
-		if DrawCenterSpaces {
-
-			lCol := (xBin * d.binWidth) + cOffset
-
-			for xCol < lCol {
-				d.screen.SetContent(
-					xCol, height,
-					DisplayBar, nil, styleCenter)
-
-				xCol++
-			}
+		if xBin >= count {
+			break
 		}
 
-		xCol = (xBin * d.binWidth) + cOffset
+		// do we want to draw a center line throughout the entire
+		if DrawCenterSpaces {
+			var lCol = xCol + d.spaceWidth
+			for xCol < lCol {
+				d.screen.SetContent(xCol, height, DisplayBar, nil, styleCenter)
+				xCol++
+			}
+		} else {
+			xCol += d.spaceWidth
+		}
+	}
+
+	if DrawPaddingSpaces {
+		for xCol < cPaddedWidth {
+			d.screen.SetContent(xCol, height, DisplayBar, nil, styleCenter)
+			xCol++
+		}
 	}
 
 	d.screen.Show()
 
 	d.screen.Clear()
 
-	return nil
 }
