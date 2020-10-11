@@ -3,7 +3,6 @@ package dsp
 import (
 	"math"
 
-	"github.com/noriah/tavis/dsp/n2s3"
 	"github.com/noriah/tavis/fft"
 )
 
@@ -62,12 +61,11 @@ func (sp *Spectrum) DataSet(input []float64) *DataSet {
 		fftSize:   fftSize,
 		fftBuf:    make([]complex128, fftSize),
 		binBuf:    make([]float64, sp.maxBins),
-		prevBuf:   make([]float64, sp.maxBins),
 
 		sampleHz:   sp.sampleRate,
 		sampleSize: sp.sampleSize,
 
-		N2S3State:  n2s3.NewState(sp.sampleRate, sp.sampleSize, sp.maxBins),
+		N2S3State:  NewN2S3State(sp.sampleRate, sp.sampleSize, sp.maxBins),
 		ScaleState: NewScaleState(sp.sampleRate, sp.sampleSize),
 	}
 

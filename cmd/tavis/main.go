@@ -185,5 +185,5 @@ func run(c *cli.Context) error {
 		return err
 	}
 
-	return device.Run()
+	return tavis.Run(device)
 }

@@ -38,30 +38,26 @@ func NewScaleState(hz float64, samples int) *ScaleState {
 }
 
 // Scale scales the data
-func Scale(bins []float64, count int, height int, state *ScaleState) {
+func Scale(bins []float64, count int, height float64, state *ScaleState) {
 
+	var xBin = 0
 	var peak = 0.0
 
-	var vSound bool
+	for xBin < count {
 
-	for xBin := 0; xBin < count; xBin++ {
-
-		if bins[xBin] > 0 {
-			vSound = true
-
-			if peak < bins[xBin] {
-				peak = bins[xBin]
-			}
+		if peak < bins[xBin] {
+			peak = bins[xBin]
 		}
+
+		xBin++
 	}
 
-	if vSound {
-
-		state.fastWindow.Update(peak)
-		state.slowWindow.Update(peak)
+	if peak <= 0 {
+		return
 	}
 
-	var vMean, vSD = state.slowWindow.Stats()
+	state.fastWindow.Update(peak)
+	var vMean, vSD = state.slowWindow.Update(peak)
 
 	if length := state.slowWindow.Len(); length >= state.fastWindow.Cap() {
 
@@ -74,7 +70,8 @@ func Scale(bins []float64, count int, height int, state *ScaleState) {
 
 	var vMag = math.Max(vMean+(2*vSD), 1)
 
-	for xBin, cHeight := 0, float64(height-1); xBin < count; xBin++ {
-		bins[xBin] = math.Min(cHeight, (bins[xBin]/vMag)*cHeight)
+	height--
+	for xBin := 0; xBin < count; xBin++ {
+		bins[xBin] = math.Min(height, (bins[xBin]/vMag)*height)
 	}
 }

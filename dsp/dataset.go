@@ -1,7 +1,6 @@
 package dsp
 
 import (
-	"github.com/noriah/tavis/dsp/n2s3"
 	"github.com/noriah/tavis/fft"
 )
 
@@ -26,7 +25,7 @@ type DataSet struct {
 
 	prevBuf []float64
 
-	N2S3State  *n2s3.State
+	N2S3State  *N2S3State
 	ScaleState *ScaleState
 }
 
@@ -42,7 +41,7 @@ func (ds *DataSet) Input() []float64 {
 
 // Bins returns the bins that we have as a silce
 func (ds *DataSet) Bins() []float64 {
-	return ds.binBuf[0:ds.numBins:ds.numBins]
+	return ds.binBuf
 }
 
 // Len returns the number of bins we have processed
