@@ -142,6 +142,6 @@ func Run(d Device) error {
 			// dsp.Scale(sets[set].Bins(), barCount, float64(winHeight), sets[set].ScaleState)
 		}
 
-		display.Draw(winHeight, 1, barCount, setBins...)
+		display.Draw(1, 1, barCount, setBins...)
 	}
 }

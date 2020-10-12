@@ -15,8 +15,8 @@ type N2S3State struct {
 
 // NewN2S3State returns a new N2S3 state.
 func NewN2S3State(hz float64, samples int, max int) *N2S3State {
-	slowMax := int((10*hz)/float64(samples)) * 2
-	fastMax := int((2*hz)/float64(samples)) * 2
+	slowMax := int((5 * hz) / float64(samples))
+	fastMax := int((1 * hz) / float64(samples))
 
 	return &N2S3State{
 		prevBins:   make([]float64, max),
@@ -55,7 +55,7 @@ func N2S3(bins []float64, count int, height float64, state *N2S3State) {
 	}
 
 	// value to scale by to make conditions easier to base on
-	var scale = math.Max(vMean+(vSD), 1)
+	var scale = math.Max(vMean+(2*vSD), 1)
 
 	if scale < 1 {
 		scale = 1
@@ -94,30 +94,40 @@ func n2s3Delta(real, prev float64) float64 {
 
 	var d = real - prev
 
-	// if the real target is below our current value
-	if d < 0 {
-
-		if d <= -0.01 {
-
-			if d <= -0.7 {
-				return d * 0.5
-			}
-
-			return d * 0.4
-		}
-
-		return d * 0.9
+	if d == 0 {
+		return 0
 	}
 
-	if d >= 0.05 {
+	// if the real target is below our current value
+	if d < 0.0 {
+		// filter large delta
+		if d < -0.2 {
+			// filter medium delta
+			// if d < -0.8 {
+			// large delta
+			return d * 0.6
+			// }
+			// medium delta
+			// return d * (d / -prev) * 1.2
+		}
+		// small delta
+		return d * ((1 + d) / 2.2)
+	}
 
-		if d >= 0.7 {
+	// filter small delta
+	if d > 0.1 {
+
+		if d > 0.8 {
 			return d * 0.9
 		}
-
-		return d * 0.65
+		// filter medium delta
+		// if d > 0.9 {
+		// large delta
+		// return d * 0.8
+		// }
+		// medium delta
+		return d * 0.8
 	}
-
-	return d * 0.45
-
+	// small delta
+	return d * ((1 - d) / 0.95)
 }
