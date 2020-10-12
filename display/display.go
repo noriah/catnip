@@ -52,8 +52,8 @@ var (
 	}
 
 	styleDefault = tcell.StyleDefault.Bold(true)
-	styleCenter  = styleDefault.Foreground(tcell.ColorOrangeRed)
-	// styleCenter  = styleDefault.Foreground(tcell.ColorDefault)
+	// styleCenter  = styleDefault.Foreground(tcell.ColorOrangeRed)
+	styleCenter  = styleDefault.Foreground(tcell.ColorDefault)
 	styleReverse = tcell.StyleDefault.Reverse(true).Bold(true)
 )
 
@@ -184,7 +184,7 @@ func (d *Display) Size() (int, int) {
 }
 
 // Draw takes data and draws
-func (d *Display) Draw(height, delta, count int, bins ...[]float64) error {
+func (d *Display) Draw(bHeight, delta, count int, bins ...[]float64) error {
 	var cSetCount = len(bins)
 
 	if cSetCount < 1 {
@@ -198,7 +198,7 @@ func (d *Display) Draw(height, delta, count int, bins ...[]float64) error {
 	var haveRight = cSetCount == 2
 
 	// We dont keep track of the offset/width because we have to assume that
-	// the user changed the window always. It is easier to do this now, and
+	// the user changed the window, always. It is easier to do this now, and
 	// implement SIGWINCH handling later on (or not?)
 	var cPaddedWidth, cHeight = d.screen.Size()
 	var cWidth = (d.binWidth * count) - d.spaceWidth
@@ -209,16 +209,26 @@ func (d *Display) Draw(height, delta, count int, bins ...[]float64) error {
 
 	var cOffset = (cPaddedWidth - cWidth) / 2
 
-	if DrawPaddingSpaces {
-		for xCol := 0; xCol < cOffset; xCol++ {
-			d.screen.SetContent(xCol, height, DisplayBar, nil, styleCenter)
-		}
+	var height = cHeight
+	if haveRight {
+		height /= 2
 	}
+
+	var centerStart = height - (bHeight / 2)
+	var centerStop = centerStart + bHeight
+
+	// if DrawPaddingSpaces {
+	// 	for xCol := 0; xCol < cOffset; xCol++ {
+	// 		d.screen.SetContent(xCol, height, DisplayBar, nil, styleCenter)
+	// 	}
+	// }
 
 	// we want to break out when we have reached the max number of bars
 	// we are able to display, including spacing
 	var xBin = 0
 	var xCol = cOffset
+
+	cWidth += cOffset
 
 	// TODO(nora): benchmark
 	for xCol < cWidth {
@@ -229,10 +239,8 @@ func (d *Display) Draw(height, delta, count int, bins ...[]float64) error {
 
 		var rightPart = 0
 
-		var startRow = height - delta
-
-		startRow -= ((leftPart / NumRunes) * delta)
-		var lRow = height
+		var startRow = centerStart - (((leftPart / NumRunes) + 1) * delta)
+		var lRow = centerStop
 
 		leftPart %= NumRunes
 
@@ -259,19 +267,21 @@ func (d *Display) Draw(height, delta, count int, bins ...[]float64) error {
 
 			xRow += delta
 
-			for xRow < height {
+			for xRow < centerStart {
 				d.screen.SetContent(xCol, xRow, DisplayBar, nil, styleDefault)
 				xRow += delta
 			}
 
 			// center line
-			d.screen.SetContent(xCol, xRow, DisplayBar, nil, styleCenter)
+			for xRow < centerStop {
+				d.screen.SetContent(xCol, xRow, DisplayBar, nil, styleCenter)
+				xRow += delta
+			}
 
 			if haveRight {
-				xRow += delta
 
 				// right bars go down
-				for xRow <= lRow {
+				for xRow < lRow {
 					d.screen.SetContent(xCol, xRow, DisplayBar, nil, styleDefault)
 					xRow += delta
 				}
@@ -292,24 +302,24 @@ func (d *Display) Draw(height, delta, count int, bins ...[]float64) error {
 			break
 		}
 
-		// do we want to draw a center line throughout the entire
-		if DrawCenterSpaces {
-			lCol = xCol + d.spaceWidth
-			for xCol < lCol {
-				d.screen.SetContent(xCol, height, DisplayBar, nil, styleCenter)
-				xCol++
-			}
-		} else {
-			xCol += d.spaceWidth
-		}
+		// do we want to draw a center line throughout the entire stage
+		// if DrawCenterSpaces {
+		// 	lCol = xCol + d.spaceWidth
+		// 	for xCol < lCol {
+		// 		d.screen.SetContent(xCol, height, DisplayBar, nil, styleCenter)
+		// 		xCol++
+		// 	}
+		// } else {
+		xCol += d.spaceWidth
+		// }
 	}
 
-	if DrawPaddingSpaces {
-		for xCol < cPaddedWidth {
-			d.screen.SetContent(xCol, height, DisplayBar, nil, styleCenter)
-			xCol++
-		}
-	}
+	// if DrawPaddingSpaces {
+	// 	for xCol < cPaddedWidth {
+	// 		d.screen.SetContent(xCol, height, DisplayBar, nil, styleCenter)
+	// 		xCol++
+	// 	}
+	// }
 
 	d.screen.Show()
 
