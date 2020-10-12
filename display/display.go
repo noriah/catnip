@@ -52,8 +52,8 @@ var (
 	}
 
 	styleDefault = tcell.StyleDefault.Bold(true)
-	// styleCenter  = styleDefault.Foreground(tcell.ColorOrangeRed)
-	styleCenter  = styleDefault.Foreground(tcell.ColorDefault)
+	styleCenter  = styleDefault.Foreground(tcell.ColorOrangeRed)
+	// styleCenter  = styleDefault.Foreground(tcell.ColorDefault)
 	styleReverse = tcell.StyleDefault.Reverse(true).Bold(true)
 )
 
@@ -240,6 +240,10 @@ func (d *Display) Draw(bHeight, delta, count int, bins ...[]float64) error {
 		var rightPart = 0
 
 		var startRow = centerStart - (((leftPart / NumRunes) + 1) * delta)
+		if startRow < 0 {
+			startRow = 0
+		}
+
 		var lRow = centerStop
 
 		leftPart %= NumRunes

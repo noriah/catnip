@@ -46,8 +46,6 @@ func NewMovingWindow(size int) *MovingWindow {
 		tail:     &node{},
 		pool:     make([]*node, size),
 		capacity: size,
-		sum:      0.0,
-		average:  0.0,
 	}
 
 	for xNode := 0; xNode < size; xNode++ {

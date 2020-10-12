@@ -135,6 +135,8 @@ func Run(d Device) error {
 		for set := 0; set < d.ChannelCount; set++ {
 			spectrum.Generate(sets[set])
 
+			// dsp.Monstercat(setBins[set], barCount, 2.5)
+
 			// nora's not so special smoother (n2s3)
 			dsp.N2S3(setBins[set], barCount, float64(winHeight), sets[set].N2S3State)
 

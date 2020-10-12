@@ -62,13 +62,15 @@ func Scale(bins []float64, count int, height float64, state *ScaleState) {
 	if length := state.slowWindow.Len(); length >= state.fastWindow.Cap() {
 
 		if math.Abs(state.fastWindow.Mean()-vMean) > (ScalingResetDeviation * vSD) {
-			vMean, vSD = state.slowWindow.Drop(int(float64(length) * ScalingDumpPercent))
+			vMean, vSD = state.slowWindow.Drop(
+				int(float64(length) * ScalingDumpPercent))
 		}
 	}
 
 	var vMag = math.Max(vMean+(2*vSD), 1)
 
 	height--
+
 	for xBin := 0; xBin < count; xBin++ {
 		bins[xBin] = math.Min(height, (bins[xBin]/vMag)*height)
 	}
