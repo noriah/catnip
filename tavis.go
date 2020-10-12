@@ -80,8 +80,10 @@ func Run(d Device) error {
 
 	var bufs = source.SampleBuffers()
 	var sets = make([]*dsp.DataSet, d.ChannelCount)
+	var setBins = make([][]float64, d.ChannelCount)
 	for set := 0; set < d.ChannelCount; set++ {
 		sets[set] = spectrum.DataSet(bufs[set])
+		setBins[set] = sets[set].Bins()
 	}
 
 	if err := source.Start(); err != nil {
@@ -100,8 +102,6 @@ func Run(d Device) error {
 	var endSig = make(chan os.Signal, 3)
 	signal.Notify(endSig, os.Interrupt)
 
-	var tick time.Time
-
 	var ticker = time.NewTicker(drawDelay)
 	defer ticker.Stop()
 
@@ -113,7 +113,7 @@ func Run(d Device) error {
 			return nil
 		case <-endSig:
 			return nil
-		case tick = <-ticker.C:
+		case <-ticker.C:
 		}
 
 		var winWidth, winHeight = display.Size()
@@ -121,7 +121,7 @@ func Run(d Device) error {
 
 		if barCount != winWidth {
 			barCount = winWidth
-			barCount = spectrum.Recalculate(barCount, d.LoCutFreq, d.HiCutFreq)
+			spectrum.Recalculate(barCount, d.LoCutFreq, d.HiCutFreq)
 		}
 
 		if source.ReadyRead() < sampleSize {
@@ -135,11 +135,13 @@ func Run(d Device) error {
 		for set := 0; set < d.ChannelCount; set++ {
 			spectrum.Generate(sets[set])
 
-			dsp.N2S3(sets[set].Bins(), barCount, tick, sets[set].N2S3State)
+			// nora's not so special smoother (n2s3)
+			dsp.N2S3(setBins[set], barCount, float64(winHeight), sets[set].N2S3State)
 
-			dsp.Scale(sets[set].Bins(), barCount, float64(winHeight), sets[set].ScaleState)
+			// Run your own function on the bins and uncomment this line to scale it
+			// dsp.Scale(sets[set].Bins(), barCount, float64(winHeight), sets[set].ScaleState)
 		}
 
-		display.Draw(winHeight, 1, barCount, sets[0].Bins(), sets[1].Bins())
+		display.Draw(winHeight, 1, barCount, setBins...)
 	}
 }

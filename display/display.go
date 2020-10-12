@@ -22,10 +22,13 @@ const (
 
 	// DisplaySpace is the block we use for space (if we were to print one)
 	DisplaySpace rune = '\u0020'
+
+	// NumRunes number of runes for sub step bars
+	NumRunes = 8
 )
 
 var (
-	barRunes = [2][8]rune{
+	barRunes = [2][NumRunes]rune{
 		{
 			DisplaySpace,
 			'\u2581',
@@ -48,9 +51,7 @@ var (
 		},
 	}
 
-	numRunes = 8
-
-	styleDefault = tcell.StyleDefault.Bold(false)
+	styleDefault = tcell.StyleDefault.Bold(true)
 	styleCenter  = styleDefault.Foreground(tcell.ColorOrangeRed)
 	// styleCenter  = styleDefault.Foreground(tcell.ColorDefault)
 	styleReverse = tcell.StyleDefault.Reverse(true).Bold(true)
@@ -68,7 +69,7 @@ type Display struct {
 // New sets up the display
 // should we panic or return an error as well?
 // something to think about
-func New() *Display {
+func New() Display {
 
 	screen, err := tcell.NewScreen()
 
@@ -83,7 +84,7 @@ func New() *Display {
 	screen.DisableMouse()
 	screen.HideCursor()
 
-	var d = &Display{
+	var d = Display{
 		screen: screen,
 	}
 
@@ -170,7 +171,10 @@ func (d *Display) SetWidths(bar, space int) int {
 // Bars returns the number of bars we will draw
 func (d *Display) Bars() int {
 	var width, _ = d.screen.Size()
-	return (width + d.binWidth - d.barWidth) / d.binWidth
+	if width%d.binWidth >= d.barWidth {
+		return (width / d.binWidth) + 1
+	}
+	return width / d.binWidth
 }
 
 // Size returns the width and height of the screen in bars and rows
@@ -180,17 +184,24 @@ func (d *Display) Size() (int, int) {
 }
 
 // Draw takes data and draws
-func (d *Display) Draw(height, delta, count int, left, right []float64) {
-	var cSetCount = 1
-	if right != nil {
-		cSetCount++
+func (d *Display) Draw(height, delta, count int, bins ...[]float64) error {
+	var cSetCount = len(bins)
+
+	if cSetCount < 1 {
+		return errors.New("not enough sets to draw")
 	}
+
+	if cSetCount > 2 {
+		return errors.New("too many sets to draw")
+	}
+
+	var haveRight = cSetCount == 2
 
 	// We dont keep track of the offset/width because we have to assume that
 	// the user changed the window always. It is easier to do this now, and
 	// implement SIGWINCH handling later on (or not?)
 	var cPaddedWidth, cHeight = d.screen.Size()
-	var cWidth = (d.binWidth * (count - 1)) + d.barWidth
+	var cWidth = (d.binWidth * count) - d.spaceWidth
 
 	if cWidth > cPaddedWidth || cWidth < 0 {
 		cWidth = cPaddedWidth
@@ -214,23 +225,26 @@ func (d *Display) Draw(height, delta, count int, left, right []float64) {
 
 		// We don't want to be calling lookups for the same value over and over
 		// we also dont know how wide the bars are going to be
-		var leftPart = int(left[xBin] * float64(numRunes))
+		var leftPart = int(bins[0][xBin] * NumRunes)
 
 		var rightPart = 0
-		if right != nil {
-			rightPart = int(right[xBin] * float64(numRunes))
+
+		var startRow = height - delta
+
+		startRow -= ((leftPart / NumRunes) * delta)
+		var lRow = height
+
+		leftPart %= NumRunes
+
+		if haveRight {
+			rightPart = int(bins[1][xBin] * NumRunes)
+			lRow += (rightPart / NumRunes) * delta
+			rightPart %= NumRunes
 		}
-
-		var startRow = height - (((leftPart / numRunes) + 1) * delta)
-
-		var lRow = startRow + (((leftPart / numRunes) + (rightPart / numRunes) + 2) * delta)
 
 		if lRow > cHeight {
 			lRow = cHeight
 		}
-
-		leftPart %= numRunes
-		rightPart %= numRunes
 
 		var lCol = xCol + d.barWidth
 
@@ -250,17 +264,23 @@ func (d *Display) Draw(height, delta, count int, left, right []float64) {
 				xRow += delta
 			}
 
+			// center line
 			d.screen.SetContent(xCol, xRow, DisplayBar, nil, styleCenter)
-			xRow += delta
 
-			for xRow < lRow {
-				d.screen.SetContent(xCol, xRow, DisplayBar, nil, styleDefault)
+			if haveRight {
 				xRow += delta
-			}
 
-			if rightPart > 0 {
-				d.screen.SetContent(
-					xCol, xRow, barRunes[1][rightPart], nil, styleReverse)
+				// right bars go down
+				for xRow <= lRow {
+					d.screen.SetContent(xCol, xRow, DisplayBar, nil, styleDefault)
+					xRow += delta
+				}
+
+				// last part of right bars.
+				if rightPart > 0 {
+					d.screen.SetContent(
+						xCol, xRow, barRunes[1][rightPart], nil, styleReverse)
+				}
 			}
 
 			xCol++
@@ -274,7 +294,7 @@ func (d *Display) Draw(height, delta, count int, left, right []float64) {
 
 		// do we want to draw a center line throughout the entire
 		if DrawCenterSpaces {
-			var lCol = xCol + d.spaceWidth
+			lCol = xCol + d.spaceWidth
 			for xCol < lCol {
 				d.screen.SetContent(xCol, height, DisplayBar, nil, styleCenter)
 				xCol++
@@ -295,4 +315,5 @@ func (d *Display) Draw(height, delta, count int, left, right []float64) {
 
 	d.screen.Clear()
 
+	return nil
 }

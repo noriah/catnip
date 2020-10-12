@@ -106,7 +106,7 @@ func NewSession(config input.SessionConfig) (*Session, error) {
 		},
 		SampleRate:      config.SampleRate,
 		FramesPerBuffer: config.SampleSize,
-		// Flags:           portaudio.ClipOff | portaudio.DitherOff,
+		Flags:           portaudio.ClipOff | portaudio.DitherOff,
 	}
 
 	buffer := make([]SampleType, config.SampleSize*config.FrameSize)
