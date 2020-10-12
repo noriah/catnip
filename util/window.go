@@ -43,40 +43,36 @@ type MovingWindow struct {
 func NewMovingWindow(size int) *MovingWindow {
 
 	var mw = &MovingWindow{
-		pool:     make([]*node, size+1),
+		tail:     &node{},
+		pool:     make([]*node, size),
 		capacity: size,
+		sum:      0.0,
+		average:  0.0,
 	}
 
-	for xNode := 0; xNode < size+1; xNode++ {
+	for xNode := 0; xNode < size; xNode++ {
 		mw.pool[xNode] = &node{}
 	}
 
-	mw.tail = mw.pool[mw.length]
 	mw.tail.next = mw.tail
 
 	return mw
 }
 
-func (mw *MovingWindow) calcRaw(new, old float64) {
-	mw.variance += (new * new) - (old * old)
-	mw.sum += (new - old)
-}
-
 func (mw *MovingWindow) calcFinal() (float64, float64) {
+	if mw.length > 1 {
+		// mw.stddev = math.Sqrt(mw.variance / (mw.length - 1))
+		// okay so this came from dpayne/cli-visualizer
+		mw.stddev = (mw.variance / float64(mw.length-1)) - (mw.average * mw.average)
+		mw.stddev = math.Sqrt(math.Abs(mw.stddev))
+	} else {
+		mw.stddev = 0
+	}
+
 	if mw.length > 0 {
 		mw.average = mw.sum / float64(mw.length)
-
-		if mw.length > 1 {
-			// mw.stddev = math.Sqrt(mw.variance / (mw.length - 1))
-			// okay so this came from dpayne/cli-visualizer
-			mw.stddev = (mw.variance / float64(mw.length)) - math.Pow(mw.average, 2)
-			mw.stddev = math.Sqrt(mw.stddev)
-		} else {
-			mw.stddev = 0
-		}
 	} else {
 		mw.average = 0
-		mw.stddev = 0
 	}
 
 	return mw.average, mw.stddev
@@ -84,15 +80,19 @@ func (mw *MovingWindow) calcFinal() (float64, float64) {
 
 // Update updates the moving window
 func (mw *MovingWindow) Update(value float64) (float64, float64) {
-
 	if mw.length < mw.capacity {
-		mw.length++
+
 		mw.pool[mw.length].next = mw.tail.next
 		mw.tail.next = mw.pool[mw.length]
 
-		mw.calcRaw(value, 0)
+		mw.length++
+
+		mw.variance += value * value
+		mw.sum += value
+
 	} else {
-		mw.calcRaw(value, mw.tail.next.value)
+		mw.variance += (value * value) - (mw.tail.next.value * mw.tail.next.value)
+		mw.sum += value - mw.tail.next.value
 	}
 
 	mw.tail.value = value
@@ -108,21 +108,22 @@ func (mw *MovingWindow) Drop(count int) (float64, float64) {
 	}
 
 	for count > 0 && mw.length > 0 {
-		mw.calcRaw(0, mw.tail.next.value)
+		mw.sum -= mw.tail.next.value
+		mw.variance -= mw.tail.next.value * mw.tail.next.value
+
+		mw.length--
 
 		mw.pool[mw.length] = mw.tail.next
 		mw.tail.next = mw.tail.next.next
 
-		mw.length--
 		count--
-
 	}
 
 	// If we dont have enough length for standard dev, clear variance
 	if mw.length < 2 {
 		mw.variance = 0
 		if mw.length < 1 {
-			// mw.length = 0
+			mw.length = 0
 			// same idea with sum. just clear it so we dont have a rouding issue
 			mw.sum = 0
 		}

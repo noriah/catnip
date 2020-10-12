@@ -54,12 +54,17 @@ func (sp *Spectrum) DataSet(input []float64) *DataSet {
 
 	var fftSize = (sp.sampleSize / 2) + 1
 
-	var set = &DataSet{
-		id:        sp.setCount,
+	var fftBuf = make([]complex128, fftSize)
+
+	sp.setCount++
+
+	return &DataSet{
+		id:        sp.setCount - 1,
 		inputBuf:  input,
 		inputSize: len(input),
 		fftSize:   fftSize,
-		fftBuf:    make([]complex128, fftSize),
+		fftBuf:    fftBuf,
+		fftPlan:   fft.NewPlan(input, fftBuf, sp.sampleSize),
 		binBuf:    make([]float64, sp.maxBins),
 
 		sampleHz:   sp.sampleRate,
@@ -68,12 +73,6 @@ func (sp *Spectrum) DataSet(input []float64) *DataSet {
 		N2S3State:  NewN2S3State(sp.sampleRate, sp.sampleSize, sp.maxBins),
 		ScaleState: NewScaleState(sp.sampleRate, sp.sampleSize),
 	}
-
-	set.fftPlan = fft.NewPlan(set.inputBuf, set.fftBuf, sp.sampleSize)
-
-	sp.setCount++
-
-	return set
 }
 
 // Recalculate rebuilds our frequency bins with bins bin counts

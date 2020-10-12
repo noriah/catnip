@@ -62,9 +62,7 @@ func Scale(bins []float64, count int, height float64, state *ScaleState) {
 	if length := state.slowWindow.Len(); length >= state.fastWindow.Cap() {
 
 		if math.Abs(state.fastWindow.Mean()-vMean) > (ScalingResetDeviation * vSD) {
-			state.slowWindow.Drop(int(float64(length) * ScalingDumpPercent))
-
-			vMean, vSD = state.slowWindow.Stats()
+			vMean, vSD = state.slowWindow.Drop(int(float64(length) * ScalingDumpPercent))
 		}
 	}
 
