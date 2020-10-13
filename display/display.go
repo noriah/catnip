@@ -51,10 +51,10 @@ var (
 		},
 	}
 
-	styleDefault = tcell.StyleDefault.Bold(true)
+	styleDefault = tcell.StyleDefault.Foreground(tcell.ColorWhite).Bold(true)
 	styleCenter  = styleDefault.Foreground(tcell.ColorOrangeRed)
 	// styleCenter  = styleDefault.Foreground(tcell.ColorDefault)
-	styleReverse = tcell.StyleDefault.Reverse(true).Bold(true)
+	styleReverse = styleDefault.Reverse(true)
 )
 
 // Display handles drawing our visualizer

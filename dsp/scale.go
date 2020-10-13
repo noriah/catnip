@@ -21,11 +21,13 @@ const (
 	ScalingResetDeviation = 1
 )
 
+// ScaleState holds scaling state
 type ScaleState struct {
 	slowWindow *util.MovingWindow
 	fastWindow *util.MovingWindow
 }
 
+// NewScaleState returns a new scale state
 func NewScaleState(hz float64, samples int) *ScaleState {
 
 	slowMax := int((ScalingSlowWindow*hz)/float64(samples)) * 2

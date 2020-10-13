@@ -34,7 +34,7 @@ func (p *Plan) destroy() {
 	C.fftw_destroy_plan(p.cPlan)
 }
 
-// New returns a new FFTW Plan for use with FFTW
+// NewPlan returns a new FFTW Plan for use with FFTW
 func NewPlan(in []float64, out []complex128, n int) *Plan {
 	plan := &Plan{C.fftw_plan_dft_r2c_1d(
 		C.int(n),
