@@ -92,14 +92,9 @@ func n2s3Next(real, prev, avg float64) float64 {
 
 	var d = real - prev
 
-	if ad := math.Abs(d); ad < 1 {
-		ad /= 2
-		return prev + (d * ad)
-	}
-
 	if d > 0.0 {
-		return prev + math.Min(d, math.Min(d*(d/real), prev+0.1))
+		return prev + math.Min(d*0.99, math.Max(d*(d/real), d*0.6))
 	}
 
-	return math.Min(real, prev-(1+(d/prev)))
+	return math.Min(prev+(d*0.85), prev-(d/prev))
 }
