@@ -88,7 +88,9 @@ func (sp *Spectrum) Recalculate(bins int, lo, hi float64) int {
 
 	var cBins = float64(bins + 1)
 
-	var cFreq = math.Log10(lo/hi) / ((1 / cBins) - 1)
+	var cScale = (float64(sp.sampleSize) / 4) / (sp.sampleRate / 2)
+
+	var cF = math.Log10(lo/hi) / ((1 / cBins) - 1)
 
 	// so this came from dpayne/cli-visualizer
 	// until i can find a different solution
@@ -98,9 +100,9 @@ func (sp *Spectrum) Recalculate(bins int, lo, hi float64) int {
 		sp.loCuts[xBin] = 0
 		sp.hiCuts[xBin] = 0
 
-		vFreq := (((float64(xBin+1) / cBins) - 1) * cFreq)
+		vFreq := (((float64(xBin+1) / cBins) - 1) * cF)
 		vFreq = hi * math.Pow(10.0, vFreq)
-		vFreq = (vFreq / (sp.sampleRate / 2)) * (float64(sp.sampleSize) / 4)
+		vFreq = vFreq * cScale
 
 		sp.loCuts[xBin] = int(math.Floor(vFreq))
 
@@ -109,6 +111,7 @@ func (sp *Spectrum) Recalculate(bins int, lo, hi float64) int {
 				sp.loCuts[xBin] = sp.loCuts[xBin-1] + 1
 			}
 
+			// previous high cutoffs are equal to previous low cuttoffs?
 			sp.hiCuts[xBin-1] = sp.loCuts[xBin-1]
 		}
 	}
@@ -123,20 +126,22 @@ func (sp *Spectrum) Generate(ds *DataSet) {
 
 	ds.numBins = sp.numBins
 
+	var cCoef = 100.0 / float64(ds.numBins)
+
 	for xBin := 0; xBin < ds.numBins; xBin++ {
 
 		var vM = 0.0
+		var xF = sp.loCuts[xBin]
 
-		for xF := sp.loCuts[xBin]; xF <= sp.hiCuts[xBin] &&
-			xF >= 0 &&
-			xF < ds.fftSize; xF++ {
-
+		for xF <= sp.hiCuts[xBin] && xF >= 0 && xF < ds.fftSize {
 			vM += pyt(ds.fftBuf[xF])
+			xF++
 		}
 
-		vM /= float64(sp.hiCuts[xBin] - sp.loCuts[xBin] + 1)
+		// divide bin sum by total frequencies included
+		vM /= float64(xF - sp.loCuts[xBin] + 1)
 
-		vM *= (math.Log2(float64(2+xBin)) * (100.0 / float64(ds.numBins)))
+		vM *= math.Log2(float64(2+xBin)) * cCoef
 
 		ds.binBuf[xBin] = math.Pow(vM, 0.5)
 	}

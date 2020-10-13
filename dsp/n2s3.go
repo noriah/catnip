@@ -28,25 +28,12 @@ func NewN2S3State(hz float64, samples int, max int) *N2S3State {
 // N2S3 does nora's not so special smoothing
 func N2S3(bins []float64, count int, height float64, state *N2S3State) {
 
-	var sum = 0.0
-	var max = 0.0
-	for xBin := 0; xBin < count; xBin++ {
-
-		if state.prevBins[xBin] > max {
-			max = state.prevBins[xBin]
-		}
-
-		sum += state.prevBins[xBin]
-	}
-
-	var avg = sum / float64(count)
-
 	var peak = 0.0
 
 	for xBin := 0; xBin < count; xBin++ {
 
 		state.prevBins[xBin] = math.Max(0,
-			n2s3Next(bins[xBin], state.prevBins[xBin], avg))
+			n2s3Next(bins[xBin], state.prevBins[xBin]))
 
 		bins[xBin] = state.prevBins[xBin]
 
@@ -84,7 +71,7 @@ func N2S3(bins []float64, count int, height float64, state *N2S3State) {
 //
 // n2s3Next provided with a real and previous value will return the
 // delta to add to the previous value.
-func n2s3Next(real, prev, avg float64) float64 {
+func n2s3Next(real, prev float64) float64 {
 	if real == 0 {
 
 		return prev * 0.5
@@ -93,8 +80,8 @@ func n2s3Next(real, prev, avg float64) float64 {
 	var d = real - prev
 
 	if d > 0.0 {
-		return prev + math.Min(d*0.99, math.Max(d*(d/real), d*0.6))
+		return prev + math.Min(d*0.999, math.Max((d/real)*1.5, d*0.5))
 	}
 
-	return math.Min(prev+(d*0.85), prev-(d/prev))
+	return prev + math.Max(d*0.65, prev/d)
 }
