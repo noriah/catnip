@@ -12,6 +12,7 @@ import (
 	"github.com/pkg/errors"
 )
 
+// Device is a temporary struct to define parameters
 type Device struct {
 	// InputBackend is the backend that the input belongs to
 	InputBackend input.Backend
@@ -67,7 +68,7 @@ func Run(d Device) error {
 		return errors.Wrap(err, "failed to start the input backend")
 	}
 
-	var display = display.New()
+	var display = display.New(d.SampleRate, sampleSize)
 	defer display.Close()
 
 	var barCount = display.SetWidths(d.BarWidth, d.SpaceWidth)
@@ -121,7 +122,7 @@ func Run(d Device) error {
 
 		if barCount != winWidth {
 			barCount = winWidth
-			spectrum.Recalculate(barCount, d.LoCutFreq, d.HiCutFreq)
+			barCount = spectrum.Recalculate(barCount, d.LoCutFreq, d.HiCutFreq)
 		}
 
 		if source.ReadyRead() < sampleSize {
@@ -138,10 +139,7 @@ func Run(d Device) error {
 			// dsp.Monstercat(setBins[set], barCount, 3)
 
 			// nora's not so special smoother (n2s3)
-			dsp.N2S3(setBins[set], barCount, float64(winHeight), sets[set].N2S3State)
-
-			// Run your own function on the bins and uncomment this line to scale it
-			// dsp.Scale(sets[set].Bins(), barCount, float64(winHeight), sets[set].ScaleState)
+			dsp.N2S3(setBins[set], barCount, sets[set].N2S3State)
 		}
 
 		display.Draw(1, 1, barCount, setBins...)

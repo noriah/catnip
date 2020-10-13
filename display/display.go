@@ -1,8 +1,11 @@
 package display
 
 import (
-	"github.com/gdamore/tcell/v2"
+	"math"
 
+	"github.com/noriah/tavis/util"
+
+	"github.com/gdamore/tcell/v2"
 	"github.com/pkg/errors"
 )
 
@@ -25,6 +28,20 @@ const (
 
 	// NumRunes number of runes for sub step bars
 	NumRunes = 8
+
+	// Scaling Constants
+
+	// ScalingSlowWindow in seconds
+	ScalingSlowWindow = 10
+
+	// ScalingFastWindow in seconds
+	ScalingFastWindow = ScalingSlowWindow * 0.2
+
+	// ScalingDumpPercent is how much we erase on rescale
+	ScalingDumpPercent = 0.75
+
+	// ScalingResetDeviation standard deviations from the mean before reset
+	ScalingResetDeviation = 1
 )
 
 var (
@@ -63,13 +80,16 @@ type Display struct {
 	spaceWidth int
 	binWidth   int
 
+	slowWindow *util.MovingWindow
+	fastWindow *util.MovingWindow
+
 	screen tcell.Screen
 }
 
 // New sets up the display
 // should we panic or return an error as well?
 // something to think about
-func New() Display {
+func New(hz float64, samples int) Display {
 
 	screen, err := tcell.NewScreen()
 
@@ -84,8 +104,13 @@ func New() Display {
 	screen.DisableMouse()
 	screen.HideCursor()
 
+	slowMax := int((ScalingSlowWindow*hz)/float64(samples)) * 2
+	fastMax := int((ScalingFastWindow*hz)/float64(samples)) * 2
+
 	var d = Display{
-		screen: screen,
+		slowWindow: util.NewMovingWindow(slowMax),
+		fastWindow: util.NewMovingWindow(fastMax),
+		screen:     screen,
 	}
 
 	d.SetWidths(2, 1)
@@ -215,7 +240,42 @@ func (d *Display) Draw(bHeight, delta, count int, bins ...[]float64) error {
 	}
 
 	var centerStart = height - (bHeight / 2)
+
 	var centerStop = centerStart + bHeight
+
+	var peak = 0.0
+
+	for xSet := 0; xSet < cSetCount; xSet++ {
+		for xBin := 0; xBin < count; xBin++ {
+			if peak < bins[xSet][xBin] {
+				peak = bins[xSet][xBin]
+			}
+		}
+	}
+
+	// do some scaling if we are above 0
+	if peak > 0 {
+		d.fastWindow.Update(peak)
+		var vMean, vSD = d.slowWindow.Update(peak)
+
+		if length := d.slowWindow.Len(); length >= d.fastWindow.Cap() {
+
+			if math.Abs(d.fastWindow.Mean()-vMean) > (ScalingResetDeviation * vSD) {
+				vMean, vSD = d.slowWindow.Drop(int(float64(length) * ScalingDumpPercent))
+			}
+		}
+
+		var fHeight = float64(centerStart - 1)
+
+		// value to scale by to make conditions easier to base on
+		var scale = fHeight / math.Max(vMean+(1.5*vSD), math.SmallestNonzeroFloat64)
+
+		for xSet := 0; xSet < cSetCount; xSet++ {
+			for xBin := 0; xBin < count; xBin++ {
+				bins[xSet][xBin] = math.Min(fHeight, bins[xSet][xBin]*scale)
+			}
+		}
+	}
 
 	// if DrawPaddingSpaces {
 	// 	for xCol := 0; xCol < cOffset; xCol++ {
