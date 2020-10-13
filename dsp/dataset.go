@@ -25,8 +25,7 @@ type DataSet struct {
 
 	prevBuf []float64
 
-	N2S3State  *N2S3State
-	ScaleState *ScaleState
+	N2S3State *N2S3State
 }
 
 // ID returns the set id

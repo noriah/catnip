@@ -70,8 +70,7 @@ func (sp *Spectrum) DataSet(input []float64) *DataSet {
 		sampleHz:   sp.sampleRate,
 		sampleSize: sp.sampleSize,
 
-		N2S3State:  NewN2S3State(sp.sampleRate, sp.sampleSize, sp.maxBins),
-		ScaleState: NewScaleState(sp.sampleRate, sp.sampleSize),
+		N2S3State: NewN2S3State(sp.maxBins),
 	}
 }
 
@@ -104,7 +103,7 @@ func (sp *Spectrum) Recalculate(bins int, lo, hi float64) int {
 		vFreq = hi * math.Pow(10.0, vFreq)
 		vFreq = vFreq * cScale
 
-		sp.loCuts[xBin] = int(math.Floor(vFreq))
+		sp.loCuts[xBin] = int(vFreq)
 
 		if xBin > 0 {
 			if sp.loCuts[xBin] <= sp.loCuts[xBin-1] {
