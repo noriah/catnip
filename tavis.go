@@ -42,7 +42,7 @@ func NewZeroDevice() Device {
 		SampleRate:   44100,
 		LoCutFreq:    20,
 		HiCutFreq:    22050,
-		SmoothFactor: 49.5,
+		SmoothFactor: 55.5,
 		BarWidth:     2,
 		SpaceWidth:   1,
 		TargetFPS:    60,
@@ -141,7 +141,6 @@ func Run(d Device) error {
 		for set := 0; set < d.ChannelCount; set++ {
 			spectrum.Generate(sets[set])
 
-			dsp.Monstercat(setBins[set], barCount, 2.25)
 			// nora's not so special smoother (n2s3)
 			dsp.N2S3(setBins[set], barCount, sets[set].N2S3State, d.SmoothFactor)
 
