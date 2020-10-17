@@ -2,6 +2,7 @@ package tavis
 
 import (
 	"context"
+	"math"
 	"os"
 	"os/signal"
 	"time"
@@ -24,6 +25,8 @@ type Device struct {
 	LoCutFreq float64
 	// HiCutFreq is the high end of our audio spectrum
 	HiCutFreq float64
+	// SmoothFactor factor of smooth
+	SmoothFactor float64
 	// BarWidth is the width of bars, in columns
 	BarWidth int
 	// SpaceWidth is the width of spaces, in columns
@@ -40,6 +43,7 @@ func NewZeroDevice() Device {
 		SampleRate:   44100,
 		LoCutFreq:    20,
 		HiCutFreq:    22050,
+		SmoothFactor: 5.5,
 		BarWidth:     2,
 		SpaceWidth:   1,
 		TargetFPS:    60,
@@ -64,6 +68,14 @@ func Run(d Device) error {
 		SampleRate: d.SampleRate,
 	})
 
+	if d.SmoothFactor >= 1.0 {
+		d.SmoothFactor /= 10
+	}
+
+	if d.SmoothFactor >= 10 {
+		d.SmoothFactor = 10 - math.SmallestNonzeroFloat64
+	}
+
 	if err != nil {
 		return errors.Wrap(err, "failed to start the input backend")
 	}
@@ -79,6 +91,11 @@ func Run(d Device) error {
 	// Set it up with our values
 	barCount = spectrum.Recalculate(barCount, d.LoCutFreq, d.HiCutFreq)
 
+	if err := source.Start(); err != nil {
+		return errors.Wrap(err, "failed to start input session")
+	}
+	defer source.Stop()
+
 	var bufs = source.SampleBuffers()
 	var sets = make([]*dsp.DataSet, d.ChannelCount)
 	var setBins = make([][]float64, d.ChannelCount)
@@ -86,12 +103,6 @@ func Run(d Device) error {
 		sets[set] = spectrum.DataSet(bufs[set])
 		setBins[set] = sets[set].Bins()
 	}
-
-	if err := source.Start(); err != nil {
-		return errors.Wrap(err, "failed to start input session")
-	}
-	defer source.Stop()
-
 	var ctx, cancel = context.WithCancel(context.Background())
 	defer cancel()
 
@@ -116,8 +127,10 @@ func Run(d Device) error {
 			return nil
 		case <-endSig:
 			return nil
-		case tick = <-ticker.C:
+		case <-ticker.C:
 		}
+
+		tick = time.Now()
 
 		var winWidth = display.Bars()
 
@@ -140,7 +153,7 @@ func Run(d Device) error {
 			// dsp.Monstercat(setBins[set], barCount, 3)
 
 			// nora's not so special smoother (n2s3)
-			dsp.N2S3(setBins[set], barCount, tick, sets[set].N2S3State)
+			dsp.N2S3(setBins[set], barCount, tick, sets[set].N2S3State, d.SmoothFactor)
 		}
 
 		display.Draw(1, 1, barCount, setBins...)

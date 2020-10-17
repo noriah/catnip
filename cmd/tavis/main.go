@@ -52,7 +52,7 @@ func main() {
 			},
 			&cli.Float64Flag{
 				Name:        "sample-rate",
-				Aliases:     []string{"s"},
+				Aliases:     []string{"r"},
 				Value:       device.SampleRate,
 				Destination: &device.SampleRate,
 			},
@@ -68,6 +68,12 @@ func main() {
 				Value:       device.HiCutFreq,
 				Destination: &device.HiCutFreq,
 			},
+			&cli.Float64Flag{
+				Name:        "smoothness factor",
+				Aliases:     []string{"s"},
+				Value:       device.SmoothFactor,
+				Destination: &device.SmoothFactor,
+			},
 			&cli.IntFlag{
 				Name:        "bar-width",
 				Aliases:     []string{"bw"},
@@ -82,13 +88,13 @@ func main() {
 			},
 			&cli.IntFlag{
 				Name:        "target-fps",
-				Aliases:     []string{"fps"},
+				Aliases:     []string{"f"},
 				Value:       device.TargetFPS,
 				Destination: &device.TargetFPS,
 			},
 			&cli.IntFlag{
 				Name:        "channel-count",
-				Aliases:     []string{"ch"},
+				Aliases:     []string{"c"},
 				Hidden:      true,
 				Value:       device.ChannelCount,
 				Destination: &device.ChannelCount,
