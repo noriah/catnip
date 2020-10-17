@@ -8,7 +8,7 @@ import (
 
 // Spectrum Constants
 const (
-	MaxBins = 1024
+	MaxBins = 256
 )
 
 // Spectrum is an audio spectrum in a buffer
@@ -95,7 +95,7 @@ func (sp *Spectrum) Recalculate(bins int, lo, hi float64) int {
 	// until i can find a different solution
 	for xBin := 0; xBin <= bins; xBin++ {
 		// Fix issue where recalculations may not be accurate due to
-		// previous runs
+		// previous recalculations
 		sp.loCuts[xBin] = 0
 		sp.hiCuts[xBin] = 0
 
@@ -140,7 +140,7 @@ func (sp *Spectrum) Generate(ds *DataSet) {
 		// divide bin sum by total frequencies included
 		vM /= float64(xF - sp.loCuts[xBin] + 1)
 
-		vM *= math.Log2(float64(2+xBin)) * cCoef
+		vM *= math.Log2(float64(xBin+2)) * cCoef
 
 		ds.binBuf[xBin] = math.Pow(vM, 0.5)
 	}

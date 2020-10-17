@@ -4,7 +4,8 @@
 [![made-with-go][withgo]][go-dev]
 [![betamax-was-a-thing][betamax]][betawhat]
 
-### depends on
+tavis is a terminal audio visualizer for linux/unix/macOS/windows*.
+powered by go, it can pull from PortAudio, PulseAudio, FFmpeg.
 
 #### depends on
 
