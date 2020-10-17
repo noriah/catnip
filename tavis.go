@@ -2,7 +2,6 @@ package tavis
 
 import (
 	"context"
-	"math"
 	"os"
 	"os/signal"
 	"time"
@@ -43,7 +42,7 @@ func NewZeroDevice() Device {
 		SampleRate:   44100,
 		LoCutFreq:    20,
 		HiCutFreq:    22050,
-		SmoothFactor: 5.5,
+		SmoothFactor: 49.5,
 		BarWidth:     2,
 		SpaceWidth:   1,
 		TargetFPS:    60,
@@ -68,12 +67,8 @@ func Run(d Device) error {
 		SampleRate: d.SampleRate,
 	})
 
-	if d.SmoothFactor >= 1.0 {
-		d.SmoothFactor /= 10
-	}
-
-	if d.SmoothFactor >= 10 {
-		d.SmoothFactor = 10 - math.SmallestNonzeroFloat64
+	if d.SmoothFactor > 1.0 {
+		d.SmoothFactor /= 100
 	}
 
 	if err != nil {
@@ -114,8 +109,6 @@ func Run(d Device) error {
 	var endSig = make(chan os.Signal, 3)
 	signal.Notify(endSig, os.Interrupt)
 
-	var tick time.Time
-
 	var ticker = time.NewTicker(drawDelay)
 	defer ticker.Stop()
 
@@ -129,8 +122,6 @@ func Run(d Device) error {
 			return nil
 		case <-ticker.C:
 		}
-
-		tick = time.Now()
 
 		var winWidth = display.Bars()
 
@@ -150,10 +141,10 @@ func Run(d Device) error {
 		for set := 0; set < d.ChannelCount; set++ {
 			spectrum.Generate(sets[set])
 
-			// dsp.Monstercat(setBins[set], barCount, 3)
-
+			dsp.Monstercat(setBins[set], barCount, 2.25)
 			// nora's not so special smoother (n2s3)
-			dsp.N2S3(setBins[set], barCount, tick, sets[set].N2S3State, d.SmoothFactor)
+			dsp.N2S3(setBins[set], barCount, sets[set].N2S3State, d.SmoothFactor)
+
 		}
 
 		display.Draw(1, 1, barCount, setBins...)
