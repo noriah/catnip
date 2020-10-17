@@ -32,7 +32,7 @@ const (
 	// Scaling Constants
 
 	// ScalingSlowWindow in seconds
-	ScalingSlowWindow = 10
+	ScalingSlowWindow = 5
 
 	// ScalingFastWindow in seconds
 	ScalingFastWindow = ScalingSlowWindow * 0.2
@@ -41,7 +41,7 @@ const (
 	ScalingDumpPercent = 0.75
 
 	// ScalingResetDeviation standard deviations from the mean before reset
-	ScalingResetDeviation = 1
+	ScalingResetDeviation = 0.9
 )
 
 var (
@@ -68,9 +68,9 @@ var (
 		},
 	}
 
-	styleDefault = tcell.StyleDefault.Foreground(tcell.ColorWhite).Bold(true)
-	styleCenter  = styleDefault.Foreground(tcell.ColorOrangeRed)
-	// styleCenter  = styleDefault.Foreground(tcell.ColorDefault)
+	styleDefault = tcell.StyleDefault.Foreground(tcell.ColorWhite)
+	// styleCenter  = styleDefault.Foreground(tcell.ColorOrangeRed)
+	styleCenter  = styleDefault
 	styleReverse = styleDefault.Reverse(true)
 )
 
@@ -288,20 +288,21 @@ func (d *Display) Draw(bHeight, delta, count int, bins ...[]float64) error {
 	// TODO(nora): benchmark
 	for xCol < cWidth {
 
-		// We don't want to be calling lookups for the same value over and over
-		// we also dont know how wide the bars are going to be
+		// Left Channel
 		var leftPart = int(math.Min(fHeight, bins[0][xBin]*scale) * NumRunes)
 
-		var rightPart = 0
-
 		var startRow = centerStart - (((leftPart / NumRunes) + 1) * delta)
+
 		if startRow < 0 {
 			startRow = 0
 		}
 
+		leftPart %= NumRunes
+
 		var lRow = centerStop
 
-		leftPart %= NumRunes
+		// Right Channel
+		var rightPart = 0
 
 		if haveRight {
 			rightPart = int(math.Min(fHeight, bins[1][xBin]*scale) * NumRunes)
