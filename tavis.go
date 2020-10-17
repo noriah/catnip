@@ -103,6 +103,8 @@ func Run(d Device) error {
 	var endSig = make(chan os.Signal, 3)
 	signal.Notify(endSig, os.Interrupt)
 
+	var tick time.Time
+
 	var ticker = time.NewTicker(drawDelay)
 	defer ticker.Stop()
 
@@ -114,11 +116,10 @@ func Run(d Device) error {
 			return nil
 		case <-endSig:
 			return nil
-		case <-ticker.C:
+		case tick = <-ticker.C:
 		}
 
-		var winWidth, winHeight = display.Size()
-		winHeight /= 2
+		var winWidth = display.Bars()
 
 		if barCount != winWidth {
 			barCount = winWidth
@@ -139,7 +140,7 @@ func Run(d Device) error {
 			// dsp.Monstercat(setBins[set], barCount, 3)
 
 			// nora's not so special smoother (n2s3)
-			dsp.N2S3(setBins[set], barCount, sets[set].N2S3State)
+			dsp.N2S3(setBins[set], barCount, tick, sets[set].N2S3State)
 		}
 
 		display.Draw(1, 1, barCount, setBins...)

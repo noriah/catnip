@@ -253,6 +253,9 @@ func (d *Display) Draw(bHeight, delta, count int, bins ...[]float64) error {
 		}
 	}
 
+	var scale = 1.0
+	var fHeight = float64(centerStart - 1)
+
 	// do some scaling if we are above 0
 	if peak > 0 {
 		d.fastWindow.Update(peak)
@@ -265,16 +268,8 @@ func (d *Display) Draw(bHeight, delta, count int, bins ...[]float64) error {
 			}
 		}
 
-		var fHeight = float64(centerStart - 1)
-
 		// value to scale by to make conditions easier to base on
-		var scale = fHeight / math.Max(vMean+(1.5*vSD), math.SmallestNonzeroFloat64)
-
-		for xSet := 0; xSet < cSetCount; xSet++ {
-			for xBin := 0; xBin < count; xBin++ {
-				bins[xSet][xBin] = math.Min(fHeight, bins[xSet][xBin]*scale)
-			}
-		}
+		scale = fHeight / math.Max(vMean+(1.5*vSD), math.SmallestNonzeroFloat64)
 	}
 
 	// if DrawPaddingSpaces {
@@ -295,7 +290,7 @@ func (d *Display) Draw(bHeight, delta, count int, bins ...[]float64) error {
 
 		// We don't want to be calling lookups for the same value over and over
 		// we also dont know how wide the bars are going to be
-		var leftPart = int(bins[0][xBin] * NumRunes)
+		var leftPart = int(math.Min(fHeight, bins[0][xBin]*scale) * NumRunes)
 
 		var rightPart = 0
 
@@ -309,7 +304,7 @@ func (d *Display) Draw(bHeight, delta, count int, bins ...[]float64) error {
 		leftPart %= NumRunes
 
 		if haveRight {
-			rightPart = int(bins[1][xBin] * NumRunes)
+			rightPart = int(math.Min(fHeight, bins[1][xBin]*scale) * NumRunes)
 			lRow += (rightPart / NumRunes) * delta
 			rightPart %= NumRunes
 		}
