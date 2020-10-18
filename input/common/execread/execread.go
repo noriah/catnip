@@ -9,6 +9,7 @@ import (
 	"math"
 	"os"
 	"os/exec"
+	"sync"
 
 	"github.com/noriah/tavis/input"
 	"github.com/pkg/errors"
@@ -21,11 +22,12 @@ type Session struct {
 	frameSize  int
 	sampleSize int
 
-	full    chan struct{} // indicate buffer is full
-	copymut chan struct{} // copy mutex; uses TryLock
+	copymut sync.Mutex
+	isFull  bool // mutex guarded
 
-	writebuf []input.Sample   // alternating channels
-	readbuf  [][]input.Sample // separated channels
+	readbuf   [][]input.Sample // copied from middlebuf on demand
+	middlebuf [][]input.Sample // copied from writebuf after each fill
+	writebuf  [][]input.Sample // free write without mutex
 }
 
 // NewSession creates a new execread session. It never returns an error.
@@ -34,13 +36,12 @@ func NewSession(cmd *exec.Cmd, f32mode bool, cfg input.SessionConfig) (*Session,
 
 	return &Session{
 		cmd:        cmd,
-		f32mode:    f32mode,
 		frameSize:  cfg.FrameSize,
 		sampleSize: sampleSize,
-		full:       make(chan struct{}, 1), // buffered to accept overflows
-		copymut:    make(chan struct{}, 1),
+		f32mode:    f32mode,
 		readbuf:    input.MakeBuffers(cfg),
-		writebuf:   make([]input.Sample, sampleSize),
+		middlebuf:  input.MakeBuffers(cfg),
+		writebuf:   input.MakeBuffers(cfg),
 	}, nil
 }
 
@@ -55,12 +56,13 @@ func (s *Session) Start() error {
 		return errors.Wrap(err, "failed to start ffmpeg")
 	}
 
+	// Kind of optimal guess to reduce syscalls.
+	const bufferMultiplier = 10
+
 	// Calculate the optimum size of the buffer.
-	var bufsz = s.sampleSize
-	if s.f32mode {
-		bufsz *= 4
-	} else {
-		bufsz *= 8
+	var bufsz = s.sampleSize * 4 * bufferMultiplier
+	if !s.f32mode {
+		bufsz *= 2
 	}
 
 	// Make a read buffer the size of sampleSize float64s in bytes.
@@ -81,24 +83,17 @@ func (s *Session) Start() error {
 
 			// Attempt to acquire the mutex-channel. If fail to acquire, skip
 			// writing and keep reading.
-			select {
-			case s.copymut <- struct{}{}:
-				s.writebuf[cursor] = f
-				<-s.copymut
-			default:
-			}
+			s.writebuf[cursor%s.frameSize][cursor/s.frameSize] = f
 
 			// Override the write buffer if the read loop is too slow to catch
 			// up.
-			if cursor++; cursor >= s.sampleSize {
+			if cursor++; cursor == s.sampleSize {
 				cursor = 0
 
-				// Attempt to indicate the buffer is ready to read. Do nothing
-				// if the channel is already full.
-				select {
-				case s.full <- struct{}{}:
-				default:
-				}
+				s.copymut.Lock()
+				s.isFull = true
+				input.CopyBuffers(s.middlebuf, s.writebuf)
+				s.copymut.Unlock()
 			}
 		}
 	}()
@@ -117,26 +112,19 @@ func (s *Session) SampleBuffers() [][]input.Sample {
 
 // ReadyRead blocks until there is enough data in the sample buffer.
 func (s *Session) ReadyRead() int {
-	<-s.full
+	s.copymut.Lock()
+	if !s.isFull {
+		s.copymut.Unlock()
+		return 0
+	}
+
 	return s.sampleSize
 }
 
 func (s *Session) Read(ctx context.Context) error {
-	select {
-	case <-ctx.Done():
-		return ctx.Err()
-	case s.copymut <- struct{}{}:
-		// mutex locked
-	}
-
-	for i := 0; i < s.sampleSize; i += s.frameSize {
-		f := i / s.frameSize
-		for j := 0; j < s.frameSize; j++ {
-			s.readbuf[j][f] = s.writebuf[i+j]
-		}
-	}
-
-	<-s.copymut
+	// Deep copy.
+	input.CopyBuffers(s.readbuf, s.middlebuf)
+	s.copymut.Unlock()
 	return nil
 }
 
@@ -169,9 +157,12 @@ func NewFloatReader(r io.Reader, order binary.ByteOrder, f32mode bool) *FloatRea
 
 // ReadFloat64 reads maximum 4 or 8 bytes and returns a float64.
 func (f *FloatReader) ReadFloat64() (float64, error) {
-	_, err := io.ReadFull(f.reader, f.buffer)
+	n, err := f.reader.Read(f.buffer)
 	if err != nil {
 		return 0, err
+	}
+	if n != len(f.buffer) {
+		return 0, io.ErrUnexpectedEOF
 	}
 
 	if f.f64mode {
