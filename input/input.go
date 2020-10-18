@@ -72,3 +72,10 @@ func MakeBuffers(cfg SessionConfig) [][]Sample {
 	}
 	return buf
 }
+
+// CopyBuffers deep copies src to dst. It does NOT do length check.
+func CopyBuffers(dst, src [][]Sample) {
+	for i := range src {
+		copy(dst[i], src[i])
+	}
+}
