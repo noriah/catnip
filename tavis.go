@@ -34,6 +34,8 @@ type Device struct {
 	HiCutFreq float64
 	// SmoothFactor factor of smooth
 	SmoothFactor float64
+	// SmoothResponse response value
+	SmoothResponse float64
 	// BaseThick number of cells wide/high the base is
 	BaseThick int
 	// BarWidth is the width of bars, in columns
@@ -50,16 +52,17 @@ type Device struct {
 
 var (
 	device = Device{
-		SampleRate:   44100,
-		LoCutFreq:    20,
-		HiCutFreq:    22050,
-		SmoothFactor: 50.5,
-		BaseThick:    1,
-		BarWidth:     2,
-		SpaceWidth:   1,
-		TargetFPS:    60,
-		ChannelCount: 2,
-		MaxBins:      256,
+		SampleRate:     44100,
+		LoCutFreq:      20,
+		HiCutFreq:      22050,
+		SmoothFactor:   52.5,
+		SmoothResponse: 43.5,
+		BaseThick:      1,
+		BarWidth:       2,
+		SpaceWidth:     1,
+		TargetFPS:      60,
+		ChannelCount:   2,
+		MaxBins:        256,
 	}
 )
 
@@ -114,9 +117,15 @@ func main() {
 			},
 			&cli.Float64Flag{
 				Name:        "smoothness-factor",
-				Aliases:     []string{"s"},
+				Aliases:     []string{"sf"},
 				Value:       device.SmoothFactor,
 				Destination: &device.SmoothFactor,
+			},
+			&cli.Float64Flag{
+				Name:        "smoothness-response",
+				Aliases:     []string{"sr"},
+				Value:       device.SmoothResponse,
+				Destination: &device.SmoothResponse,
 			},
 			&cli.IntFlag{
 				Name:        "base-thickness",
@@ -273,8 +282,19 @@ func visualize(d Device) error {
 		SampleRate: d.SampleRate,
 	})
 
-	if d.SmoothFactor > 1.0 {
-		d.SmoothFactor /= 100
+	switch {
+	case d.SmoothFactor > 100.0:
+		d.SmoothFactor = 1.0
+	case d.SmoothFactor < 0.0:
+		d.SmoothFactor = 0.0
+	default:
+		d.SmoothFactor /= 100.0
+	}
+
+	switch {
+	case d.SmoothResponse < 0.1:
+		d.SmoothResponse = 0.1
+	default:
 	}
 
 	if err != nil {
@@ -314,27 +334,30 @@ func visualize(d Device) error {
 	var ctx, cancel = context.WithCancel(context.Background())
 	defer cancel()
 
-	// TODO(noriah): remove temprorary variables
-	var displayChan = make(chan bool, 2)
-	display.Start(displayChan)
+	var dispCtx = display.Start(ctx)
 	defer display.Stop()
 
 	var endSig = make(chan os.Signal, 3)
 	signal.Notify(endSig, os.Interrupt)
 
-	var ticker = time.NewTicker(drawDelay)
-	defer ticker.Stop()
+	var tick = time.Now()
 
 	for {
 		select {
 		case <-ctx.Done():
 			return nil
-		case <-displayChan:
+		case <-dispCtx.Done():
 			return nil
 		case <-endSig:
 			return nil
-		case <-ticker.C:
+		default:
 		}
+
+		if since := time.Since(tick); since < drawDelay {
+			time.Sleep(drawDelay - since)
+		}
+
+		tick = time.Now()
 
 		var winWidth = display.Bars()
 
@@ -351,14 +374,14 @@ func visualize(d Device) error {
 			return errors.Wrap(err, "failed to read audio input")
 		}
 
-		for _, chanl := range channels {
-			spectrum.Generate(chanl.bins)
+		for ch := range channels {
+			spectrum.Generate(channels[ch].bins)
 
 			// nora's not so special smoother (n2s3)
-			dsp.N2S3(chanl.bins.Bins(), barCount, chanl.n2s3, d.SmoothFactor)
-
+			dsp.N2S3(chanBins[ch], barCount,
+				channels[ch].n2s3, d.SmoothFactor, d.SmoothResponse)
 		}
 
-		display.Draw(d.BaseThick, 1, barCount, chanBins...)
+		display.Draw(chanBins, barCount, d.BaseThick)
 	}
 }

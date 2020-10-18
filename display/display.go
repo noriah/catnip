@@ -1,12 +1,13 @@
 package display
 
 import (
+	"context"
+	"errors"
 	"math"
 
 	"github.com/noriah/tavis/util"
 
 	"github.com/gdamore/tcell/v2"
-	"github.com/pkg/errors"
 )
 
 const (
@@ -35,13 +36,13 @@ const (
 	ScalingSlowWindow = 5
 
 	// ScalingFastWindow in seconds
-	ScalingFastWindow = ScalingSlowWindow * 0.2
+	ScalingFastWindow = ScalingSlowWindow * 0.1
 
 	// ScalingDumpPercent is how much we erase on rescale
 	ScalingDumpPercent = 0.75
 
 	// ScalingResetDeviation standard deviations from the mean before reset
-	ScalingResetDeviation = 0.9
+	ScalingResetDeviation = 1
 )
 
 var (
@@ -89,7 +90,7 @@ type Display struct {
 // New sets up the display
 // should we panic or return an error as well?
 // something to think about
-func New(hz float64, samples int) Display {
+func New(hz float64, samples int) *Display {
 
 	screen, err := tcell.NewScreen()
 
@@ -107,7 +108,7 @@ func New(hz float64, samples int) Display {
 	slowMax := int((ScalingSlowWindow*hz)/float64(samples)) * 2
 	fastMax := int((ScalingFastWindow*hz)/float64(samples)) * 2
 
-	var d = Display{
+	var d = &Display{
 		slowWindow: util.NewMovingWindow(slowMax),
 		fastWindow: util.NewMovingWindow(fastMax),
 		screen:     screen,
@@ -119,50 +120,65 @@ func New(hz float64, samples int) Display {
 }
 
 // Start display is bad
-func (d *Display) Start(endCh chan<- bool) error {
-	go func() {
-		var ev tcell.Event
-		for ev = d.screen.PollEvent(); ev != nil; ev = d.screen.PollEvent() {
-			if d.HandleEvent(ev) != nil {
-				break
-			}
-		}
-		endCh <- true
-	}()
-
-	return nil
+func (d *Display) Start(ctx context.Context) context.Context {
+	var dispCtx, dispCancel = context.WithCancel(ctx)
+	go eventPoller(dispCtx, dispCancel, d)
+	return dispCtx
 }
 
-// HandleEvent will take events and do things with them
+// eventPoller will take events and do things with them
 // TODO(noraih): MAKE THIS MORE ROBUST LIKE PREGO TOMATO SAUCE LEVELS OF ROBUST
-func (d *Display) HandleEvent(ev tcell.Event) error {
-	switch ev := ev.(type) {
-	case *tcell.EventKey:
-		switch ev.Key() {
-		case tcell.KeyRune:
-			switch ev.Rune() {
-			case 'q', 'Q':
-				return errors.New("rename this better please")
+func eventPoller(ctx context.Context, fn context.CancelFunc, d *Display) {
+	defer fn()
+
+	for {
+		// first check if we need to exit
+		select {
+		case <-ctx.Done():
+			return
+		default:
+		}
+
+		var ev = d.screen.PollEvent()
+		if ev == nil {
+			return
+		}
+
+		switch ev := ev.(type) {
+		case *tcell.EventKey:
+			switch ev.Key() {
+			case tcell.KeyRune:
+				switch ev.Rune() {
+				case 'q', 'Q':
+					return
+
+				default:
+
+				}
+
+			case tcell.KeyCtrlC:
+				return
+
+			case tcell.KeyUp:
+				d.SetWidths(d.barWidth+1, d.spaceWidth)
+
+			case tcell.KeyRight:
+				d.SetWidths(d.barWidth, d.spaceWidth+1)
+
+			case tcell.KeyDown:
+				d.SetWidths(d.barWidth-1, d.spaceWidth)
+
+			case tcell.KeyLeft:
+				d.SetWidths(d.barWidth, d.spaceWidth-1)
+
 			default:
+
 			}
-		case tcell.KeyCtrlC:
-			return errors.New("rename this better please")
-		case tcell.KeyUp:
-			d.SetWidths(d.barWidth+1, d.spaceWidth)
-		case tcell.KeyRight:
-			d.SetWidths(d.barWidth, d.spaceWidth+1)
-		case tcell.KeyDown:
-			d.SetWidths(d.barWidth-1, d.spaceWidth)
-		case tcell.KeyLeft:
-			d.SetWidths(d.barWidth, d.spaceWidth-1)
+
 		default:
 
 		}
-
-	default:
 	}
-
-	return nil
 }
 
 // Stop display not work
@@ -209,7 +225,10 @@ func (d *Display) Size() (int, int) {
 }
 
 // Draw takes data and draws
-func (d *Display) Draw(bHeight, delta, count int, bins ...[]float64) error {
+func (d *Display) Draw(bins [][]float64, count, bHeight int) error {
+
+	var delta = 1
+
 	var cSetCount = len(bins)
 
 	if cSetCount < 1 {
@@ -264,12 +283,19 @@ func (d *Display) Draw(bHeight, delta, count int, bins ...[]float64) error {
 		if length := d.slowWindow.Len(); length >= d.fastWindow.Cap() {
 
 			if math.Abs(d.fastWindow.Mean()-vMean) > (ScalingResetDeviation * vSD) {
-				vMean, vSD = d.slowWindow.Drop(int(float64(length) * ScalingDumpPercent))
+				vMean, vSD = d.slowWindow.Drop(
+					int(float64(length) * ScalingDumpPercent))
 			}
 		}
 
 		// value to scale by to make conditions easier to base on
-		scale = fHeight / math.Max(vMean+(1.5*vSD), math.SmallestNonzeroFloat64)
+		scale = fHeight / math.Max(vMean+(1.5*vSD), 1)
+
+		if peak*scale > 1.6*fHeight {
+			vMean, vSD = d.slowWindow.Drop(
+				int(float64(d.slowWindow.Len()) * ScalingDumpPercent))
+			scale = fHeight / math.Max(vMean+(1.5*vSD), 1)
+		}
 	}
 
 	// if DrawPaddingSpaces {

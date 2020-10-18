@@ -7,6 +7,10 @@
 tavis is a terminal audio visualizer for linux/unix/macOS/windows*.
 powered by go, it can pull from PortAudio, PulseAudio, FFmpeg.
 
+## tavis is in early development. expect things to change and break
+
+run `tavis -h` for usage
+
 #### depends on
 
 - tcell
@@ -21,6 +25,7 @@ powered by go, it can pull from PortAudio, PulseAudio, FFmpeg.
 		- pulse
 		- sndio
 	- parec (pulse only)
+
 
 <!-- Links -->
 [noriah-dev]: https://noriah.dev

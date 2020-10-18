@@ -16,12 +16,13 @@ func NewN2S3State(max int) *N2S3State {
 }
 
 // N2S3 does nora's not so special smoothing
-func N2S3(buf []float64, count int, state *N2S3State, factor float64) {
+func N2S3(buf []float64, count int, state *N2S3State, smth, res float64) {
 
-	for xBin := 0; xBin < count; xBin++ {
+	for xB := 0; xB < count; xB++ {
 
-		buf[xBin] += state.bins[xBin] * factor
+		buf[xB] += state.bins[xB] * smth
 
-		state.bins[xBin] = buf[xBin] * (1 - ((1 / (buf[xBin] + 0.5)) / 20))
+		state.bins[xB] = buf[xB] * (1 - ((1 / (buf[xB] + (1 / res))) / res))
+
 	}
 }
