@@ -41,7 +41,7 @@ func NewSpectrum(hz float64, size, max int) *Spectrum {
 	sp.loCuts = make([]int, sp.maxBins+1)
 	sp.hiCuts = make([]int, sp.maxBins+1)
 
-	sp.Recalculate(sp.maxBins, 20, sp.sampleRate/2)
+	sp.Recalculate(sp.maxBins, 1, sp.sampleRate/2)
 
 	return sp
 }

@@ -19,10 +19,8 @@ func NewN2S3State(max int) *N2S3State {
 func N2S3(buf []float64, count int, state *N2S3State, smth, res float64) {
 
 	for xB := 0; xB < count; xB++ {
-
 		buf[xB] += state.bins[xB] * smth
 
-		state.bins[xB] = buf[xB] * (1 - ((1 / (buf[xB] + (1 / res))) / res))
-
+		state.bins[xB] = buf[xB] * (1 - (1 / (1 + (buf[xB] * res))))
 	}
 }
