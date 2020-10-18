@@ -19,7 +19,7 @@ func NewPlan(in []float64, out []complex128, n int) *Plan {
 	return &Plan{
 		input:  in,
 		output: out,
-		fourier.NewFFT(n),
+		fft:    fourier.NewFFT(n),
 	}
 }
 
