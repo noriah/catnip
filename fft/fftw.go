@@ -1,4 +1,4 @@
-// +build cgo
+// +build ignore
 
 package fft
 
