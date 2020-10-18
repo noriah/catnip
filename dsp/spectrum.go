@@ -6,17 +6,13 @@ import (
 	"github.com/noriah/tavis/fft"
 )
 
-// Spectrum Constants
-const (
-	MaxBins = 256
-)
-
 // Spectrum is an audio spectrum in a buffer
 type Spectrum struct {
 	maxBins int
 	numBins int
 
-	setCount int
+	fftSize int
+	fftBuf  []complex128
 
 	// sampleSize is the number of frames per sample
 	sampleSize int
@@ -29,12 +25,17 @@ type Spectrum struct {
 }
 
 // NewSpectrum will set up our spectrum
-func NewSpectrum(rate float64, size int) *Spectrum {
+func NewSpectrum(hz float64, size, max int) *Spectrum {
+
+	var fftSize = (size / 2) + 1
 
 	var sp = &Spectrum{
-		maxBins:    MaxBins,
+		maxBins:    max,
+		numBins:    max,
+		fftSize:    fftSize,
+		fftBuf:     make([]complex128, fftSize),
 		sampleSize: size,
-		sampleRate: rate,
+		sampleRate: hz,
 	}
 
 	sp.loCuts = make([]int, sp.maxBins+1)
@@ -45,32 +46,13 @@ func NewSpectrum(rate float64, size int) *Spectrum {
 	return sp
 }
 
-// DataSet reurns a new data set with settings matching this spectrum
-func (sp *Spectrum) DataSet(input []float64) *DataSet {
+// BinSet reurns a new data set with settings matching this spectrum
+func (sp *Spectrum) BinSet(input []float64) *BinSet {
 
-	if input == nil {
-		input = make([]float64, sp.sampleSize)
-	}
-
-	var fftSize = (sp.sampleSize / 2) + 1
-
-	var fftBuf = make([]complex128, fftSize)
-
-	sp.setCount++
-
-	return &DataSet{
-		id:        sp.setCount - 1,
-		inputBuf:  input,
-		inputSize: len(input),
-		fftSize:   fftSize,
-		fftBuf:    fftBuf,
-		fftPlan:   fft.NewPlan(input, fftBuf, sp.sampleSize),
-		binBuf:    make([]float64, sp.maxBins),
-
-		sampleHz:   sp.sampleRate,
-		sampleSize: sp.sampleSize,
-
-		N2S3State: NewN2S3State(sp.maxBins),
+	return &BinSet{
+		count:  sp.maxBins,
+		buffer: make([]float64, sp.maxBins),
+		plan:   fft.NewPlan(input, sp.fftBuf, sp.sampleSize),
 	}
 }
 
@@ -119,21 +101,21 @@ func (sp *Spectrum) Recalculate(bins int, lo, hi float64) int {
 }
 
 // Generate makes numBins and dumps them in the buffer
-func (sp *Spectrum) Generate(ds *DataSet) {
+func (sp *Spectrum) Generate(bs *BinSet) {
 
-	ds.ExecuteFFTW()
+	bs.plan.Execute()
 
-	ds.numBins = sp.numBins
+	bs.count = sp.numBins
 
-	var cCoef = 100.0 / float64(ds.numBins)
+	var cCoef = 100.0 / float64(bs.count)
 
-	for xBin := 0; xBin < ds.numBins; xBin++ {
+	for xBin := 0; xBin < bs.count; xBin++ {
 
 		var vM = 0.0
 		var xF = sp.loCuts[xBin]
 
-		for xF <= sp.hiCuts[xBin] && xF >= 0 && xF < ds.fftSize {
-			vM += pyt(ds.fftBuf[xF])
+		for xF <= sp.hiCuts[xBin] && xF >= 0 && xF < sp.fftSize {
+			vM += pyt(sp.fftBuf[xF])
 			xF++
 		}
 
@@ -142,7 +124,7 @@ func (sp *Spectrum) Generate(ds *DataSet) {
 
 		vM *= math.Log2(float64(xBin+2)) * cCoef
 
-		ds.binBuf[xBin] = math.Pow(vM, 0.5)
+		bs.buffer[xBin] = math.Pow(vM, 0.5)
 	}
 }
 

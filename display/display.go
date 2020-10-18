@@ -69,7 +69,7 @@ var (
 	}
 
 	styleDefault = tcell.StyleDefault.Foreground(tcell.ColorWhite)
-	styleCenter  = styleDefault.Foreground(tcell.ColorOrangeRed)
+	styleCenter  = styleDefault.Foreground(tcell.ColorLightPink)
 	// styleCenter  = styleDefault
 	styleReverse = styleDefault.Reverse(true)
 )
