@@ -1,24 +1,22 @@
 package dsp
 
-import (
-	"math"
-)
+import "math"
 
 // Waves comes from cava
 // https://github.com/karlstav/cava/blob/master/cava.c#L144
-func Waves(factor float64, ds *DataSet) {
+func Waves(buf []float64, count int, factor float64) {
 
-	for xPass := 0; xPass < ds.numBins; xPass++ {
-		ds.binBuf[xPass] /= factor
+	for xPass := 0; xPass < count; xPass++ {
+		buf[xPass] /= factor
 
 		for xBin := xPass - 1; xBin >= 0; xBin-- {
-			ds.binBuf[xBin] = math.Max(ds.binBuf[xPass]-
-				math.Pow(float64(xPass-xBin), 2), ds.binBuf[xBin])
+			buf[xBin] = math.Max(buf[xPass]-
+				math.Pow(float64(xPass-xBin), 2), buf[xBin])
 		}
 
-		for xBin := xPass + 1; xBin < ds.numBins; xBin++ {
-			ds.binBuf[xBin] = math.Max(ds.binBuf[xPass]-
-				math.Pow(float64(xBin-xPass), 2), ds.binBuf[xBin])
+		for xBin := xPass + 1; xBin < count; xBin++ {
+			buf[xBin] = math.Max(buf[xPass]-
+				math.Pow(float64(xBin-xPass), 2), buf[xBin])
 		}
 	}
 }

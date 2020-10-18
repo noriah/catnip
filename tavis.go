@@ -1,7 +1,9 @@
-package tavis
+package main
 
 import (
 	"context"
+	"fmt"
+	"log"
 	"os"
 	"os/signal"
 	"time"
@@ -9,7 +11,13 @@ import (
 	"github.com/noriah/tavis/display"
 	"github.com/noriah/tavis/dsp"
 	"github.com/noriah/tavis/input"
+
 	"github.com/pkg/errors"
+	"github.com/urfave/cli/v2"
+
+	// Input backends.
+	_ "github.com/noriah/tavis/input/ffmpeg"
+	_ "github.com/noriah/tavis/input/parec"
 )
 
 // Device is a temporary struct to define parameters
@@ -26,6 +34,8 @@ type Device struct {
 	HiCutFreq float64
 	// SmoothFactor factor of smooth
 	SmoothFactor float64
+	// BaseThick number of cells wide/high the base is
+	BaseThick int
 	// BarWidth is the width of bars, in columns
 	BarWidth int
 	// SpaceWidth is the width of spaces, in columns
@@ -34,24 +44,220 @@ type Device struct {
 	TargetFPS int
 	// ChannelCount is the number of channels we want to look at. DO NOT TOUCH
 	ChannelCount int
+	// MaxBins maximum number of bins
+	MaxBins int
 }
 
-// NewZeroDevice creates a new Device with the default variables.
-func NewZeroDevice() Device {
-	return Device{
+var (
+	device = Device{
 		SampleRate:   44100,
 		LoCutFreq:    20,
 		HiCutFreq:    22050,
-		SmoothFactor: 55.5,
+		SmoothFactor: 50.5,
+		BaseThick:    1,
 		BarWidth:     2,
 		SpaceWidth:   1,
 		TargetFPS:    60,
 		ChannelCount: 2,
+		MaxBins:      256,
+	}
+)
+
+func init() {
+	log.SetFlags(0)
+}
+
+func main() {
+	app := cli.App{
+		Name:   "tavis",
+		Usage:  "terminal audio visualizer",
+		Action: run,
+		Commands: []*cli.Command{
+			{
+				Name:        "list-backends",
+				Action:      listBackends,
+				Description: "List all available backends",
+			},
+			{
+				Name:        "list-devices",
+				Action:      listDevices,
+				Description: "List all visible input devices",
+			},
+		},
+		Flags: []cli.Flag{
+			&cli.StringFlag{
+				Name:    "backend",
+				Value:   "portaudio",
+				Aliases: []string{"b"},
+			},
+			&cli.StringFlag{
+				Name:    "device",
+				Aliases: []string{"d"},
+			},
+			&cli.Float64Flag{
+				Name:        "sample-rate",
+				Aliases:     []string{"r"},
+				Value:       device.SampleRate,
+				Destination: &device.SampleRate,
+			},
+			&cli.Float64Flag{
+				Name:        "low-cut-freq",
+				Aliases:     []string{"lf"},
+				Value:       device.LoCutFreq,
+				Destination: &device.LoCutFreq,
+			},
+			&cli.Float64Flag{
+				Name:        "high-cut-freq",
+				Aliases:     []string{"hf"},
+				Value:       device.HiCutFreq,
+				Destination: &device.HiCutFreq,
+			},
+			&cli.Float64Flag{
+				Name:        "smoothness-factor",
+				Aliases:     []string{"s"},
+				Value:       device.SmoothFactor,
+				Destination: &device.SmoothFactor,
+			},
+			&cli.IntFlag{
+				Name:        "base-thickness",
+				Aliases:     []string{"bt"},
+				Value:       device.BaseThick,
+				Destination: &device.BaseThick,
+			},
+			&cli.IntFlag{
+				Name:        "bar-width",
+				Aliases:     []string{"bw"},
+				Value:       device.BarWidth,
+				Destination: &device.BarWidth,
+			},
+			&cli.IntFlag{
+				Name:        "space-width",
+				Aliases:     []string{"sw"},
+				Value:       device.SpaceWidth,
+				Destination: &device.SpaceWidth,
+			},
+			&cli.IntFlag{
+				Name:        "target-fps",
+				Aliases:     []string{"f"},
+				Value:       device.TargetFPS,
+				Destination: &device.TargetFPS,
+			},
+			&cli.IntFlag{
+				Name:        "channel-count",
+				Aliases:     []string{"c"},
+				Hidden:      true,
+				Value:       device.ChannelCount,
+				Destination: &device.ChannelCount,
+			},
+			&cli.IntFlag{
+				Name:        "max-bins",
+				Aliases:     []string{"mb"},
+				Hidden:      true,
+				Value:       device.MaxBins,
+				Destination: &device.MaxBins,
+			},
+		},
+	}
+
+	if err := app.Run(os.Args); err != nil {
+		log.Fatalln("Error:", err)
 	}
 }
 
+func listBackends(c *cli.Context) error {
+	for _, backend := range input.Backends {
+		fmt.Printf("- %s\n", backend.Name)
+	}
+	return nil
+}
+
+func initBackend(c *cli.Context) error {
+	backendName := c.String("backend")
+
+	device.InputBackend = input.FindBackend(backendName)
+	if device.InputBackend == nil {
+		return fmt.Errorf("backend not found: %q", backendName)
+	}
+
+	if err := device.InputBackend.Init(); err != nil {
+		return errors.Wrap(err, "failed to initialize input backend")
+	}
+
+	return nil
+}
+
+func listDevices(c *cli.Context) error {
+	if err := initBackend(c); err != nil {
+		return err
+	}
+
+	devices, err := device.InputBackend.Devices()
+	if err != nil {
+		return errors.Wrap(err, "failed to get devices")
+	}
+
+	// optional default device
+	defaultDevice, _ := device.InputBackend.DefaultDevice()
+
+	for _, device := range devices {
+		fmt.Printf("- %v", device)
+
+		if defaultDevice != nil && device.String() == defaultDevice.String() {
+			fmt.Print(" (default)")
+		}
+
+		fmt.Println()
+	}
+
+	return nil
+}
+
+func initInputDevice(c *cli.Context) error {
+	deviceName := c.String("device")
+	if deviceName == "" {
+		def, err := device.InputBackend.DefaultDevice()
+		if err != nil {
+			return errors.Wrap(err, "failed to get default device")
+		}
+
+		device.InputDevice = def
+		return nil
+	}
+
+	devices, err := device.InputBackend.Devices()
+	if err != nil {
+		return errors.Wrap(err, "failed to get devices")
+	}
+
+	for _, d := range devices {
+		if d.String() == deviceName {
+			device.InputDevice = d
+			return nil
+		}
+	}
+
+	return fmt.Errorf("device %q not found; check list-devices", deviceName)
+}
+
+func run(c *cli.Context) error {
+	if err := initBackend(c); err != nil {
+		return err
+	}
+
+	if err := initInputDevice(c); err != nil {
+		return err
+	}
+
+	return visualize(device)
+}
+
+type channel struct {
+	bins *dsp.BinSet
+	n2s3 *dsp.N2S3State
+}
+
 // Run starts to draw the visualizer on the tcell Screen.
-func Run(d Device) error {
+func visualize(d Device) error {
 	var (
 		// SampleSize is the number of frames per channel we want per read
 		sampleSize = int(d.SampleRate / float64(d.TargetFPS))
@@ -81,7 +287,7 @@ func Run(d Device) error {
 	var barCount = display.SetWidths(d.BarWidth, d.SpaceWidth)
 
 	// Make a spectrum
-	var spectrum = dsp.NewSpectrum(d.SampleRate, sampleSize)
+	var spectrum = dsp.NewSpectrum(d.SampleRate, sampleSize, d.MaxBins)
 
 	// Set it up with our values
 	barCount = spectrum.Recalculate(barCount, d.LoCutFreq, d.HiCutFreq)
@@ -92,11 +298,18 @@ func Run(d Device) error {
 	defer source.Stop()
 
 	var bufs = source.SampleBuffers()
-	var sets = make([]*dsp.DataSet, d.ChannelCount)
-	var setBins = make([][]float64, d.ChannelCount)
-	for set := 0; set < d.ChannelCount; set++ {
-		sets[set] = spectrum.DataSet(bufs[set])
-		setBins[set] = sets[set].Bins()
+
+	var channels = make([]*channel, d.ChannelCount)
+
+	var chanBins = make([][]float64, d.ChannelCount)
+
+	for ch := 0; ch < d.ChannelCount; ch++ {
+		channels[ch] = &channel{
+			bins: spectrum.BinSet(bufs[ch]),
+			n2s3: dsp.NewN2S3State(d.MaxBins),
+		}
+
+		chanBins[ch] = channels[ch].bins.Bins()
 	}
 	var ctx, cancel = context.WithCancel(context.Background())
 	defer cancel()
@@ -138,14 +351,14 @@ func Run(d Device) error {
 			return errors.Wrap(err, "failed to read audio input")
 		}
 
-		for set := 0; set < d.ChannelCount; set++ {
-			spectrum.Generate(sets[set])
+		for _, chanl := range channels {
+			spectrum.Generate(chanl.bins)
 
 			// nora's not so special smoother (n2s3)
-			dsp.N2S3(setBins[set], barCount, sets[set].N2S3State, d.SmoothFactor)
+			dsp.N2S3(chanl.bins.Bins(), barCount, chanl.n2s3, d.SmoothFactor)
 
 		}
 
-		display.Draw(1, 1, barCount, setBins...)
+		display.Draw(d.BaseThick, 1, barCount, chanBins...)
 	}
 }

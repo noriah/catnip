@@ -21,7 +21,9 @@ const FFTW = true
 
 // Plan holds an FFTW C plan
 type Plan struct {
-	cPlan C.fftw_plan
+	input  []float64
+	output []complex128
+	cPlan  C.fftw_plan
 }
 
 // Execute runs the plan
@@ -36,12 +38,16 @@ func (p *Plan) destroy() {
 
 // NewPlan returns a new FFTW Plan for use with FFTW
 func NewPlan(in []float64, out []complex128, n int) *Plan {
-	plan := &Plan{C.fftw_plan_dft_r2c_1d(
-		C.int(n),
-		(*C.double)(unsafe.Pointer(&in[0])),
-		(*C.fftw_complex)(unsafe.Pointer(&out[0])),
-		C.FFTW_ESTIMATE,
-	)}
+	plan := &Plan{
+		input:  in,
+		output: out,
+		cPlan: C.fftw_plan_dft_r2c_1d(
+			C.int(n),
+			(*C.double)(unsafe.Pointer(&in[0])),
+			(*C.fftw_complex)(unsafe.Pointer(&out[0])),
+			C.FFTW_ESTIMATE,
+		),
+	}
 
 	// Rely on the runtime to free memory.
 	runtime.SetFinalizer(plan, (*Plan).destroy)
