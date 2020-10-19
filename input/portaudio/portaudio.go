@@ -153,10 +153,8 @@ func (s *Session) Read(ctx context.Context) error {
 
 	err := s.stream.Read()
 
-	for xBuf := range s.retBufs {
-		for xSmpl := range s.retBufs[xBuf] {
-			s.retBufs[xBuf][xSmpl] = input.Sample(s.sampleBuf[(xSmpl*s.config.FrameSize)+xBuf])
-		}
+	for i, v := range s.sampleBuf {
+		s.retBufs[i%s.config.FrameSize][i/s.config.FrameSize] = float64(v)
 	}
 
 	if err != portaudio.InputOverflowed {

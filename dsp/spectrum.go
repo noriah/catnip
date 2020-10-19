@@ -6,6 +6,23 @@ import (
 	"github.com/noriah/tavis/fft"
 )
 
+// BinSet represents a stream of data
+type BinSet struct {
+	count  int
+	buffer []float64
+	plan   *fft.Plan
+}
+
+// Bins returns the bins that we have as a silce
+func (bs *BinSet) Bins() []float64 {
+	return bs.buffer
+}
+
+// Len returns the number of bins we have processed
+func (bs *BinSet) Len() int {
+	return bs.count
+}
+
 // Spectrum is an audio spectrum in a buffer
 type Spectrum struct {
 	maxBins int
@@ -22,6 +39,8 @@ type Spectrum struct {
 
 	loCuts []int
 	hiCuts []int
+
+	eqBins []float64
 }
 
 // NewSpectrum will set up our spectrum
@@ -36,23 +55,21 @@ func NewSpectrum(hz float64, size, max int) *Spectrum {
 		fftBuf:     make([]complex128, fftSize),
 		sampleSize: size,
 		sampleRate: hz,
+		loCuts:     make([]int, max+1),
+		hiCuts:     make([]int, max+1),
+		eqBins:     make([]float64, max+1),
 	}
 
-	sp.loCuts = make([]int, sp.maxBins+1)
-	sp.hiCuts = make([]int, sp.maxBins+1)
-
-	sp.Recalculate(sp.maxBins, 1, sp.sampleRate/2)
+	sp.Recalculate(max, 1, sp.sampleRate/2)
 
 	return sp
 }
 
 // BinSet reurns a new data set with settings matching this spectrum
 func (sp *Spectrum) BinSet(input []float64) *BinSet {
-
 	return &BinSet{
-		count:  sp.maxBins,
 		buffer: make([]float64, sp.maxBins),
-		plan:   fft.NewPlan(input, sp.fftBuf, sp.sampleSize),
+		plan:   fft.NewPlan(input, sp.fftBuf),
 	}
 }
 
@@ -69,62 +86,65 @@ func (sp *Spectrum) Recalculate(bins int, lo, hi float64) int {
 
 	var cBins = float64(bins + 1)
 
-	var cScale = (float64(sp.sampleSize) / 4) / (sp.sampleRate / 2)
+	var cNyquist = (float64(sp.sampleSize) / 4) / (sp.sampleRate / 2)
+
+	var cCoef = 100.0 / float64(bins)
 
 	var cF = math.Log10(lo/hi) / ((1 / cBins) - 1)
 
 	// so this came from dpayne/cli-visualizer
 	// until i can find a different solution
-	for xBin := 0; xBin <= bins; xBin++ {
+	for xB := 0; xB <= bins; xB++ {
+		var fxB = float64(xB + 1)
 		// Fix issue where recalculations may not be accurate due to
 		// previous recalculations
-		sp.loCuts[xBin] = 0
-		sp.hiCuts[xBin] = 0
+		sp.loCuts[xB] = 0
+		sp.hiCuts[xB] = 0
 
-		vFreq := (((float64(xBin+1) / cBins) - 1) * cF)
-		vFreq = hi * math.Pow(10.0, vFreq)
-		vFreq = vFreq * cScale
+		var vFreq = (fxB / (cBins * cF)) - cF
+		vFreq = hi * math.Pow(10.0, vFreq) * cNyquist
 
-		sp.loCuts[xBin] = int(vFreq)
+		sp.loCuts[xB] = int(vFreq)
 
-		if xBin > 0 {
-			if sp.loCuts[xBin] <= sp.loCuts[xBin-1] {
-				sp.loCuts[xBin] = sp.loCuts[xBin-1] + 1
+		if xB > 0 {
+			if sp.loCuts[xB] <= sp.loCuts[xB-1] {
+				sp.loCuts[xB] = sp.loCuts[xB-1] + 1
 			}
 
 			// previous high cutoffs are equal to previous low cuttoffs?
-			sp.hiCuts[xBin-1] = sp.loCuts[xBin-1]
+			sp.hiCuts[xB-1] = sp.loCuts[xB-1]
+
+			if sp.hiCuts[xB-1] >= sp.fftSize {
+				sp.hiCuts[xB-1] = sp.fftSize - 1
+			}
+
+			var diff = sp.hiCuts[xB-1] - sp.loCuts[xB-1] + 1
+
+			sp.eqBins[xB-1] = (math.Log2(fxB) * cCoef) / float64(diff)
 		}
 	}
 
-	return sp.numBins
+	return bins
 }
 
 // Generate makes numBins and dumps them in the buffer
 func (sp *Spectrum) Generate(bs *BinSet) {
 
-	bs.plan.Execute()
-
 	bs.count = sp.numBins
 
-	var cCoef = 100.0 / float64(bs.count)
+	bs.plan.Execute()
 
-	for xBin := 0; xBin < bs.count; xBin++ {
+	for xB := 0; xB < bs.count; xB++ {
 
 		var vM = 0.0
-		var xF = sp.loCuts[xBin]
+		var xF = sp.loCuts[xB]
 
-		for xF <= sp.hiCuts[xBin] && xF >= 0 && xF < sp.fftSize {
+		for xF <= sp.hiCuts[xB] && xF >= 0 {
 			vM += pyt(sp.fftBuf[xF])
 			xF++
 		}
 
-		// divide bin sum by total frequencies included
-		vM /= float64(xF - sp.loCuts[xBin] + 1)
-
-		vM *= math.Log2(float64(xBin+2)) * cCoef
-
-		bs.buffer[xBin] = math.Pow(vM, 0.5)
+		bs.buffer[xB] = math.Pow(vM*sp.eqBins[xB], 0.5)
 	}
 }
 

@@ -15,11 +15,11 @@ type Plan struct {
 }
 
 // NewPlan creates a new gonum plan.
-func NewPlan(in []float64, out []complex128, n int) *Plan {
+func NewPlan(in []float64, out []complex128) *Plan {
 	return &Plan{
 		input:  in,
 		output: out,
-		fft:    fourier.NewFFT(n),
+		fft:    fourier.NewFFT(len(in)),
 	}
 }
 
