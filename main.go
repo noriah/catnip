@@ -207,5 +207,5 @@ func run(c *cli.Context) error {
 		return err
 	}
 
-	return tavis(globalCfg)
+	return Run(globalCfg)
 }

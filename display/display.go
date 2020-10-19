@@ -36,7 +36,7 @@ const (
 	ScalingSlowWindow = 5
 
 	// ScalingFastWindow in seconds
-	ScalingFastWindow = ScalingSlowWindow * 0.1
+	ScalingFastWindow = ScalingSlowWindow * 0.2
 
 	// ScalingDumpPercent is how much we erase on rescale
 	ScalingDumpPercent = 0.75
@@ -227,8 +227,6 @@ func (d *Display) Size() (int, int) {
 // Draw takes data and draws
 func (d *Display) Draw(bins [][]float64, count, bHeight int) error {
 
-	var delta = 1
-
 	var cSetCount = len(bins)
 
 	if cSetCount < 1 {
@@ -239,7 +237,7 @@ func (d *Display) Draw(bins [][]float64, count, bHeight int) error {
 		return errors.New("too many sets to draw")
 	}
 
-	var haveRight = cSetCount == 2
+	var cHaveRight = cSetCount == 2
 
 	// We dont keep track of the offset/width because we have to assume that
 	// the user changed the window, always. It is easier to do this now, and
@@ -254,7 +252,7 @@ func (d *Display) Draw(bins [][]float64, count, bHeight int) error {
 	var cOffset = (cPaddedWidth - cWidth) / 2
 
 	var height = cHeight
-	if haveRight {
+	if cHaveRight {
 		height /= 2
 	}
 
@@ -272,11 +270,11 @@ func (d *Display) Draw(bins [][]float64, count, bHeight int) error {
 		}
 	}
 
-	var scale = 1.0
 	var fHeight = float64(centerStart - 1)
+	var scale = fHeight
 
 	// do some scaling if we are above 0
-	if peak > 0 {
+	if peak > 0.0 {
 		d.fastWindow.Update(peak)
 		var vMean, vSD = d.slowWindow.Update(peak)
 
@@ -289,13 +287,12 @@ func (d *Display) Draw(bins [][]float64, count, bHeight int) error {
 		}
 
 		// value to scale by to make conditions easier to base on
-		scale = fHeight / math.Max(vMean+(1.5*vSD), 1)
-
-		if peak*scale > 1.6*fHeight {
+		if peak/math.Max(vMean+(1.5*vSD), 1) > 1.4 {
 			vMean, vSD = d.slowWindow.Drop(
 				int(float64(d.slowWindow.Len()) * ScalingDumpPercent))
-			scale = fHeight / math.Max(vMean+(1.5*vSD), 1)
 		}
+
+		scale = fHeight / math.Max(vMean+(1.5*vSD), 1)
 	}
 
 	// if DrawPaddingSpaces {
@@ -317,7 +314,7 @@ func (d *Display) Draw(bins [][]float64, count, bHeight int) error {
 		// Left Channel
 		var leftPart = int(math.Min(fHeight, bins[0][xBin]*scale) * NumRunes)
 
-		var startRow = centerStart - (((leftPart / NumRunes) + 1) * delta)
+		var startRow = centerStart - ((leftPart / NumRunes) + 1)
 
 		if startRow < 0 {
 			startRow = 0
@@ -330,9 +327,9 @@ func (d *Display) Draw(bins [][]float64, count, bHeight int) error {
 		// Right Channel
 		var rightPart = 0
 
-		if haveRight {
+		if cHaveRight {
 			rightPart = int(math.Min(fHeight, bins[1][xBin]*scale) * NumRunes)
-			lRow += (rightPart / NumRunes) * delta
+			lRow += (rightPart / NumRunes)
 			rightPart %= NumRunes
 		}
 
@@ -351,25 +348,25 @@ func (d *Display) Draw(bins [][]float64, count, bHeight int) error {
 					xCol, xRow, barRunes[0][leftPart], nil, styleDefault)
 			}
 
-			xRow += delta
+			xRow++
 
 			for xRow < centerStart {
 				d.screen.SetContent(xCol, xRow, DisplayBar, nil, styleDefault)
-				xRow += delta
+				xRow++
 			}
 
 			// center line
 			for xRow < centerStop {
 				d.screen.SetContent(xCol, xRow, DisplayBar, nil, styleCenter)
-				xRow += delta
+				xRow++
 			}
 
-			if haveRight {
+			if cHaveRight {
 
 				// right bars go down
 				for xRow < lRow {
 					d.screen.SetContent(xCol, xRow, DisplayBar, nil, styleDefault)
-					xRow += delta
+					xRow++
 				}
 
 				// last part of right bars.
