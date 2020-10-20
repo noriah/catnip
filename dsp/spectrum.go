@@ -74,9 +74,6 @@ func (sp *Spectrum) BinSet(input []float64) *BinSet {
 }
 
 // Recalculate rebuilds our frequency bins with bins bin counts
-//
-// reference: https://github.com/karlstav/cava/blob/master/cava.c#L654
-// reference: https://github.com/noriah/cli-visualizer/blob/master/src/Transformer/SpectrumTransformer.cpp#L598
 func (sp *Spectrum) Recalculate(bins int, lo, hi float64) int {
 	if bins > sp.maxBins {
 		bins = sp.maxBins
@@ -134,17 +131,14 @@ func (sp *Spectrum) Generate(bs *BinSet) {
 
 	bs.plan.Execute()
 
-	for xB := 0; xB < bs.count; xB++ {
+	for xB := 0; xB < sp.numBins; xB++ {
+		bs.buffer[xB] = 0.0
 
-		var vM = 0.0
-		var xF = sp.loCuts[xB]
-
-		for xF <= sp.hiCuts[xB] && xF >= 0 {
-			vM += pyt(sp.fftBuf[xF])
-			xF++
+		for xF := sp.loCuts[xB]; xF <= sp.hiCuts[xB] && xF >= 0; xF++ {
+			bs.buffer[xB] += pyt(sp.fftBuf[xF])
 		}
 
-		bs.buffer[xB] = math.Pow(vM*sp.eqBins[xB], 0.5)
+		bs.buffer[xB] = math.Pow(bs.buffer[xB]*sp.eqBins[xB], 0.5)
 	}
 }
 

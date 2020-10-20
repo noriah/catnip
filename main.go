@@ -102,6 +102,13 @@ func main() {
 				Destination: &globalCfg.TargetFPS,
 			},
 			&cli.IntFlag{
+				Name:        "draw-type",
+				Aliases:     []string{"dt"},
+				Hidden:      true,
+				Value:       globalCfg.DrawType,
+				Destination: &globalCfg.DrawType,
+			},
+			&cli.IntFlag{
 				Name:        "channel-count",
 				Aliases:     []string{"c"},
 				Hidden:      true,
