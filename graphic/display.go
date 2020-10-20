@@ -4,10 +4,11 @@ import (
 	"context"
 	"errors"
 	"math"
+	"sync/atomic"
 
 	"github.com/noriah/tavis/util"
 
-	"github.com/gdamore/tcell/v2"
+	"github.com/nsf/termbox-go"
 )
 
 const (
@@ -80,10 +81,11 @@ var (
 		},
 	}
 
-	styleDefault = tcell.StyleDefault.Foreground(tcell.ColorWhite)
-	styleCenter  = styleDefault.Foreground(tcell.ColorLightPink)
+	styleDefault     = termbox.ColorWhite
+	styleDefaultBack = termbox.ColorDefault
+	styleCenter      = termbox.ColorMagenta
 	// styleCenter  = styleDefault
-	styleReverse = styleDefault.Reverse(true)
+	styleReverse = termbox.AttrReverse
 )
 
 // Display handles drawing our visualizer
@@ -92,10 +94,12 @@ type Display struct {
 	spaceWidth int
 	binWidth   int
 
+	baseThick int
+
+	running uint32
+
 	slowWindow *util.MovingWindow
 	fastWindow *util.MovingWindow
-
-	screen tcell.Screen
 }
 
 // NewDisplay sets up a new display
@@ -103,18 +107,14 @@ type Display struct {
 // something to think about
 func NewDisplay(hz float64, samples int) *Display {
 
-	screen, err := tcell.NewScreen()
-
-	if err != nil {
+	if err := termbox.Init(); err != nil {
 		panic(err)
 	}
 
-	if err = screen.Init(); err != nil {
-		panic(err)
-	}
+	termbox.SetInputMode(termbox.InputAlt)
+	termbox.SetOutputMode(termbox.Output256)
 
-	screen.DisableMouse()
-	screen.HideCursor()
+	termbox.HideCursor()
 
 	slowMax := int((ScalingSlowWindow*hz)/float64(samples)) * 2
 	fastMax := int((ScalingFastWindow*hz)/float64(samples)) * 2
@@ -122,16 +122,17 @@ func NewDisplay(hz float64, samples int) *Display {
 	var d = &Display{
 		slowWindow: util.NewMovingWindow(slowMax),
 		fastWindow: util.NewMovingWindow(fastMax),
-		screen:     screen,
 	}
 
 	d.SetWidths(2, 1)
+	d.SetBase(1)
 
 	return d
 }
 
 // Start display is bad
 func (d *Display) Start(ctx context.Context) context.Context {
+
 	var dispCtx, dispCancel = context.WithCancel(ctx)
 	go eventPoller(dispCtx, dispCancel, d)
 	return dispCtx
@@ -142,6 +143,9 @@ func (d *Display) Start(ctx context.Context) context.Context {
 func eventPoller(ctx context.Context, fn context.CancelFunc, d *Display) {
 	defer fn()
 
+	atomic.StoreUint32(&d.running, 1)
+	defer atomic.StoreUint32(&d.running, 0)
+
 	for {
 		// first check if we need to exit
 		select {
@@ -150,56 +154,65 @@ func eventPoller(ctx context.Context, fn context.CancelFunc, d *Display) {
 		default:
 		}
 
-		var ev = d.screen.PollEvent()
-		if ev == nil {
-			return
-		}
+		var ev = termbox.PollEvent()
 
-		switch ev := ev.(type) {
-		case *tcell.EventKey:
-			switch ev.Key() {
-			case tcell.KeyRune:
-				switch ev.Rune() {
+		switch ev.Type {
+		case termbox.EventKey:
+			switch ev.Key {
+
+			case termbox.KeyArrowUp:
+				d.SetWidths(d.barWidth+1, d.spaceWidth)
+
+			case termbox.KeyArrowRight:
+				d.SetWidths(d.barWidth, d.spaceWidth+1)
+
+			case termbox.KeyArrowDown:
+				d.SetWidths(d.barWidth-1, d.spaceWidth)
+
+			case termbox.KeyArrowLeft:
+				d.SetWidths(d.barWidth, d.spaceWidth-1)
+
+			case termbox.KeyCtrlC:
+				return
+			default:
+
+				switch ev.Ch {
+				case '+', '=':
+					d.SetBase(d.baseThick + 1)
+
+				case '-', '_':
+					d.SetBase(d.baseThick - 1)
+
 				case 'q', 'Q':
 					return
 
 				default:
 
-				}
+				} // switch ev.Ch
 
-			case tcell.KeyCtrlC:
-				return
+			} // switch ev.Key
 
-			case tcell.KeyUp:
-				d.SetWidths(d.barWidth+1, d.spaceWidth)
-
-			case tcell.KeyRight:
-				d.SetWidths(d.barWidth, d.spaceWidth+1)
-
-			case tcell.KeyDown:
-				d.SetWidths(d.barWidth-1, d.spaceWidth)
-
-			case tcell.KeyLeft:
-				d.SetWidths(d.barWidth, d.spaceWidth-1)
-
-			default:
-
-			}
+		case termbox.EventInterrupt:
+			return
 
 		default:
 
-		}
+		} // switch ev.Type
 	}
 }
 
 // Stop display not work
 func (d *Display) Stop() error {
+	if atomic.CompareAndSwapUint32(&d.running, 1, 0) {
+		termbox.Interrupt()
+	}
+
 	return nil
 }
 
 // Close will stop display and clean up the terminal
 func (d *Display) Close() error {
-	d.screen.Fini()
+	termbox.Close()
 	return nil
 }
 
@@ -219,6 +232,15 @@ func (d *Display) SetWidths(bar, space int) {
 	d.binWidth = bar + space
 }
 
+// SetBase will set the base thickness
+func (d *Display) SetBase(thick int) {
+	if thick < 0 {
+		thick = 0
+	}
+
+	d.baseThick = thick
+}
+
 // Bars returns the number of bars we will draw
 func (d *Display) Bars(dt DrawType, sets ...int) int {
 	var x = 1
@@ -226,7 +248,7 @@ func (d *Display) Bars(dt DrawType, sets ...int) int {
 		x = sets[0]
 	}
 
-	var width, _ = d.screen.Size()
+	var width, _ = termbox.Size()
 
 	switch dt {
 	case DrawDefault, DrawUpDown:
@@ -240,7 +262,7 @@ func (d *Display) Bars(dt DrawType, sets ...int) int {
 
 // Size returns the width and height of the screen in bars and rows
 func (d *Display) Size(dt DrawType) (int, int) {
-	var _, height = d.screen.Size()
+	var _, height = termbox.Size()
 	return d.Bars(dt), height
 }
 
@@ -265,7 +287,7 @@ func (d *Display) updateWindow(peak float64, scale float64) float64 {
 }
 
 // Draw takes data and draws
-func (d *Display) Draw(bins [][]float64, count, thick int, dt DrawType) error {
+func (d *Display) Draw(bins [][]float64, count int, dt DrawType) error {
 
 	var cSetCount = len(bins)
 
@@ -277,24 +299,36 @@ func (d *Display) Draw(bins [][]float64, count, thick int, dt DrawType) error {
 		return errors.New("too many sets to draw")
 	}
 
+	var err error
+
 	switch dt {
-	case DrawUp:
-		return d.drawUp(bins, count, thick)
-	case DrawDefault, DrawUpDown:
-		return d.drawUpDown(bins, count, thick)
+	case DrawDefault, DrawUp:
+		err = d.drawUp(bins, count)
+	case DrawUpDown:
+		err = d.drawUpDown(bins, count)
 	case DrawDown:
-		return d.drawDown(bins, count, thick)
+		err = d.drawDown(bins, count)
 	default:
 		return nil
 	}
+
+	if err != nil {
+		return err
+	}
+
+	termbox.Flush()
+
+	termbox.Clear(termbox.ColorDefault, termbox.ColorDefault)
+
+	return nil
 }
 
 // DrawUp takes data and draws
-func (d *Display) drawUp(bins [][]float64, count, thick int) error {
+func (d *Display) drawUp(bins [][]float64, count int) error {
 	var cSetCount = len(bins)
 
-	var cWidth, cHeight = d.screen.Size()
-	cHeight -= thick
+	var cWidth, cHeight = termbox.Size()
+	cHeight -= d.baseThick
 
 	var cChanWidth = (d.binWidth * count) - d.spaceWidth
 	var cPaddedWidth = (d.binWidth * count * cSetCount) - d.spaceWidth
@@ -341,25 +375,25 @@ func (d *Display) drawUp(bins [][]float64, count, thick int) error {
 				lCol = xCol + d.barWidth
 			}
 
-			var xRow = cHeight + thick
+			var xRow = cHeight + d.baseThick
 
 			for xRow >= cHeight {
-				d.screen.SetContent(xCol, xRow,
-					DisplayBar, nil, styleCenter)
+				termbox.SetCell(xCol, xRow,
+					DisplayBar, styleCenter, styleDefaultBack)
 
 				xRow--
 			}
 
 			for xRow >= stop {
-				d.screen.SetContent(xCol, xRow,
-					DisplayBar, nil, styleDefault)
+				termbox.SetCell(xCol, xRow,
+					DisplayBar, styleDefault, styleDefaultBack)
 
 				xRow--
 			}
 
 			if top > 0 {
-				d.screen.SetContent(xCol, xRow,
-					barRunes[0][top], nil, styleDefault)
+				termbox.SetCell(xCol, xRow,
+					barRunes[0][top], styleDefault, styleDefaultBack)
 			}
 
 			xCol++
@@ -369,21 +403,17 @@ func (d *Display) drawUp(bins [][]float64, count, thick int) error {
 		delta = -delta
 	}
 
-	d.screen.Show()
-
-	d.screen.Clear()
-
 	return nil
 }
 
-func (d *Display) drawUpDown(bins [][]float64, count, thick int) error {
+func (d *Display) drawUpDown(bins [][]float64, count int) error {
 	var cSetCount = len(bins)
 	var cHaveRight = cSetCount == 2
 
 	// We dont keep track of the offset/width because we have to assume that
 	// the user changed the window, always. It is easier to do this now, and
 	// implement SIGWINCH handling later on (or not?)
-	var cWidth, cHeight = d.screen.Size()
+	var cWidth, cHeight = termbox.Size()
 
 	var cPaddedWidth = (d.binWidth * count) - d.spaceWidth
 
@@ -393,8 +423,8 @@ func (d *Display) drawUpDown(bins [][]float64, count, thick int) error {
 
 	var cOffset = (cWidth - cPaddedWidth) / 2
 
-	var centerStart = (cHeight - thick) / cSetCount
-	var centerStop = centerStart + thick
+	var centerStart = (cHeight - d.baseThick) / cSetCount
+	var centerStop = centerStart + d.baseThick
 
 	var peak = getPeak(bins, count)
 	var fHeight = float64(centerStart)
@@ -444,36 +474,36 @@ func (d *Display) drawUpDown(bins [][]float64, count, thick int) error {
 			var xRow = startRow
 
 			if leftTop > 0 {
-				d.screen.SetContent(xCol, xRow,
-					barRunes[0][leftTop], nil, styleDefault)
+				termbox.SetCell(xCol, xRow,
+					barRunes[0][leftTop], styleDefault, styleDefaultBack)
 				xRow++
 			}
 
 			for xRow < centerStart {
-				d.screen.SetContent(xCol, xRow,
-					DisplayBar, nil, styleDefault)
+				termbox.SetCell(xCol, xRow,
+					DisplayBar, styleDefault, styleDefaultBack)
 				xRow++
 			}
 
 			// center line
 			for xRow < centerStop {
-				d.screen.SetContent(xCol, xRow,
-					DisplayBar, nil, styleCenter)
+				termbox.SetCell(xCol, xRow,
+					DisplayBar, styleCenter, styleDefaultBack)
 				xRow++
 			}
 
 			if cHaveRight {
 				// right bars go down
 				for xRow < stopRow {
-					d.screen.SetContent(xCol, xRow,
-						DisplayBar, nil, styleDefault)
+					termbox.SetCell(xCol, xRow,
+						DisplayBar, styleDefault, styleDefaultBack)
 					xRow++
 				}
 
 				// last part of right bars.
 				if rightTop > 0 {
-					d.screen.SetContent(xCol, xRow,
-						barRunes[1][rightTop], nil, styleReverse)
+					termbox.SetCell(xCol, xRow,
+						barRunes[1][rightTop], styleReverse, styleDefault)
 				}
 			}
 
@@ -489,18 +519,14 @@ func (d *Display) drawUpDown(bins [][]float64, count, thick int) error {
 		xCol += d.spaceWidth
 	}
 
-	d.screen.Show()
-
-	d.screen.Clear()
-
 	return nil
 }
 
 // DrawUp takes data and draws
-func (d *Display) drawDown(bins [][]float64, count, thick int) error {
+func (d *Display) drawDown(bins [][]float64, count int) error {
 	var cSetCount = len(bins)
 
-	var cWidth, cHeight = d.screen.Size()
+	var cWidth, cHeight = termbox.Size()
 
 	var cChanWidth = (d.binWidth * count) - d.spaceWidth
 	var cPaddedWidth = (d.binWidth * count * cSetCount) - d.spaceWidth
@@ -508,12 +534,12 @@ func (d *Display) drawDown(bins [][]float64, count, thick int) error {
 
 	var peak = getPeak(bins, count)
 
-	var fHeight = float64(cHeight - thick)
+	var fHeight = float64(cHeight - d.baseThick)
 	var scale = d.updateWindow(peak, fHeight)
 
 	var calcStopAndTop = func(value float64) (stop int, top int) {
 		top = int(math.Min(fHeight, value*scale) * NumRunes)
-		stop = (top / NumRunes) + thick
+		stop = (top / NumRunes) + d.baseThick
 		top %= NumRunes
 
 		if stop > cHeight {
@@ -549,23 +575,23 @@ func (d *Display) drawDown(bins [][]float64, count, thick int) error {
 
 			var xRow = 0
 
-			for xRow < thick {
-				d.screen.SetContent(xCol, xRow,
-					DisplayBar, nil, styleCenter)
+			for xRow < d.baseThick {
+				termbox.SetCell(xCol, xRow,
+					DisplayBar, styleCenter, styleDefaultBack)
 
 				xRow++
 			}
 
 			for xRow < stop {
-				d.screen.SetContent(xCol, xRow,
-					DisplayBar, nil, styleDefault)
+				termbox.SetCell(xCol, xRow,
+					DisplayBar, styleDefault, styleDefaultBack)
 
 				xRow++
 			}
 
 			if top > 0 {
-				d.screen.SetContent(xCol, xRow,
-					barRunes[1][top], nil, styleReverse)
+				termbox.SetCell(xCol, xRow,
+					barRunes[1][top], styleReverse, styleDefault)
 			}
 
 			xCol++
@@ -574,10 +600,6 @@ func (d *Display) drawDown(bins [][]float64, count, thick int) error {
 		xCol += d.spaceWidth
 		delta = -delta
 	}
-
-	d.screen.Show()
-
-	d.screen.Clear()
 
 	return nil
 }
