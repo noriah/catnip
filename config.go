@@ -1,6 +1,9 @@
 package main
 
-import "github.com/noriah/tavis/input"
+import (
+	"github.com/noriah/tavis/graphic"
+	"github.com/noriah/tavis/input"
+)
 
 // Config is a temporary struct to define parameters
 type Config struct {
@@ -26,6 +29,8 @@ type Config struct {
 	SpaceWidth int
 	// TargetFPS is how fast we want to redraw. Play with it
 	TargetFPS int
+	// DrawType is the draw type
+	DrawType int
 	// ChannelCount is the number of channels we want to look at. DO NOT TOUCH
 	ChannelCount int
 	// MaxBins maximum number of bins
@@ -44,6 +49,7 @@ func NewZeroConfig() Config {
 		BarWidth:       2,
 		SpaceWidth:     1,
 		TargetFPS:      60,
+		DrawType:       int(graphic.DrawDefault),
 		ChannelCount:   2,
 		MaxBins:        256,
 	}

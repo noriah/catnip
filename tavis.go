@@ -6,8 +6,8 @@ import (
 	"os/signal"
 	"time"
 
-	"github.com/noriah/tavis/display"
 	"github.com/noriah/tavis/dsp"
+	"github.com/noriah/tavis/graphic"
 	"github.com/noriah/tavis/input"
 
 	"github.com/pkg/errors"
@@ -30,6 +30,9 @@ func Run(cfg Config) error {
 	// DrawDelay is the time we wait between ticks to draw.
 	var drawDelay = time.Second / time.Duration(cfg.TargetFPS)
 
+	// Draw type
+	var drawType = graphic.DrawType(cfg.DrawType)
+
 	var audio, err = cfg.InputBackend.Start(input.SessionConfig{
 		Device:     cfg.InputDevice,
 		FrameSize:  cfg.ChannelCount,
@@ -41,10 +44,12 @@ func Run(cfg Config) error {
 		return errors.Wrap(err, "failed to start the input backend")
 	}
 
-	var display = display.New(cfg.SampleRate, sampleSize)
+	var display = graphic.New(cfg.SampleRate, sampleSize)
 	defer display.Close()
 
-	var barCount = display.SetWidths(cfg.BarWidth, cfg.SpaceWidth)
+	display.SetWidths(cfg.BarWidth, cfg.SpaceWidth)
+
+	var barCount = display.Bars(drawType)
 
 	// Make a spectrum
 	var spectrum = dsp.NewSpectrum(cfg.SampleRate, sampleSize, cfg.MaxBins)
@@ -97,7 +102,7 @@ func Run(cfg Config) error {
 
 		tick = time.Now()
 
-		var winWidth = display.Bars()
+		var winWidth = display.Bars(drawType, cfg.ChannelCount)
 
 		if barCount != winWidth {
 			barCount = winWidth
@@ -120,7 +125,7 @@ func Run(cfg Config) error {
 				channels[ch].n2s3, cfg.SmoothFactor, cfg.SmoothResponse)
 		}
 
-		display.Draw(chanBins, barCount, cfg.BaseThick)
+		display.Draw(chanBins, barCount, cfg.BaseThick, drawType)
 	}
 }
 
