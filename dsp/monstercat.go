@@ -2,7 +2,7 @@ package dsp
 
 import "math"
 
-// Monstercat does monstercat smoothing
+// Monstercat does monstercat "smoothing"
 // https://github.com/karlstav/cava/blob/master/cava.c#L157
 func Monstercat(bins []float64, count int, factor float64) {
 

@@ -44,7 +44,7 @@ func Run(cfg Config) error {
 		return errors.Wrap(err, "failed to start the input backend")
 	}
 
-	var display = graphic.New(cfg.SampleRate, sampleSize)
+	var display = graphic.NewDisplay(cfg.SampleRate, sampleSize)
 	defer display.Close()
 
 	display.SetWidths(cfg.BarWidth, cfg.SpaceWidth)
@@ -75,7 +75,7 @@ func Run(cfg Config) error {
 	var dispCtx = display.Start(ctx)
 	defer display.Stop()
 
-	var endSig = make(chan os.Signal, 1)
+	var endSig = make(chan os.Signal, 2)
 	signal.Notify(endSig, os.Interrupt)
 
 	if err := audio.Start(); err != nil {
@@ -123,6 +123,8 @@ func Run(cfg Config) error {
 			// nora's not so special smoother (n2s3)
 			dsp.N2S3(chanBins[ch], barCount,
 				channels[ch].n2s3, cfg.SmoothFactor, cfg.SmoothResponse)
+			dsp.Monstercat(chanBins[ch], barCount, 1.95)
+
 		}
 
 		display.Draw(chanBins, barCount, cfg.BaseThick, drawType)
@@ -141,8 +143,8 @@ func sanitizeConfig(cfg *Config) error {
 	}
 
 	switch {
-	case cfg.SmoothResponse < 0.1:
-		cfg.SmoothResponse = 0.1
+	case cfg.SmoothResponse < 0.01:
+		cfg.SmoothResponse = 0.01
 	default:
 	}
 

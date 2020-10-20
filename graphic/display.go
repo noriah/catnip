@@ -98,10 +98,10 @@ type Display struct {
 	screen tcell.Screen
 }
 
-// New sets up the display
+// NewDisplay sets up a new display
 // should we panic or return an error as well?
 // something to think about
-func New(hz float64, samples int) *Display {
+func NewDisplay(hz float64, samples int) *Display {
 
 	screen, err := tcell.NewScreen()
 
@@ -256,12 +256,6 @@ func (d *Display) updateWindow(peak float64, scale float64) float64 {
 				vMean, vSD = d.slowWindow.Drop(
 					int(float64(length) * ScalingDumpPercent))
 			}
-		}
-
-		// value to scale by to make conditions easier to base on
-		if peak/math.Max(vMean+(1.5*vSD), 1) > 1.4 {
-			vMean, vSD = d.slowWindow.Drop(
-				int(float64(d.slowWindow.Len()) * ScalingDumpPercent))
 		}
 
 		scale /= math.Max(vMean+(1.5*vSD), 1)
