@@ -132,13 +132,13 @@ func (sp *Spectrum) Generate(bs *BinSet) {
 	bs.plan.Execute()
 
 	for xB := 0; xB < sp.numBins; xB++ {
-		bs.buffer[xB] = 0.0
+		var mag = 0.0
 
 		for xF := sp.loCuts[xB]; xF <= sp.hiCuts[xB] && xF >= 0; xF++ {
-			bs.buffer[xB] += pyt(sp.fftBuf[xF])
+			mag += pyt(sp.fftBuf[xF])
 		}
 
-		bs.buffer[xB] = math.Pow(bs.buffer[xB]*sp.eqBins[xB], 0.5)
+		bs.buffer[xB] = math.Pow(mag*sp.eqBins[xB], 0.5)
 	}
 }
 

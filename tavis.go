@@ -48,6 +48,7 @@ func Run(cfg Config) error {
 	defer display.Close()
 
 	display.SetWidths(cfg.BarWidth, cfg.SpaceWidth)
+	display.SetBase(cfg.BaseThick)
 
 	var barCount = display.Bars(drawType)
 
@@ -123,11 +124,12 @@ func Run(cfg Config) error {
 			// nora's not so special smoother (n2s3)
 			dsp.N2S3(chanBins[ch], barCount,
 				channels[ch].n2s3, cfg.SmoothFactor, cfg.SmoothResponse)
-			dsp.Monstercat(chanBins[ch], barCount, 1.95)
+
+			// dsp.Monstercat(chanBins[ch], barCount, 1.95)
 
 		}
 
-		display.Draw(chanBins, barCount, cfg.BaseThick, drawType)
+		display.Draw(chanBins, barCount, drawType)
 	}
 }
 
