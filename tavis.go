@@ -50,7 +50,7 @@ func Run(cfg Config) error {
 	display.SetWidths(cfg.BarWidth, cfg.SpaceWidth)
 	display.SetBase(cfg.BaseThick)
 
-	var barCount = display.Bars(drawType)
+	var barCount = display.Bars(drawType, cfg.ChannelCount)
 
 	// Make a spectrum
 	var spectrum = dsp.NewSpectrum(cfg.SampleRate, sampleSize, cfg.MaxBins)

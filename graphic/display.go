@@ -289,14 +289,10 @@ func (d *Display) updateWindow(peak float64, scale float64) float64 {
 // Draw takes data and draws
 func (d *Display) Draw(bins [][]float64, count int, dt DrawType) error {
 
-	var cSetCount = len(bins)
-
-	if cSetCount < 1 {
-		return errors.New("not enough sets to draw")
-	}
-
-	if cSetCount > 2 {
-		return errors.New("too many sets to draw")
+	switch len(bins) {
+	case 1, 2:
+	default:
+		return errors.New("bad number of sets to draw")
 	}
 
 	var err error
@@ -325,23 +321,21 @@ func (d *Display) Draw(bins [][]float64, count int, dt DrawType) error {
 
 // DrawUp takes data and draws
 func (d *Display) drawUp(bins [][]float64, count int) error {
-	var cSetCount = len(bins)
-
 	var cWidth, cHeight = termbox.Size()
-	cHeight -= d.baseThick
 
-	var cChanWidth = (d.binWidth * count) - d.spaceWidth
-	var cPaddedWidth = (d.binWidth * count * cSetCount) - d.spaceWidth
-	var cOffset = (cWidth - cPaddedWidth) / 2
+	var vHeight = cHeight - d.baseThick
 
-	var peak = getPeak(bins, count)
+	var fHeight = float64(vHeight)
 
-	var fHeight = float64(cHeight)
-	var scale = d.updateWindow(peak, fHeight)
+	var scale = d.updateWindow(getPeak(bins, count), fHeight)
 
 	var calcStopAndTop = func(value float64) (stop int, top int) {
-		top = int(math.Min(fHeight, value*scale) * NumRunes)
-		stop = cHeight - (top / NumRunes)
+		if value *= scale; value < float64(vHeight) {
+			top = int(value * NumRunes)
+		} else {
+			top = vHeight * NumRunes
+		}
+		stop = vHeight - (top / NumRunes)
 		top %= NumRunes
 
 		if stop < 0 {
@@ -353,14 +347,21 @@ func (d *Display) drawUp(bins [][]float64, count int) error {
 	}
 
 	var xBin int
-	var xCol = cOffset
+
+	var cPaddedWidth = (d.binWidth * count * len(bins)) - d.spaceWidth
+
+	if cPaddedWidth > cWidth || cPaddedWidth < 0 {
+		cPaddedWidth = cWidth
+	}
+
+	var xCol = (cWidth - cPaddedWidth) / 2
 	var delta = 1
 
 	for xCh := range bins {
 		var stop, top = calcStopAndTop(bins[xCh][xBin])
 
 		var lCol = xCol + d.barWidth
-		var lColMax = xCol + cChanWidth
+		var lColMax = xCol + (d.binWidth * count) - d.spaceWidth
 
 		for xCol < lColMax {
 
@@ -375,9 +376,9 @@ func (d *Display) drawUp(bins [][]float64, count int) error {
 				lCol = xCol + d.barWidth
 			}
 
-			var xRow = cHeight + d.baseThick
+			var xRow = cHeight
 
-			for xRow >= cHeight {
+			for xRow >= vHeight {
 				termbox.SetCell(xCol, xRow,
 					DisplayBar, styleCenter, styleDefaultBack)
 
