@@ -53,17 +53,11 @@ func main() {
 				Value:       globalCfg.SampleRate,
 				Destination: &globalCfg.SampleRate,
 			},
-			&cli.Float64Flag{
-				Name:        "low-cut-freq",
-				Aliases:     []string{"lf"},
-				Value:       globalCfg.LoCutFreq,
-				Destination: &globalCfg.LoCutFreq,
-			},
-			&cli.Float64Flag{
-				Name:        "high-cut-freq",
-				Aliases:     []string{"hf"},
-				Value:       globalCfg.HiCutFreq,
-				Destination: &globalCfg.HiCutFreq,
+			&cli.IntFlag{
+				Name:        "sample-size",
+				Aliases:     []string{"f"},
+				Value:       globalCfg.SampleSize,
+				Destination: &globalCfg.SampleSize,
 			},
 			&cli.Float64Flag{
 				Name:        "smoothness-factor",
@@ -96,15 +90,8 @@ func main() {
 				Destination: &globalCfg.SpaceWidth,
 			},
 			&cli.IntFlag{
-				Name:        "target-fps",
-				Aliases:     []string{"f"},
-				Value:       globalCfg.TargetFPS,
-				Destination: &globalCfg.TargetFPS,
-			},
-			&cli.IntFlag{
 				Name:        "draw-type",
 				Aliases:     []string{"dt"},
-				Hidden:      true,
 				Value:       globalCfg.DrawType,
 				Destination: &globalCfg.DrawType,
 			},
@@ -114,13 +101,6 @@ func main() {
 				Hidden:      true,
 				Value:       globalCfg.ChannelCount,
 				Destination: &globalCfg.ChannelCount,
-			},
-			&cli.IntFlag{
-				Name:        "max-bins",
-				Aliases:     []string{"mb"},
-				Hidden:      true,
-				Value:       globalCfg.MaxBins,
-				Destination: &globalCfg.MaxBins,
 			},
 		},
 	}

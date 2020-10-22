@@ -27,30 +27,45 @@ type Config struct {
 	BarWidth int
 	// SpaceWidth is the width of spaces, in columns
 	SpaceWidth int
-	// TargetFPS is how fast we want to redraw. Play with it
-	TargetFPS int
+	// SampleSize is how much we draw. Play with it
+	SampleSize int
 	// DrawType is the draw type
 	DrawType int
 	// ChannelCount is the number of channels we want to look at. DO NOT TOUCH
 	ChannelCount int
-	// MaxBins maximum number of bins
-	MaxBins int
 }
 
 // NewZeroConfig returns a zero config
 func NewZeroConfig() Config {
 	return Config{
 		SampleRate:     44100,
-		LoCutFreq:      20,
-		HiCutFreq:      22050,
 		SmoothFactor:   52.5,
 		SmoothResponse: 43.5,
 		BaseThick:      1,
 		BarWidth:       2,
 		SpaceWidth:     1,
-		TargetFPS:      60,
+		SampleSize:     1024,
 		DrawType:       int(graphic.DrawDefault),
 		ChannelCount:   2,
-		MaxBins:        256,
 	}
+}
+
+func sanitizeConfig(cfg *Config) error {
+
+	switch {
+	case cfg.SmoothFactor > 100.0:
+		cfg.SmoothFactor = 1.0
+	case cfg.SmoothFactor <= 0.0:
+		cfg.SmoothFactor = 0.00001
+	default:
+		cfg.SmoothFactor /= 100.0
+	}
+
+	switch {
+	case cfg.SmoothResponse < 0.01:
+		cfg.SmoothResponse = 0.01
+	default:
+	}
+
+	return nil
 }

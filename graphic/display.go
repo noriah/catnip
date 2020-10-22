@@ -22,9 +22,6 @@ const (
 	// DrawPaddingSpaces do we draw the outside padded spacing?
 	DrawPaddingSpaces = false
 
-	// DisplayBar is the block we use for bars
-	DisplayBar rune = '\u2588'
-
 	// DisplaySpace is the block we use for space (if we were to print one)
 	DisplaySpace rune = '\u0020'
 
@@ -51,52 +48,45 @@ type DrawType int
 
 // Draw Types
 const (
-	DrawDefault DrawType = iota
+	DrawMin DrawType = iota
 	DrawUp
 	DrawUpDown
 	DrawDown
+	DrawMax
 )
 
-var (
-	barRunes = [2][NumRunes]rune{
-		{
-			DisplaySpace,
-			'\u2581',
-			'\u2582',
-			'\u2583',
-			'\u2584',
-			'\u2585',
-			'\u2586',
-			'\u2587',
-		},
-		{
-			DisplayBar,
-			'\u2587',
-			'\u2586',
-			'\u2585',
-			'\u2584',
-			'\u2583',
-			'\u2582',
-			'\u2581',
-		},
-	}
+// DrawDefault is the default draw type
+const DrawDefault = DrawUpDown
 
-	styleDefault     = termbox.ColorWhite
-	styleDefaultBack = termbox.ColorDefault
-	styleCenter      = termbox.ColorMagenta
-	// styleCenter  = styleDefault
-	styleReverse = termbox.AttrReverse
+// Bar runes
+const (
+	BarRuneR = '\u2580'
+	BarRune  = '\u2588'
 )
+
+// Temp styles
+const (
+	StyleDefault     = termbox.ColorDefault
+	StyleDefaultBack = termbox.ColorDefault
+	StyleCenter      = termbox.ColorMagenta
+	// StyleCenter  = StyleDefault
+	StyleReverse = termbox.AttrReverse
+)
+
+// Config is a Display Config Object
+type Config struct {
+	BarWidth   int
+	SpaceWidth int
+	BinWidth   int
+	BaseThick  int
+	DrawType   DrawType
+}
 
 // Display handles drawing our visualizer
 type Display struct {
-	barWidth   int
-	spaceWidth int
-	binWidth   int
-
-	baseThick int
-
 	running uint32
+
+	cfg Config
 
 	slowWindow *util.MovingWindow
 	fastWindow *util.MovingWindow
@@ -122,10 +112,14 @@ func NewDisplay(hz float64, samples int) *Display {
 	var d = &Display{
 		slowWindow: util.NewMovingWindow(slowMax),
 		fastWindow: util.NewMovingWindow(fastMax),
+		cfg: Config{
+			BarWidth:   2,
+			SpaceWidth: 1,
+			BinWidth:   3,
+			BaseThick:  1,
+			DrawType:   DrawDefault,
+		},
 	}
-
-	d.SetWidths(2, 1)
-	d.SetBase(1)
 
 	return d
 }
@@ -161,16 +155,19 @@ func eventPoller(ctx context.Context, fn context.CancelFunc, d *Display) {
 			switch ev.Key {
 
 			case termbox.KeyArrowUp:
-				d.SetWidths(d.barWidth+1, d.spaceWidth)
+				d.SetWidths(d.cfg.BarWidth+1, d.cfg.SpaceWidth)
 
 			case termbox.KeyArrowRight:
-				d.SetWidths(d.barWidth, d.spaceWidth+1)
+				d.SetWidths(d.cfg.BarWidth, d.cfg.SpaceWidth+1)
 
 			case termbox.KeyArrowDown:
-				d.SetWidths(d.barWidth-1, d.spaceWidth)
+				d.SetWidths(d.cfg.BarWidth-1, d.cfg.SpaceWidth)
 
 			case termbox.KeyArrowLeft:
-				d.SetWidths(d.barWidth, d.spaceWidth-1)
+				d.SetWidths(d.cfg.BarWidth, d.cfg.SpaceWidth-1)
+
+			case termbox.KeySpace:
+				d.SetDrawType(d.cfg.DrawType + 1)
 
 			case termbox.KeyCtrlC:
 				return
@@ -178,10 +175,10 @@ func eventPoller(ctx context.Context, fn context.CancelFunc, d *Display) {
 
 				switch ev.Ch {
 				case '+', '=':
-					d.SetBase(d.baseThick + 1)
+					d.SetBase(d.cfg.BaseThick + 1)
 
 				case '-', '_':
-					d.SetBase(d.baseThick - 1)
+					d.SetBase(d.cfg.BaseThick - 1)
 
 				case 'q', 'Q':
 					return
@@ -227,9 +224,9 @@ func (d *Display) SetWidths(bar, space int) {
 		space = 0
 	}
 
-	d.barWidth = bar
-	d.spaceWidth = space
-	d.binWidth = bar + space
+	d.cfg.BarWidth = bar
+	d.cfg.SpaceWidth = space
+	d.cfg.BinWidth = bar + space
 }
 
 // SetBase will set the base thickness
@@ -238,11 +235,23 @@ func (d *Display) SetBase(thick int) {
 		thick = 0
 	}
 
-	d.baseThick = thick
+	d.cfg.BaseThick = thick
+}
+
+// SetDrawType sets the draw type for future draws
+func (d *Display) SetDrawType(dt DrawType) {
+	switch {
+	case dt <= DrawMin:
+		dt = DrawMax - 1
+	case dt >= DrawMax:
+		dt = DrawMin + 1
+	}
+
+	d.cfg.DrawType = dt
 }
 
 // Bars returns the number of bars we will draw
-func (d *Display) Bars(dt DrawType, sets ...int) int {
+func (d *Display) Bars(sets ...int) int {
 	var x = 1
 	if len(sets) > 0 {
 		x = sets[0]
@@ -250,23 +259,17 @@ func (d *Display) Bars(dt DrawType, sets ...int) int {
 
 	var width, _ = termbox.Size()
 
-	switch dt {
-	case DrawDefault, DrawUpDown:
-		return width / d.binWidth
+	switch d.cfg.DrawType {
+	case DrawUpDown:
+		return width / d.cfg.BinWidth
 	case DrawUp, DrawDown:
-		return (width / d.binWidth) / x
+		return (width / d.cfg.BinWidth) / x
 	default:
 		return -1
 	}
 }
 
-// Size returns the width and height of the screen in bars and rows
-func (d *Display) Size(dt DrawType) (int, int) {
-	var _, height = termbox.Size()
-	return d.Bars(dt), height
-}
-
-func (d *Display) updateWindow(peak float64, scale float64) float64 {
+func (d *Display) updateWindow(peak float64) float64 {
 	// do some scaling if we are above 0
 	if peak > 0.0 {
 		d.fastWindow.Update(peak)
@@ -280,14 +283,14 @@ func (d *Display) updateWindow(peak float64, scale float64) float64 {
 			}
 		}
 
-		scale /= math.Max(vMean+(1.5*vSD), 1)
+		return math.Max(vMean+(2.5*vSD), 1.0)
 	}
 
-	return scale
+	return 1
 }
 
 // Draw takes data and draws
-func (d *Display) Draw(bins [][]float64, count int, dt DrawType) error {
+func (d *Display) Draw(bins [][]float64, count int) error {
 
 	switch len(bins) {
 	case 1, 2:
@@ -295,15 +298,27 @@ func (d *Display) Draw(bins [][]float64, count int, dt DrawType) error {
 		return errors.New("bad number of sets to draw")
 	}
 
+	var peak = 0.0
+
+	for xSet := 0; xSet < len(bins); xSet++ {
+		for xBin := 0; xBin < count; xBin++ {
+			if peak < bins[xSet][xBin] {
+				peak = bins[xSet][xBin]
+			}
+		}
+	}
+
+	var scale = d.updateWindow(peak)
+
 	var err error
 
-	switch dt {
-	case DrawDefault, DrawUp:
-		err = d.drawUp(bins, count)
+	switch d.cfg.DrawType {
+	case DrawUp:
+		err = drawUp(bins, count, d.cfg, scale)
 	case DrawUpDown:
-		err = d.drawUpDown(bins, count)
+		err = drawUpDown(bins, count, d.cfg, scale)
 	case DrawDown:
-		err = d.drawDown(bins, count)
+		err = drawDown(bins, count, d.cfg, scale)
 	default:
 		return nil
 	}
@@ -319,302 +334,24 @@ func (d *Display) Draw(bins [][]float64, count int, dt DrawType) error {
 	return nil
 }
 
-// DrawUp takes data and draws
-func (d *Display) drawUp(bins [][]float64, count int) error {
-	var cWidth, cHeight = termbox.Size()
+func stopAndTop(value float64, height int, up bool) (int, rune) {
+	if stop := int(value * NumRunes); stop < height*NumRunes {
+		if up {
+			top := BarRuneR + rune(stop%NumRunes)
+			stop = height - (stop / NumRunes)
 
-	var vHeight = cHeight - d.baseThick
-
-	var fHeight = float64(vHeight)
-
-	var scale = d.updateWindow(getPeak(bins, count), fHeight)
-
-	var calcStopAndTop = func(value float64) (stop int, top int) {
-		if value *= scale; value < float64(vHeight) {
-			top = int(value * NumRunes)
-		} else {
-			top = vHeight * NumRunes
-		}
-		stop = vHeight - (top / NumRunes)
-		top %= NumRunes
-
-		if stop < 0 {
-			stop = 0
-			top = 0
+			return stop, top
 		}
 
-		return
+		top := BarRune - rune(stop%NumRunes)
+		stop /= NumRunes
+
+		return stop, top
 	}
 
-	var xBin int
-
-	var cPaddedWidth = (d.binWidth * count * len(bins)) - d.spaceWidth
-
-	if cPaddedWidth > cWidth || cPaddedWidth < 0 {
-		cPaddedWidth = cWidth
+	if up {
+		return 0, BarRune
 	}
 
-	var xCol = (cWidth - cPaddedWidth) / 2
-	var delta = 1
-
-	for xCh := range bins {
-		var stop, top = calcStopAndTop(bins[xCh][xBin])
-
-		var lCol = xCol + d.barWidth
-		var lColMax = xCol + (d.binWidth * count) - d.spaceWidth
-
-		for xCol < lColMax {
-
-			if xCol >= lCol {
-				if xBin += delta; xBin >= count || xBin < 0 {
-					break
-				}
-
-				stop, top = calcStopAndTop(bins[xCh][xBin])
-
-				xCol += d.spaceWidth
-				lCol = xCol + d.barWidth
-			}
-
-			var xRow = cHeight
-
-			for xRow >= vHeight {
-				termbox.SetCell(xCol, xRow,
-					DisplayBar, styleCenter, styleDefaultBack)
-
-				xRow--
-			}
-
-			for xRow >= stop {
-				termbox.SetCell(xCol, xRow,
-					DisplayBar, styleDefault, styleDefaultBack)
-
-				xRow--
-			}
-
-			if top > 0 {
-				termbox.SetCell(xCol, xRow,
-					barRunes[0][top], styleDefault, styleDefaultBack)
-			}
-
-			xCol++
-		}
-
-		xCol += d.spaceWidth
-		delta = -delta
-	}
-
-	return nil
-}
-
-func (d *Display) drawUpDown(bins [][]float64, count int) error {
-	var cSetCount = len(bins)
-	var cHaveRight = cSetCount == 2
-
-	// We dont keep track of the offset/width because we have to assume that
-	// the user changed the window, always. It is easier to do this now, and
-	// implement SIGWINCH handling later on (or not?)
-	var cWidth, cHeight = termbox.Size()
-
-	var cPaddedWidth = (d.binWidth * count) - d.spaceWidth
-
-	if cPaddedWidth > cWidth || cPaddedWidth < 0 {
-		cPaddedWidth = cWidth
-	}
-
-	var cOffset = (cWidth - cPaddedWidth) / 2
-
-	var centerStart = (cHeight - d.baseThick) / cSetCount
-	var centerStop = centerStart + d.baseThick
-
-	var peak = getPeak(bins, count)
-	var fHeight = float64(centerStart)
-	var scale = d.updateWindow(peak, fHeight)
-
-	var calcStopAndTop = func(value float64) (stop int, top int) {
-		top = int(math.Min(fHeight, value*scale) * NumRunes)
-		stop = top / NumRunes
-		top %= NumRunes
-
-		return
-	}
-
-	var xBin = 0
-	var xCol = cOffset
-
-	// TODO(nora): benchmark
-	for xCol < cWidth {
-
-		var leftStop, leftTop = calcStopAndTop(bins[0][xBin])
-		var startRow = centerStart - leftStop
-
-		if leftTop > 0 {
-			startRow--
-		}
-
-		if startRow < 0 {
-			startRow = 0
-		}
-
-		var rightStop, rightTop int
-		var stopRow = centerStop
-
-		if cHaveRight {
-			rightStop, rightTop = calcStopAndTop(bins[1][xBin])
-			stopRow += rightStop
-		}
-
-		if stopRow >= cHeight {
-			stopRow = cHeight - 1
-		}
-
-		var lCol = xCol + d.barWidth
-
-		for xCol < lCol {
-
-			var xRow = startRow
-
-			if leftTop > 0 {
-				termbox.SetCell(xCol, xRow,
-					barRunes[0][leftTop], styleDefault, styleDefaultBack)
-				xRow++
-			}
-
-			for xRow < centerStart {
-				termbox.SetCell(xCol, xRow,
-					DisplayBar, styleDefault, styleDefaultBack)
-				xRow++
-			}
-
-			// center line
-			for xRow < centerStop {
-				termbox.SetCell(xCol, xRow,
-					DisplayBar, styleCenter, styleDefaultBack)
-				xRow++
-			}
-
-			if cHaveRight {
-				// right bars go down
-				for xRow < stopRow {
-					termbox.SetCell(xCol, xRow,
-						DisplayBar, styleDefault, styleDefaultBack)
-					xRow++
-				}
-
-				// last part of right bars.
-				if rightTop > 0 {
-					termbox.SetCell(xCol, xRow,
-						barRunes[1][rightTop], styleReverse, styleDefault)
-				}
-			}
-
-			xCol++
-		}
-
-		xBin++
-
-		if xBin >= count {
-			break
-		}
-
-		xCol += d.spaceWidth
-	}
-
-	return nil
-}
-
-// DrawUp takes data and draws
-func (d *Display) drawDown(bins [][]float64, count int) error {
-	var cSetCount = len(bins)
-
-	var cWidth, cHeight = termbox.Size()
-
-	var cChanWidth = (d.binWidth * count) - d.spaceWidth
-	var cPaddedWidth = (d.binWidth * count * cSetCount) - d.spaceWidth
-	var cOffset = (cWidth - cPaddedWidth) / 2
-
-	var peak = getPeak(bins, count)
-
-	var fHeight = float64(cHeight - d.baseThick)
-	var scale = d.updateWindow(peak, fHeight)
-
-	var calcStopAndTop = func(value float64) (stop int, top int) {
-		top = int(math.Min(fHeight, value*scale) * NumRunes)
-		stop = (top / NumRunes) + d.baseThick
-		top %= NumRunes
-
-		if stop > cHeight {
-			stop = cHeight
-			top = 0
-		}
-
-		return
-	}
-
-	var xBin int
-	var xCol = cOffset
-	var delta = 1
-
-	for xCh := range bins {
-		var stop, top = calcStopAndTop(bins[xCh][xBin])
-
-		var lCol = xCol + d.barWidth
-		var lColMax = xCol + cChanWidth
-
-		for xCol < lColMax {
-
-			if xCol >= lCol {
-				if xBin += delta; xBin >= count || xBin < 0 {
-					break
-				}
-
-				stop, top = calcStopAndTop(bins[xCh][xBin])
-
-				xCol += d.spaceWidth
-				lCol = xCol + d.barWidth
-			}
-
-			var xRow = 0
-
-			for xRow < d.baseThick {
-				termbox.SetCell(xCol, xRow,
-					DisplayBar, styleCenter, styleDefaultBack)
-
-				xRow++
-			}
-
-			for xRow < stop {
-				termbox.SetCell(xCol, xRow,
-					DisplayBar, styleDefault, styleDefaultBack)
-
-				xRow++
-			}
-
-			if top > 0 {
-				termbox.SetCell(xCol, xRow,
-					barRunes[1][top], styleReverse, styleDefault)
-			}
-
-			xCol++
-		}
-
-		xCol += d.spaceWidth
-		delta = -delta
-	}
-
-	return nil
-}
-
-func getPeak(bins [][]float64, count int) float64 {
-	var peak = 0.0
-
-	for xSet := 0; xSet < len(bins); xSet++ {
-		for xBin := 0; xBin < count; xBin++ {
-			if peak < bins[xSet][xBin] {
-				peak = bins[xSet][xBin]
-			}
-		}
-	}
-
-	return peak
+	return height, BarRune
 }

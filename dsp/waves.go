@@ -6,17 +6,17 @@ import "math"
 // https://github.com/karlstav/cava/blob/master/cava.c#L144
 func Waves(buf []float64, count int, factor float64) {
 
-	for xPass := 0; xPass < count; xPass++ {
-		buf[xPass] /= factor
+	for xBin := 1; xBin < count; xBin++ {
+		buf[xBin] /= factor
 
-		for xBin := xPass - 1; xBin >= 0; xBin-- {
-			buf[xBin] = math.Max(buf[xPass]-
-				math.Pow(float64(xPass-xBin), 2), buf[xBin])
+		for xTarget := xBin - 1; xTarget > 0; xTarget-- {
+			buf[xTarget] = math.Max(buf[xBin]-
+				math.Pow(float64(xBin-xTarget), 2), buf[xTarget])
 		}
 
-		for xBin := xPass + 1; xBin < count; xBin++ {
-			buf[xBin] = math.Max(buf[xPass]-
-				math.Pow(float64(xBin-xPass), 2), buf[xBin])
+		for xTarget := xBin + 1; xTarget <= count; xTarget++ {
+			buf[xTarget] = math.Max(
+				buf[xBin]-math.Pow(float64(xTarget-xBin), 2), buf[xTarget])
 		}
 	}
 }

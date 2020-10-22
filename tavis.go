@@ -24,11 +24,10 @@ func Run(cfg Config) error {
 		return err
 	}
 
-	// SampleSize is the number of frames per channel we want per read
-	var sampleSize = int(cfg.SampleRate / float64(cfg.TargetFPS))
+	var workRate = int(cfg.SampleRate / float64(cfg.SampleSize))
 
 	// DrawDelay is the time we wait between ticks to draw.
-	var drawDelay = time.Second / time.Duration(cfg.TargetFPS)
+	var drawDelay = time.Second / time.Duration(workRate+1)
 
 	// Draw type
 	var drawType = graphic.DrawType(cfg.DrawType)
@@ -36,7 +35,7 @@ func Run(cfg Config) error {
 	var audio, err = cfg.InputBackend.Start(input.SessionConfig{
 		Device:     cfg.InputDevice,
 		FrameSize:  cfg.ChannelCount,
-		SampleSize: sampleSize,
+		SampleSize: cfg.SampleSize,
 		SampleRate: cfg.SampleRate,
 	})
 
@@ -44,32 +43,21 @@ func Run(cfg Config) error {
 		return errors.Wrap(err, "failed to start the input backend")
 	}
 
-	var display = graphic.NewDisplay(cfg.SampleRate, sampleSize)
+	var display = graphic.NewDisplay(cfg.SampleRate, cfg.SampleSize)
 	defer display.Close()
 
 	display.SetWidths(cfg.BarWidth, cfg.SpaceWidth)
 	display.SetBase(cfg.BaseThick)
+	display.SetDrawType(drawType)
 
-	var barCount = display.Bars(drawType, cfg.ChannelCount)
+	var barCount = display.Bars(cfg.ChannelCount)
 
 	// Make a spectrum
-	var spectrum = dsp.NewSpectrum(cfg.SampleRate, sampleSize, cfg.MaxBins)
+	var spectrum = dsp.NewSpectrum(cfg.SampleRate, cfg.SampleSize)
 
 	// Set it up with our values
-	barCount = spectrum.Recalculate(barCount, cfg.LoCutFreq, cfg.HiCutFreq)
+	barCount = spectrum.Recalculate(barCount)
 
-	var channels = make([]channel, cfg.ChannelCount)
-
-	var chanBins = make([][]float64, cfg.ChannelCount)
-
-	for ch, bufs := 0, audio.SampleBuffers(); ch < len(chanBins); ch++ {
-		channels[ch] = channel{
-			bins: spectrum.BinSet(bufs[ch]),
-			n2s3: dsp.NewN2S3State(cfg.MaxBins),
-		}
-
-		chanBins[ch] = channels[ch].bins.Bins()
-	}
 	var ctx, cancel = context.WithCancel(context.Background())
 	defer cancel()
 
@@ -79,14 +67,34 @@ func Run(cfg Config) error {
 	var endSig = make(chan os.Signal, 2)
 	signal.Notify(endSig, os.Interrupt)
 
+	var channels = make([]channel, cfg.ChannelCount)
+
+	var chanBins = make([][]float64, cfg.ChannelCount)
+
+	for ch, bufs := 0, audio.SampleBuffers(); ch < len(chanBins); ch++ {
+		channels[ch] = channel{
+			bins: spectrum.BinSet(bufs[ch]),
+			n2s3: dsp.NewN2S3State(cfg.SampleSize),
+		}
+
+		chanBins[ch] = channels[ch].bins.Bins()
+	}
+
+	var tick = time.Now()
+
 	if err := audio.Start(); err != nil {
 		return errors.Wrap(err, "failed to start input session")
 	}
 	defer audio.Stop()
 
-	var tick = time.Now()
+	var delay = time.NewTimer(0)
+	defer delay.Stop()
+	<-delay.C
 
 	for {
+
+		delay.Reset(drawDelay - time.Since(tick))
+
 		select {
 		case <-ctx.Done():
 			return nil
@@ -94,23 +102,19 @@ func Run(cfg Config) error {
 			return nil
 		case <-endSig:
 			return nil
-		default:
-		}
-
-		if since := time.Since(tick); since < drawDelay {
-			time.Sleep(drawDelay - since)
+		case <-delay.C:
 		}
 
 		tick = time.Now()
 
-		var winWidth = display.Bars(drawType, cfg.ChannelCount)
+		var winWidth = display.Bars(cfg.ChannelCount)
 
 		if barCount != winWidth {
 			barCount = winWidth
-			barCount = spectrum.Recalculate(barCount, cfg.LoCutFreq, cfg.HiCutFreq)
+			barCount = spectrum.Recalculate(barCount)
 		}
 
-		if audio.ReadyRead() < sampleSize {
+		if audio.ReadyRead() < cfg.SampleSize {
 			continue
 		}
 
@@ -122,33 +126,12 @@ func Run(cfg Config) error {
 			spectrum.Generate(channels[ch].bins)
 
 			// nora's not so special smoother (n2s3)
-			dsp.N2S3(chanBins[ch], barCount,
-				channels[ch].n2s3, cfg.SmoothFactor, cfg.SmoothResponse)
+			dsp.N2S3(chanBins[ch], barCount, channels[ch].n2s3, cfg.SmoothFactor, cfg.SmoothResponse)
 
 			// dsp.Monstercat(chanBins[ch], barCount, 1.95)
 
 		}
 
-		display.Draw(chanBins, barCount, drawType)
+		display.Draw(chanBins, barCount)
 	}
-}
-
-func sanitizeConfig(cfg *Config) error {
-
-	switch {
-	case cfg.SmoothFactor > 100.0:
-		cfg.SmoothFactor = 1.0
-	case cfg.SmoothFactor <= 0.0:
-		cfg.SmoothFactor = 0.00001
-	default:
-		cfg.SmoothFactor /= 100.0
-	}
-
-	switch {
-	case cfg.SmoothResponse < 0.01:
-		cfg.SmoothResponse = 0.01
-	default:
-	}
-
-	return nil
 }
