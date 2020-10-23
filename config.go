@@ -19,8 +19,8 @@ type Config struct {
 	HiCutFreq float64
 	// SmoothFactor factor of smooth
 	SmoothFactor float64
-	// SmoothResponse response value
-	SmoothResponse float64
+	// Gamma factor of distribution
+	Gamma float64
 	// BaseThick number of cells wide/high the base is
 	BaseThick int
 	// BarWidth is the width of bars, in columns
@@ -38,15 +38,15 @@ type Config struct {
 // NewZeroConfig returns a zero config
 func NewZeroConfig() Config {
 	return Config{
-		SampleRate:     44100,
-		SmoothFactor:   52.5,
-		SmoothResponse: 43.5,
-		BaseThick:      1,
-		BarWidth:       2,
-		SpaceWidth:     1,
-		SampleSize:     1024,
-		DrawType:       int(graphic.DrawDefault),
-		ChannelCount:   2,
+		SampleRate:   44100,
+		SmoothFactor: 52.5,
+		Gamma:        2.0,
+		BaseThick:    1,
+		BarWidth:     2,
+		SpaceWidth:   1,
+		SampleSize:   1024,
+		DrawType:     int(graphic.DrawDefault),
+		ChannelCount: 2,
 	}
 }
 
@@ -59,12 +59,6 @@ func sanitizeConfig(cfg *Config) error {
 		cfg.SmoothFactor = 0.00001
 	default:
 		cfg.SmoothFactor /= 100.0
-	}
-
-	switch {
-	case cfg.SmoothResponse < 0.01:
-		cfg.SmoothResponse = 0.01
-	default:
 	}
 
 	return nil

@@ -36,16 +36,29 @@ func (p *Plan) destroy() {
 	C.fftw_destroy_plan(p.cPlan)
 }
 
+// func AllocateReal(real int) []float64 {
+// 	var r = C.fftw_alloc_real(C.ulong(real))
+
+// 	var rSlice []float64
+
+// 	var sliceHead = (*reflect.SliceHeader)(unsafe.Pointer(&rSlice))
+// 	sliceHead.Cap = real
+// 	sliceHead.Len = real
+// 	sliceHead.Data = uintptr(unsafe.Pointer(&r))
+
+// 	return rSlice
+// }
+
 // NewPlan returns a new FFTW Plan for use with FFTW
 func NewPlan(in []float64, out []complex128) *Plan {
-	plan := &Plan{
+	var plan = &Plan{
 		input:  in,
 		output: out,
 		cPlan: C.fftw_plan_dft_r2c_1d(
 			C.int(len(in)),
-			(*C.double)(unsafe.Pointer(&in[0])),
+			(*C.double)(&in[0]),
 			(*C.fftw_complex)(unsafe.Pointer(&out[0])),
-			C.FFTW_ESTIMATE,
+			C.FFTW_MEASURE,
 		),
 	}
 
