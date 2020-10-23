@@ -66,10 +66,10 @@ func main() {
 				Destination: &globalCfg.SmoothFactor,
 			},
 			&cli.Float64Flag{
-				Name:        "smoothness-response",
-				Aliases:     []string{"sr"},
-				Value:       globalCfg.SmoothResponse,
-				Destination: &globalCfg.SmoothResponse,
+				Name:        "spread-factor",
+				Aliases:     []string{"g"},
+				Value:       globalCfg.Gamma,
+				Destination: &globalCfg.Gamma,
 			},
 			&cli.IntFlag{
 				Name:        "base-thickness",
