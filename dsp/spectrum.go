@@ -111,14 +111,14 @@ func (sp *Spectrum) Process() {
 
 			mag += stream.pBuf[xB] * sp.smoothFact
 
-			stream.pBuf[xB] = mag * (1 - (1 / (1 + (mag * 0.8))))
+			stream.pBuf[xB] = mag * (1 - (1 / (1 + (mag * 10))))
 			// stream.pBuf[xB] = mag
 
 			stream.buf[xB] = mag
 
 		}
 
-		Monstercat(stream.buf, sp.numBins, 2)
+		Monstercat(stream.buf, sp.numBins, 1.75)
 	}
 }
 
@@ -191,13 +191,13 @@ func (sp *Spectrum) Recalculate(bins int) int {
 			if sp.bins[xB-1].floorFFT >= sp.bins[xB].floorFFT {
 				sp.bins[xB].floorFFT = sp.bins[xB-1].floorFFT + 1
 
-				if xB > 1 {
-					sp.bins[xB].floorFFT += sp.bins[xB-1].floorFFT
-					sp.bins[xB].floorFFT -= sp.bins[xB-2].floorFFT + 1
-				}
+				// if xB > 1 {
+				// 	sp.bins[xB].floorFFT += sp.bins[xB-1].floorFFT
+				// 	sp.bins[xB].floorFFT -= sp.bins[xB-2].floorFFT + 1
+				// }
 			}
 
-			sp.bins[xB-1].ceilFFT = sp.bins[xB].floorFFT
+			sp.bins[xB-1].ceilFFT = sp.bins[xB-1].floorFFT
 		}
 	}
 	// }
