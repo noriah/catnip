@@ -38,6 +38,13 @@ type bin struct {
 	widthFFT int
 }
 
+type stream struct {
+	input []float64
+	buf   []float64
+	pBuf  []float64
+	plan  *fft.Plan
+}
+
 // Some notes:
 //
 // https://stackoverflow.com/questions/3694918/how-to-extract-frequency-associated-with-fft-values-in-python
@@ -57,6 +64,7 @@ func NewSpectrum(hz float64, size int) *Spectrum {
 		fftSize:    fftSize,
 		sampleSize: size,
 		sampleRate: hz,
+		smoothFact: 0.255,
 		gamma:      4.0,
 		bins:       make([]bin, size+1),
 		fftBuf:     make([]complex128, fftSize),
@@ -64,37 +72,20 @@ func NewSpectrum(hz float64, size int) *Spectrum {
 		streamBufs: make([][]float64, 0),
 	}
 
-	// sp.Recalculate(size)
-	sp.SetSmoothing(0.725)
-
 	return sp
-}
-
-// window function
-// https://www.wikiwand.com/en/Window_function
-
-func hamming(buf []float64, size int) {
-	var coef = 2 * math.Pi / float64(size)
-	for n := 0; n < size; n++ {
-		buf[n] *= (0.53836 - 0.46164*math.Cos(coef*float64(n)))
-	}
-}
-
-func hann(buf []float64, size int) {
-	var coef = 2 * math.Pi / float64(size)
-	for n := 0; n < size; n++ {
-		buf[n] *= (0.5 - 0.5*math.Cos(coef*float64(n)))
-	}
 }
 
 // Process makes numBins and dumps them in the buffer
 func (sp *Spectrum) Process() {
+	var sf = math.Pow(10.0, (-(1 - sp.smoothFact))*10.0)
 
-	// var sf = math.Pow(math.Pow(sp.smoothFact, 50), (float64(sp.sampleSize) / sp.sampleRate))
+	sf = math.Pow(sf, float64(sp.sampleSize)/sp.sampleRate)
+
+	var pct = 0.001 * (float64(sp.sampleSize) * 0.5)
 
 	for _, stream := range sp.streams {
 
-		// hamming(stream.input, sp.sampleSize)
+		// window.Hamming(stream.input, sp.sampleSize)
 
 		stream.plan.Execute()
 
@@ -110,11 +101,15 @@ func (sp *Spectrum) Process() {
 				xF++
 			}
 
-			mag /= float64(xF - sp.bins[xB].floorFFT)
-
+			mag /= float64(sp.bins[xB].widthFFT)
 			mag *= sp.bins[xB].eqVal
-			mag = math.Pow(mag, 0.65)
-			// mag = math.Pow(mag, 2)
+
+			switch {
+			case xF < int(pct):
+				mag = math.Pow(mag, 0.5*(float64(xF)/pct))
+			default:
+				mag = math.Pow(mag, 0.55)
+			}
 
 			if mag < 0.0 {
 				mag = 0.0
@@ -125,26 +120,91 @@ func (sp *Spectrum) Process() {
 			// mag *= (1.0 - sf)
 			// mag += stream.pBuf[xB] * sf
 			// stream.pBuf[xB] = mag
-			stream.buf[xB] = mag
+			// stream.buf[xB] = mag
 
 			mag += stream.pBuf[xB] * sp.smoothFact
 			stream.pBuf[xB] = mag * (1 - (1 / (1 + (mag * 1))))
 			stream.buf[xB] = mag
 
 		}
-
-		// Monstercat(stream.buf, sp.numBins, 1.99)
 	}
 }
 
-// Frequencies [0] -- Bass -- [1] -- Mid -- [2] -- Treble -- [3]
+// Frequencies
+// [0] - Sub - [1] Bass - [2] Mid - [3] - Treble - [4] - Brilliance - [5]
 var dividers = []float64{
-	0.0,
+	20.0,
 	60.0,
-	150.0,
+	250.0,
 	4000.0,
 	12000.0,
 	22050.0,
+}
+
+// Recalculate rebuilds our frequency bins
+func (sp *Spectrum) Recalculate(bins int) int {
+	if bins > sp.fftSize {
+		bins = sp.fftSize
+	}
+
+	sp.numBins = bins
+
+	// var cCoef = 1.0 / float64(bins+1)
+
+	// clean the bins
+	for xB := 0; xB < bins; xB++ {
+		sp.bins[xB] = bin{
+			eqVal: math.Log10(float64(xB) + 2),
+		}
+	}
+
+	var loF = dividers[0]
+	var hiF = math.Min(dividers[4], sp.sampleRate/2)
+	var minIdx = sp.freqToIdx(loF, math.Floor)
+	var maxIdx = sp.freqToIdx(hiF, math.Round)
+
+	var size = maxIdx - minIdx
+
+	var spread = size / bins
+
+	if spread < 1 {
+		spread++
+	}
+
+	var last = size % spread
+
+	var start = minIdx
+	var lBins = bins
+	if last > 0 {
+		lBins--
+	}
+
+	for xB := 0; xB < lBins; xB++ {
+		sp.bins[xB].widthFFT = spread
+		sp.bins[xB].floorFFT = start
+		start += spread
+
+		sp.bins[xB].ceilFFT = start
+	}
+
+	if last > 0 {
+		sp.bins[lBins].floorFFT = start
+		sp.bins[lBins].ceilFFT = start + last
+		sp.bins[lBins].widthFFT = last
+	}
+
+	for xB := 0; xB < bins; xB++ {
+		var b = sp.bins[xB]
+
+		if b.ceilFFT == b.floorFFT {
+			sp.bins[xB].widthFFT = 1
+			continue
+		}
+
+		sp.bins[xB].widthFFT = b.ceilFFT - b.floorFFT
+	}
+
+	return bins
 }
 
 func (sp *Spectrum) idxToFreq(bin int) float64 {
@@ -159,153 +219,6 @@ func (sp *Spectrum) freqToIdx(freq float64, round func(float64) float64) int {
 	}
 
 	return sp.fftSize - 1
-}
-
-// Recalculate rebuilds our frequency bins
-func (sp *Spectrum) Recalculate(bins int) int {
-	if bins > sp.fftSize {
-		bins = sp.fftSize
-	}
-
-	sp.numBins = bins
-
-	var cCoef = 100.0 / float64(bins+1)
-
-	// clean the bins
-	for xB := 0; xB < bins; xB++ {
-		sp.bins[xB] = bin{
-			eqVal: math.Log2(float64(xB+2)) * cCoef,
-		}
-	}
-
-	// if false {
-	// 	var loF = dividers[1]
-	// 	var hiF = math.Min(dividers[4], sp.sampleRate/2)
-	// 	var minIdx = sp.freqToIdx(loF, math.Floor)
-	// 	var maxIdx = sp.freqToIdx(hiF, math.Round)
-
-	// 	var size = maxIdx - minIdx
-
-	// 	var spread = size / bins
-	// 	if spread < 1 {
-	// 		spread++
-	// 	}
-	// 	var last = 0
-	// 	if size%spread > 0 {
-	// 		last = sp.fftSize % spread
-	// 	}
-
-	// 	var start = minIdx
-	// 	var b = bins
-	// 	if last > 0 {
-	// 		b--
-	// 	}
-	// 	for xB := 0; xB < b; xB++ {
-	// 		sp.bins[xB].widthFFT = spread
-	// 		sp.bins[xB].floorFFT = start
-	// 		start += spread
-
-	// 		sp.bins[xB].ceilFFT = start
-	// 	}
-
-	// 	if last > 0 {
-	// 		sp.bins[b].floorFFT = start
-	// 		sp.bins[b].ceilFFT = start + last
-	// 		sp.bins[b].widthFFT = last
-	// 	}
-	// }
-
-	// another  one
-
-	// if false {
-
-	// 	var loF = dividers[2]
-	// 	var hiF = math.Min(dividers[4], sp.sampleRate/2)
-
-	// 	var minLog = math.Log10(loF)
-	// 	var maxLog = math.Log10(hiF)
-	// 	var bandWidth = (maxLog - minLog) / float64(bins)
-
-	// 	// var minIdx = sp.freqToIdx(loF, math.Floor)
-	// 	// var maxIdx = sp.freqToIdx(hiF, math.Round)
-
-	// 	for xB := 0; xB <= bins; xB++ {
-	// 		var fbL = sp.freqToIdx(math.Pow(10.0, (float64(xB)*bandWidth)+minLog), math.Floor)
-	// 		sp.bins[xB].floorFFT = fbL
-
-	// 		if xB > 0 {
-	// 			var lfbL = sp.bins[xB-1].floorFFT
-	// 			if lfbL == fbL {
-	// 				fbL++
-	// 			}
-	// 			sp.bins[xB-1].ceilFFT = fbL
-	// 			sp.bins[xB-1].widthFFT = fbL - lfbL
-	// 		}
-	// 	}
-	// }
-
-	// if false {
-	// 	for f := 0; f < sp.fftSize; f++ {
-	// 		var xB = int(
-	// 			math.Floor(
-	// 				math.Pow((float64(f)/float64(sp.fftSize)), 1/sp.gamma) * float64(bins)),
-	// 		)
-	// 		if sp.bins[xB].ceilFFT < f {
-	// 			sp.bins[xB].ceilFFT = f + 1
-	// 		}
-
-	// 		if sp.bins[xB].floorFFT > f {
-	// 			sp.bins[xB].floorFFT = f
-	// 		}
-	// 	}
-	// }
-
-	// another attempt
-
-	// if true {
-
-	var lo = (dividers[0] + 1)
-	var hi = dividers[4]
-
-	var cF = math.Log10(lo/hi) / ((1 / float64(bins)) - 1)
-
-	hi *= 1 / (sp.sampleRate / float64(sp.sampleSize))
-
-	for xB := 0; xB <= bins; xB++ {
-		var vFreq = ((float64(xB) / float64(bins)) * cF) - cF
-		vFreq = (math.Pow(10.0, vFreq) * hi)
-
-		sp.bins[xB].floorFFT = int(math.Floor(vFreq))
-
-		if xB > 0 {
-			if sp.bins[xB-1].floorFFT >= sp.bins[xB].floorFFT {
-				sp.bins[xB].floorFFT = sp.bins[xB-1].floorFFT + 1
-
-				if xB > 1 {
-					sp.bins[xB].floorFFT += sp.bins[xB-1].floorFFT
-					sp.bins[xB].floorFFT -= sp.bins[xB-2].floorFFT + 1
-				}
-			}
-
-			sp.bins[xB-1].ceilFFT = sp.bins[xB].floorFFT
-			sp.bins[xB-1].widthFFT = sp.bins[xB-1].ceilFFT - sp.bins[xB-1].floorFFT
-		}
-	}
-	// }
-
-	// for xB := 0; xB < bins; xB++ {
-	// 	var b = sp.bins[xB]
-	// 	fmt.Println(xB, b.floorFFT, b.ceilFFT)
-	// }
-
-	return bins
-}
-
-type stream struct {
-	input []float64
-	buf   []float64
-	pBuf  []float64
-	plan  *fft.Plan
 }
 
 // AddStream adds an input buffer to the spectrum
@@ -355,67 +268,4 @@ func (sp *Spectrum) StreamCount() int {
 // BinCount returns the number of bins each stream has
 func (sp *Spectrum) BinCount() int {
 	return sp.numBins
-}
-
-// var fBins = float64(bins)
-
-// var bassRange = math.Log10(dividers[2]) - math.Log10(dividers[1])
-// var midRange = math.Log10(dividers[3]) - math.Log10(dividers[2])
-// var trebRange = math.Log10(dividers[4]) - math.Log10(dividers[3])
-
-// var total = bassRange + midRange + trebRange
-// var bassRatio = bassRange / total
-// var midRatio = midRange / total
-// var trebRatio = trebRange / total
-// var bassBins = fBins * bassRatio
-// var midBins = fBins * midRatio
-// var trebBins = fBins * trebRatio
-
-// fmt.Println(bassRange, midRange, trebRange)
-// fmt.Println(bassRatio, midRatio, trebRatio)
-// fmt.Println(bassBins, midBins, trebBins)
-
-// var bassRange = sp.freqToIdx(dividers[2], math.Round) - sp.freqToIdx(dividers[1], math.Floor)
-// var midRange = sp.freqToIdx(dividers[3], math.Round) - sp.freqToIdx(dividers[2], math.Floor)
-// var trebRange = sp.freqToIdx(dividers[4], math.Round) - sp.freqToIdx(dividers[3], math.Floor)
-
-// var total = float64(bassRange + midRange + trebRange)
-// var bassRatio = float64(bassRange) / total
-// var midRatio = float64(midRange) / total
-// var trebRatio = float64(trebRange) / total
-// var bassBins = fBins * bassRatio
-// var midBins = fBins * midRatio
-// var trebBins = fBins * trebRatio
-
-// fmt.Println(bassRange, midRange, trebRange)
-// fmt.Println(bassRatio, midRatio, trebRatio)
-// fmt.Println(bassBins, midBins, trebBins)
-
-// Monstercat does monstercat "smoothing"
-//
-// https://github.com/karlstav/cava/blob/master/cava.c#L157
-//
-// TODO(winter): make faster (rewrite)
-//	slow and hungry as heck!
-//	lets look into SIMD
-func Monstercat(bins []float64, count int, factor float64) {
-
-	// "pow is probably doing that same logarithm in every call, so you're
-	//  extracting out half the work"
-	var vFactP = math.Log(factor)
-
-	for xBin := 1; xBin < count; xBin++ {
-
-		for xTrgt := 0; xTrgt < count; xTrgt++ {
-
-			if xBin != xTrgt {
-				var tmp = bins[xBin]
-				tmp /= math.Exp(vFactP * math.Abs(float64(xBin-xTrgt)))
-
-				if tmp > bins[xTrgt] {
-					bins[xTrgt] = tmp
-				}
-			}
-		}
-	}
 }

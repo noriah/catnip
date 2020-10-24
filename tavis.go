@@ -13,16 +13,18 @@ import (
 	"github.com/pkg/errors"
 )
 
+// OverlapRatio Ratio of overlap
+const OverlapRatio = 0.5
+
 // Run starts to draw the visualizer on the tcell Screen.
 func Run(cfg Config) error {
 	if err := sanitizeConfig(&cfg); err != nil {
 		return err
 	}
 
-	var workRate = int(cfg.SampleRate / float64(cfg.SampleSize))
-
 	// DrawDelay is the time we wait between ticks to draw.
-	var drawDelay = time.Second / time.Duration(workRate+1)
+	var drawDelay = time.Second / time.Duration(
+		int((cfg.SampleRate/float64(cfg.SampleSize))+1))
 
 	// Draw type
 	var drawType = graphic.DrawType(cfg.DrawType)
@@ -38,65 +40,56 @@ func Run(cfg Config) error {
 		return errors.Wrap(err, "failed to start the input backend")
 	}
 
-	var display = graphic.NewDisplay(cfg.SampleRate, cfg.SampleSize)
-	defer display.Close()
-
-	display.SetWidths(cfg.BarWidth, cfg.SpaceWidth)
-	display.SetBase(cfg.BaseThick)
-	display.SetDrawType(drawType)
-
 	// Make a spectrum
 	var spectrum = dsp.NewSpectrum(cfg.SampleRate, cfg.SampleSize)
-
 	spectrum.SetSmoothing(cfg.SmoothFactor)
 	spectrum.SetGamma(cfg.Gamma)
-
-	var ctx, cancel = context.WithCancel(context.Background())
-	defer cancel()
-
-	var dispCtx = display.Start(ctx)
-	defer display.Stop()
-
-	var endSig = make(chan os.Signal, 2)
-	signal.Notify(endSig, os.Interrupt)
 
 	for ch := 0; ch < cfg.ChannelCount; ch++ {
 		spectrum.AddStream(audio.SampleBuffers()[ch])
 	}
 
-	var barCount = display.Bars(cfg.ChannelCount)
-	barCount = spectrum.Recalculate(barCount)
+	var display = graphic.NewDisplay(cfg.SampleRate, cfg.SampleSize)
+	defer display.Close()
 
-	var tick = time.Now()
+	if err = display.Init(); err != nil {
+		return err
+	}
+
+	display.SetWidths(cfg.BarWidth, cfg.SpaceWidth)
+	display.SetBase(cfg.BaseThick)
+	display.SetDrawType(drawType)
+
+	var timer = time.NewTimer(0)
+	defer timer.Stop()
+
+	var endSig = make(chan os.Signal, 2)
+	signal.Notify(endSig, os.Interrupt)
+
+	// Root Context
+	var ctx, cancel = context.WithCancel(context.Background())
+	defer cancel()
+
+	// Start the display
+	// replace our context so display can signal quit
+	ctx = display.Start(ctx)
+	defer display.Stop()
+
+	var barCount = 0
 
 	if err := audio.Start(); err != nil {
 		return errors.Wrap(err, "failed to start input session")
 	}
 	defer audio.Stop()
 
-	var delay = time.NewTimer(0)
-	defer delay.Stop()
-	<-delay.C
-
 	for {
-
-		delay.Reset(drawDelay - time.Since(tick))
-
 		select {
-		case <-ctx.Done():
-			return nil
-		case <-dispCtx.Done():
-			return nil
 		case <-endSig:
 			return nil
-		case <-delay.C:
-		}
-
-		tick = time.Now()
-
-		if winWidth := display.Bars(cfg.ChannelCount); barCount != winWidth {
-			barCount = winWidth
-			barCount = spectrum.Recalculate(barCount)
+		case <-ctx.Done():
+			return nil
+		case <-timer.C:
+			timer.Reset(drawDelay)
 		}
 
 		if audio.ReadyRead() < cfg.SampleSize {
@@ -105,6 +98,10 @@ func Run(cfg Config) error {
 
 		if err := audio.Read(ctx); err != nil {
 			return errors.Wrap(err, "failed to read audio input")
+		}
+
+		if termWidth := display.Bars(cfg.ChannelCount); barCount != termWidth {
+			barCount = spectrum.Recalculate(termWidth)
 		}
 
 		spectrum.Process()

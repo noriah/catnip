@@ -39,7 +39,7 @@ type Config struct {
 func NewZeroConfig() Config {
 	return Config{
 		SampleRate:   44100,
-		SmoothFactor: 65.5,
+		SmoothFactor: 25.5,
 		Gamma:        2.0,
 		BaseThick:    1,
 		BarWidth:     2,
