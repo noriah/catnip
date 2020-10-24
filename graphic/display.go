@@ -97,15 +97,6 @@ type Display struct {
 // something to think about
 func NewDisplay(hz float64, samples int) *Display {
 
-	if err := termbox.Init(); err != nil {
-		panic(err)
-	}
-
-	termbox.SetInputMode(termbox.InputAlt)
-	termbox.SetOutputMode(termbox.Output256)
-
-	termbox.HideCursor()
-
 	slowMax := int((ScalingSlowWindow*hz)/float64(samples)) * 2
 	fastMax := int((ScalingFastWindow*hz)/float64(samples)) * 2
 
@@ -124,9 +115,21 @@ func NewDisplay(hz float64, samples int) *Display {
 	return d
 }
 
+// Init initializes the display
+func (d *Display) Init() error {
+	if err := termbox.Init(); err != nil {
+		return err
+	}
+
+	termbox.SetInputMode(termbox.InputAlt)
+	termbox.SetOutputMode(termbox.Output256)
+	termbox.HideCursor()
+
+	return nil
+}
+
 // Start display is bad
 func (d *Display) Start(ctx context.Context) context.Context {
-
 	var dispCtx, dispCancel = context.WithCancel(ctx)
 	go eventPoller(dispCtx, dispCancel, d)
 	return dispCtx
