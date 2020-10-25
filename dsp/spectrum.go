@@ -10,38 +10,42 @@ import (
 
 // Spectrum is an audio spectrum in a buffer
 type Spectrum struct {
-	numBins int
-
-	fftSize int
-
-	sampleSize int
-	sampleRate float64
-
-	winVar float64
-
-	smoothFactor float64
-
-	bins []bin
-
-	fftBuf []complex128
-
-	streams []*stream
+	numBins      int          // number of bins we look at
+	fftSize      int          // number of fft bins
+	sampleSize   int          // number of samples per slice
+	sampleRate   float64      // audio sample rate
+	winVar       float64      // window variable
+	smoothFactor float64      // smothing factor
+	bins         []bin        // bins for processing
+	fftBuf       []complex128 // fft return buffer
+	streams      []*stream    // streams of data
 }
 
 type bin struct {
-	eqVal float64
-
-	floorFFT int
-	ceilFFT  int
-	widthFFT int
+	eqVal    float64 // equalizer value
+	floorFFT int     // floor fft index
+	ceilFFT  int     // ceiling fft index
+	widthFFT int     // fft floor-ceiling index delta
 }
 
 type stream struct {
-	input []float64
-	buf   []float64
-	pBuf  []float64
-	plan  *fft.Plan
+	input []float64 // input data buffer
+	buf   []float64 // bar bin buffer
+	pBuf  []float64 // previous run bin buffer
+	plan  *fft.Plan // fft plan
 }
+
+// SpectrumType is the type of calculation we run
+type SpectrumType int
+
+// Spectrum calculation types
+const (
+	SpectrumLog SpectrumType = iota
+	SpectrumEqual
+
+	// SpectrumDefault is the default spectrum type
+	SpectrumDefault = SpectrumLog
+)
 
 // Frequencies are the dividing frequencies
 var Frequencies = []float64{
@@ -59,18 +63,6 @@ var Frequencies = []float64{
 	22050.0,
 	// everything else
 }
-
-// SpectrumType is the type of calculation we run
-type SpectrumType int
-
-// Spectrum calculation types
-const (
-	SpectrumLog SpectrumType = iota
-	SpectrumEqual
-
-	// SpectrumDefault is the default spectrum type
-	SpectrumDefault = SpectrumLog
-)
 
 // Some notes:
 //
@@ -90,7 +82,7 @@ func NewSpectrum(hz float64, size int) *Spectrum {
 		fftSize:      fftSize,
 		sampleSize:   size,
 		sampleRate:   hz,
-		smoothFactor: 0.655,
+		smoothFactor: 0.1969,
 		winVar:       1.0,
 		bins:         make([]bin, size+1),
 		fftBuf:       make([]complex128, fftSize),
@@ -161,7 +153,7 @@ func (sp *Spectrum) Process(win window.Function) {
 
 			// mag /= float64(sp.bins[xB].widthFFT)
 
-			var pow = 0.6
+			var pow = 0.65
 
 			switch {
 			case mag < 0.0:
@@ -172,8 +164,9 @@ func (sp *Spectrum) Process(win window.Function) {
 				pow *= math.Max(0.6, float64(xF)/fBassCut)
 
 			default:
-				mag *= sp.bins[xB].eqVal
 			}
+
+			mag *= sp.bins[xB].eqVal
 
 			mag = math.Pow(mag, pow)
 
@@ -319,18 +312,28 @@ func (sp *Spectrum) freqToIdx(freq float64, round mathFunc) int {
 
 // SetWinVar sets the winVar used for distribution spread
 func (sp *Spectrum) SetWinVar(g float64) {
-	if g <= 0.0 {
-		g = 1
+	switch {
+
+	case g <= 0.0:
+		sp.winVar = 1.0
+
+	default:
+		sp.winVar = g
+
 	}
 
-	sp.winVar = g
 }
 
 // SetSmoothing sets the smoothing parameters
 func (sp *Spectrum) SetSmoothing(factor float64) {
-	if factor <= 0 {
-		factor = math.SmallestNonzeroFloat64
+	switch {
+
+	case factor <= 0.0:
+		sp.smoothFactor = math.SmallestNonzeroFloat64
+
+	default:
+		sp.smoothFactor = factor
+
 	}
 
-	sp.smoothFactor = factor
 }

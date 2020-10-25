@@ -21,8 +21,7 @@ func Run(cfg Config) error {
 		int((cfg.SampleRate/float64(cfg.SampleSize))+1))
 
 	// Draw type
-	var drawType = graphic.DrawType(cfg.DrawType)
-	var calcMethod = dsp.SpectrumType(cfg.SpectrumType)
+	var spectrumType = dsp.SpectrumType(cfg.SpectrumType)
 
 	var audio, err = cfg.InputBackend.Start(input.SessionConfig{
 		Device:     cfg.InputDevice,
@@ -55,7 +54,7 @@ func Run(cfg Config) error {
 
 	display.SetWidths(cfg.BarWidth, cfg.SpaceWidth)
 	display.SetBase(cfg.BaseThick)
-	display.SetDrawType(drawType)
+	display.SetDrawType(graphic.DrawType(cfg.DrawType))
 
 	var timer = time.NewTimer(0)
 	defer timer.Stop()
@@ -74,8 +73,9 @@ func Run(cfg Config) error {
 
 	var barCount int
 
+	// Make a window function for use with spectrum
 	var win = func(buf []float64) {
-		window.PlanckTaper(buf, cfg.WinVar)
+		window.CosSum(buf, cfg.WinVar)
 	}
 
 	if err := audio.Start(); err != nil {
@@ -102,7 +102,7 @@ func Run(cfg Config) error {
 		}
 
 		if termWidth := display.Bars(cfg.ChannelCount); barCount != termWidth {
-			barCount = spectrum.Recalculate(termWidth, calcMethod)
+			barCount = spectrum.Recalculate(termWidth, spectrumType)
 		}
 
 		spectrum.Process(win)
