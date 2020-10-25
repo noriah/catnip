@@ -8,6 +8,18 @@ import (
 	"github.com/noriah/tavis/fft"
 )
 
+// SpectrumType is the type of calculation we run
+type SpectrumType int
+
+// Spectrum calculation types
+const (
+	SpectrumLog SpectrumType = iota
+	SpectrumEqual
+
+	// SpectrumDefault is the default spectrum type
+	SpectrumDefault = SpectrumLog
+)
+
 // Spectrum is an audio spectrum in a buffer
 type Spectrum struct {
 	numBins      int          // number of bins we look at
@@ -34,18 +46,6 @@ type stream struct {
 	pBuf  []float64 // previous run bin buffer
 	plan  *fft.Plan // fft plan
 }
-
-// SpectrumType is the type of calculation we run
-type SpectrumType int
-
-// Spectrum calculation types
-const (
-	SpectrumLog SpectrumType = iota
-	SpectrumEqual
-
-	// SpectrumDefault is the default spectrum type
-	SpectrumDefault = SpectrumLog
-)
 
 // Frequencies are the dividing frequencies
 var Frequencies = []float64{
@@ -163,7 +163,6 @@ func (sp *Spectrum) Process(win window.Function) {
 			case sp.bins[xB].floorFFT < bassCut:
 				pow *= math.Max(0.6, float64(xF)/fBassCut)
 
-			default:
 			}
 
 			mag *= sp.bins[xB].eqVal

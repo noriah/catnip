@@ -10,9 +10,6 @@ import (
 	"github.com/nsf/termbox-go"
 )
 
-// DrawType is the type
-type DrawType int
-
 // Constants
 const (
 
@@ -34,17 +31,6 @@ const (
 	// StyleCenter  = StyleDefault
 	StyleReverse = termbox.AttrReverse
 
-	// types
-
-	DrawMin DrawType = iota
-	DrawUp
-	DrawUpDown
-	DrawDown
-	DrawMax
-
-	// DrawDefault is the default draw type
-	DrawDefault = DrawUpDown
-
 	// NumRunes number of runes for sub step bars
 	NumRunes = 8
 
@@ -58,6 +44,21 @@ const (
 	ScalingDumpPercent = 0.75
 	// ScalingResetDeviation standard deviations from the mean before reset
 	ScalingResetDeviation = 1
+)
+
+// DrawType is the type
+type DrawType int
+
+// draw types
+const (
+	DrawMin DrawType = iota
+	DrawUp
+	DrawUpDown
+	DrawDown
+	DrawMax
+
+	// DrawDefault is the default draw type
+	DrawDefault = DrawUpDown
 )
 
 // Config is a Display Config Object
