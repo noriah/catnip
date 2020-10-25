@@ -61,6 +61,7 @@ func Run(cfg Config) error {
 
 	var endSig = make(chan os.Signal, 2)
 	signal.Notify(endSig, os.Interrupt)
+	signal.Notify(endSig, os.Kill)
 
 	// Root Context
 	var ctx, cancel = context.WithCancel(context.Background())
@@ -84,15 +85,6 @@ func Run(cfg Config) error {
 	defer audio.Stop()
 
 	for {
-		select {
-		case <-endSig:
-			return nil
-		case <-ctx.Done():
-			return nil
-		case <-timer.C:
-			timer.Reset(drawDelay)
-		}
-
 		if audio.ReadyRead() < cfg.SampleSize {
 			continue
 		}
@@ -107,6 +99,17 @@ func Run(cfg Config) error {
 
 		spectrum.Process(win)
 
-		display.Draw(barBuffers, cfg.ChannelCount, barCount)
+		if err := display.Draw(barBuffers, cfg.ChannelCount, barCount); err != nil {
+			return errors.Wrap(err, "graphic threw an error. this should not happen.")
+		}
+
+		select {
+		case <-endSig:
+			return nil
+		case <-ctx.Done():
+			return nil
+		case <-timer.C:
+			timer.Reset(drawDelay)
+		}
 	}
 }

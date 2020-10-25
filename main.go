@@ -92,7 +92,6 @@ func main() {
 			&cli.IntFlag{
 				Name:        "channel-count",
 				Aliases:     []string{"c"},
-				Hidden:      true,
 				Value:       globalCfg.ChannelCount,
 				Destination: &globalCfg.ChannelCount,
 			},
