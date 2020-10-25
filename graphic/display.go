@@ -2,7 +2,6 @@ package graphic
 
 import (
 	"context"
-	"errors"
 	"math"
 	"sync/atomic"
 
@@ -15,12 +14,6 @@ const (
 
 	// MaxWidth will be removed at some point
 	MaxWidth = 5000
-
-	// DrawCenterSpaces is tmp
-	DrawCenterSpaces = false
-
-	// DrawPaddingSpaces do we draw the outside padded spacing?
-	DrawPaddingSpaces = false
 
 	// DisplaySpace is the block we use for space (if we were to print one)
 	DisplaySpace rune = '\u0020'
@@ -293,20 +286,13 @@ func (d *Display) updateWindow(peak float64) float64 {
 }
 
 // Draw takes data and draws
-func (d *Display) Draw(bins [][]float64, count int) error {
-
-	switch len(bins) {
-	case 1, 2:
-	default:
-		return errors.New("bad number of sets to draw")
-	}
-
+func (d *Display) Draw(bins [][]float64, c, b int) error {
 	var peak = 0.0
 
-	for xSet := 0; xSet < len(bins); xSet++ {
-		for xBin := 0; xBin < count; xBin++ {
-			if peak < bins[xSet][xBin] {
-				peak = bins[xSet][xBin]
+	for xCh := 0; xCh < c; xCh++ {
+		for xBin := 0; xBin < b; xBin++ {
+			if v := bins[xCh][xBin]; peak < v {
+				peak = v
 			}
 		}
 	}
@@ -317,11 +303,11 @@ func (d *Display) Draw(bins [][]float64, count int) error {
 
 	switch d.cfg.DrawType {
 	case DrawUp:
-		err = drawUp(bins, count, d.cfg, scale)
+		err = drawUp(bins, b, d.cfg, scale)
 	case DrawUpDown:
-		err = drawUpDown(bins, count, d.cfg, scale)
+		err = drawUpDown(bins, b, d.cfg, scale)
 	case DrawDown:
-		err = drawDown(bins, count, d.cfg, scale)
+		err = drawDown(bins, b, d.cfg, scale)
 	default:
 		return nil
 	}

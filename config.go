@@ -20,8 +20,8 @@ type Config struct {
 	HiCutFreq float64
 	// SmoothFactor factor of smooth
 	SmoothFactor float64
-	// Gamma factor of distribution
-	Gamma float64
+	// WinVar factor of distribution
+	WinVar float64
 	// BaseThick number of cells wide/high the base is
 	BaseThick int
 	// BarWidth is the width of bars, in columns
@@ -43,7 +43,7 @@ func NewZeroConfig() Config {
 	return Config{
 		SampleRate:   44100,
 		SmoothFactor: 65.5,
-		Gamma:        2.0,
+		WinVar:       0.5,
 		BaseThick:    1,
 		BarWidth:     2,
 		SpaceWidth:   1,
@@ -55,6 +55,11 @@ func NewZeroConfig() Config {
 }
 
 func sanitizeConfig(cfg *Config) error {
+	switch {
+	case cfg.WinVar > 1.0:
+		cfg.WinVar = 1.0
+	default:
+	}
 
 	switch {
 	case cfg.SmoothFactor > 100.0:

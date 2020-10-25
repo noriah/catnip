@@ -7,6 +7,7 @@ import (
 	"time"
 
 	"github.com/noriah/tavis/dsp"
+	"github.com/noriah/tavis/dsp/window"
 	"github.com/noriah/tavis/graphic"
 	"github.com/noriah/tavis/input"
 
@@ -37,11 +38,13 @@ func Run(cfg Config) error {
 	// Make a spectrum
 	var spectrum = dsp.NewSpectrum(cfg.SampleRate, cfg.SampleSize)
 	spectrum.SetSmoothing(cfg.SmoothFactor)
-	spectrum.SetGamma(cfg.Gamma)
+	spectrum.SetWinVar(cfg.WinVar)
 
 	for ch := 0; ch < cfg.ChannelCount; ch++ {
 		spectrum.AddStream(audio.SampleBuffers()[ch])
 	}
+
+	var barBuffers = spectrum.BinBuffers()
 
 	var display = graphic.NewDisplay(cfg.SampleRate, cfg.SampleSize)
 	defer display.Close()
@@ -71,6 +74,10 @@ func Run(cfg Config) error {
 
 	var barCount int
 
+	var win = func(buf []float64) {
+		window.PlanckTaper(buf, cfg.WinVar)
+	}
+
 	if err := audio.Start(); err != nil {
 		return errors.Wrap(err, "failed to start input session")
 	}
@@ -98,8 +105,8 @@ func Run(cfg Config) error {
 			barCount = spectrum.Recalculate(termWidth, calcMethod)
 		}
 
-		spectrum.Process()
+		spectrum.Process(win)
 
-		display.Draw(spectrum.Buffers(), barCount)
+		display.Draw(barBuffers, cfg.ChannelCount, barCount)
 	}
 }
