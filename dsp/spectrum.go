@@ -4,6 +4,7 @@ import (
 	"math"
 	"math/cmplx"
 
+	"github.com/noriah/tavis/dsp/window"
 	"github.com/noriah/tavis/fft"
 )
 
@@ -45,6 +46,18 @@ type stream struct {
 	plan  *fft.Plan
 }
 
+// SpectrumType is the type of calculation we run
+type SpectrumType int
+
+// Spectrum calculation types
+const (
+	SpectrumEqual SpectrumType = iota
+	SpectrumLog
+)
+
+// SpectrumDefault is the default spectrum type
+const SpectrumDefault = SpectrumEqual
+
 // Some notes:
 //
 // https://stackoverflow.com/questions/3694918/how-to-extract-frequency-associated-with-fft-values-in-python
@@ -81,11 +94,11 @@ func (sp *Spectrum) Process() {
 
 	sf = math.Pow(sf, float64(sp.sampleSize)/sp.sampleRate)
 
-	var pct = 0.001 * (float64(sp.sampleSize) * 0.5)
+	var bassCut = sp.freqToIdx(dividers[2], math.Round)
 
 	for _, stream := range sp.streams {
 
-		// window.Hamming(stream.input, sp.sampleSize)
+		window.Hamming(stream.input, sp.sampleSize)
 
 		stream.plan.Execute()
 
@@ -94,21 +107,21 @@ func (sp *Spectrum) Process() {
 
 			var xF = sp.bins[xB].floorFFT
 			for xF < sp.bins[xB].ceilFFT && xF < sp.fftSize {
-				// if power := cmplx.Abs(sp.fftBuf[xF]); mag < power {
-				// 	mag = power
-				// }
-				mag += cmplx.Abs(sp.fftBuf[xF])
+				if power := cmplx.Abs(sp.fftBuf[xF]); mag < power {
+					mag = power
+				}
+				// mag += cmplx.Abs(sp.fftBuf[xF])
 				xF++
 			}
 
-			mag /= float64(sp.bins[xB].widthFFT)
-			mag *= sp.bins[xB].eqVal
+			// mag /= float64(sp.bins[xB].widthFFT)
 
+			mag *= sp.bins[xB].eqVal
 			switch {
-			case xF < int(pct):
-				mag = math.Pow(mag, 0.5*(float64(xF)/pct))
+			case sp.bins[xB].floorFFT < bassCut:
+				mag = math.Pow(mag, 0.5*(float64(xF)/float64(bassCut)))
 			default:
-				mag = math.Pow(mag, 0.55)
+				mag = math.Pow(mag, 0.6)
 			}
 
 			if mag < 0.0 {
@@ -123,7 +136,7 @@ func (sp *Spectrum) Process() {
 			// stream.buf[xB] = mag
 
 			mag += stream.pBuf[xB] * sp.smoothFact
-			stream.pBuf[xB] = mag * (1 - (1 / (1 + (mag * 1))))
+			stream.pBuf[xB] = mag * (1 - (1 / (1 + (mag * 2))))
 			stream.buf[xB] = mag
 
 		}
@@ -142,66 +155,107 @@ var dividers = []float64{
 }
 
 // Recalculate rebuilds our frequency bins
-func (sp *Spectrum) Recalculate(bins int) int {
-	if bins > sp.fftSize {
-		bins = sp.fftSize
+func (sp *Spectrum) Recalculate(bins int, stype SpectrumType) int {
+
+	switch {
+	case bins == sp.numBins:
+		return bins
+	case bins >= sp.fftSize:
+		bins = sp.fftSize - 1
 	}
 
 	sp.numBins = bins
-
-	// var cCoef = 1.0 / float64(bins+1)
+	var cCoef = 100.0 / float64(bins+1)
 
 	// clean the bins
 	for xB := 0; xB < bins; xB++ {
 		sp.bins[xB] = bin{
-			eqVal: math.Log10(float64(xB) + 2),
+			eqVal: math.Log2(float64(xB)+2) * cCoef,
 		}
 	}
 
-	var loF = dividers[0]
-	var hiF = math.Min(dividers[4], sp.sampleRate/2)
-	var minIdx = sp.freqToIdx(loF, math.Floor)
-	var maxIdx = sp.freqToIdx(hiF, math.Round)
+	switch stype {
 
-	var size = maxIdx - minIdx
+	case SpectrumEqual:
 
-	var spread = size / bins
+		var loF = dividers[0]
+		var hiF = math.Min(dividers[4], sp.sampleRate/2)
+		var minIdx = sp.freqToIdx(loF, math.Floor)
+		var maxIdx = sp.freqToIdx(hiF, math.Round)
 
-	if spread < 1 {
-		spread++
-	}
+		var size = maxIdx - minIdx
 
-	var last = size % spread
+		var spread = size / bins
 
-	var start = minIdx
-	var lBins = bins
-	if last > 0 {
-		lBins--
-	}
+		if spread < 1 {
+			spread++
+		}
 
-	for xB := 0; xB < lBins; xB++ {
-		sp.bins[xB].widthFFT = spread
-		sp.bins[xB].floorFFT = start
-		start += spread
+		var last = size % spread
 
-		sp.bins[xB].ceilFFT = start
-	}
+		var start = minIdx
+		var lBins = bins
+		if last > 0 {
+			lBins--
+		}
 
-	if last > 0 {
-		sp.bins[lBins].floorFFT = start
-		sp.bins[lBins].ceilFFT = start + last
-		sp.bins[lBins].widthFFT = last
+		for xB := 0; xB < lBins; xB++ {
+			sp.bins[xB].widthFFT = spread
+			sp.bins[xB].floorFFT = start
+			start += spread
+
+			sp.bins[xB].ceilFFT = start
+		}
+
+		if last > 0 {
+			sp.bins[lBins].floorFFT = start
+			sp.bins[lBins].ceilFFT = start + last
+			sp.bins[lBins].widthFFT = last
+		}
+
+	case SpectrumLog:
+
+		var lo = (dividers[1])
+		var hi = dividers[4]
+
+		var cF = math.Log10(lo/hi) / ((1 / float64(bins)) - 1)
+
+		var getBinBase = func(b int) int {
+			var vFreq = ((float64(b+1) / float64(bins)) * cF) - cF
+			vFreq = math.Pow(10.0, vFreq) * hi
+			return sp.freqToIdx(vFreq, math.Round)
+		}
+
+		for xB := 0; xB <= bins; xB++ {
+
+			// sp.bins[xB].floorFFT =
+			sp.bins[xB].floorFFT = getBinBase(xB)
+
+			if xB > 0 {
+				if sp.bins[xB-1].floorFFT >= sp.bins[xB].floorFFT {
+					// sp.bins[xB].floorFFT = sp.bins[xB-1].floorFFT + 1
+
+					// if xB > 1 {
+					// 	sp.bins[xB].floorFFT += sp.bins[xB-1].floorFFT
+					// 	sp.bins[xB].floorFFT -= sp.bins[xB-2].floorFFT + 1
+					// }
+				}
+
+				sp.bins[xB-1].ceilFFT = sp.bins[xB].floorFFT
+			}
+		}
+
+	default:
+		return bins
 	}
 
 	for xB := 0; xB < bins; xB++ {
-		var b = sp.bins[xB]
-
-		if b.ceilFFT == b.floorFFT {
+		if sp.bins[xB].ceilFFT == sp.bins[xB].floorFFT {
 			sp.bins[xB].widthFFT = 1
 			continue
 		}
 
-		sp.bins[xB].widthFFT = b.ceilFFT - b.floorFFT
+		sp.bins[xB].widthFFT = sp.bins[xB].ceilFFT - sp.bins[xB].floorFFT
 	}
 
 	return bins

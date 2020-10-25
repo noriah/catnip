@@ -1,6 +1,7 @@
 package main
 
 import (
+	"github.com/noriah/tavis/dsp"
 	"github.com/noriah/tavis/graphic"
 	"github.com/noriah/tavis/input"
 )
@@ -29,24 +30,27 @@ type Config struct {
 	SpaceWidth int
 	// SampleSize is how much we draw. Play with it
 	SampleSize int
-	// DrawType is the draw type
-	DrawType int
 	// ChannelCount is the number of channels we want to look at. DO NOT TOUCH
 	ChannelCount int
+	// DrawType is the draw type
+	DrawType int
+	// SpectrumType is the spectrum calculation method
+	SpectrumType int
 }
 
 // NewZeroConfig returns a zero config
 func NewZeroConfig() Config {
 	return Config{
 		SampleRate:   44100,
-		SmoothFactor: 25.5,
+		SmoothFactor: 65.5,
 		Gamma:        2.0,
 		BaseThick:    1,
 		BarWidth:     2,
 		SpaceWidth:   1,
 		SampleSize:   1024,
-		DrawType:     int(graphic.DrawDefault),
 		ChannelCount: 2,
+		DrawType:     int(graphic.DrawDefault),
+		SpectrumType: int(dsp.SpectrumDefault),
 	}
 }
 
