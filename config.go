@@ -39,11 +39,17 @@ type Config struct {
 }
 
 // NewZeroConfig returns a zero config
+// it is the "default"
+//
+// nora's defaults:
+//  - sampleRate: 122880
+//  - sampleSize: 2048
+//  - super smooth detail view
 func NewZeroConfig() Config {
 	return Config{
 		SampleRate:   44100,
-		SmoothFactor: 65.5,
-		WinVar:       0.5,
+		SmoothFactor: 19.69,
+		WinVar:       0.50,
 		BaseThick:    1,
 		BarWidth:     2,
 		SpaceWidth:   1,
@@ -58,6 +64,8 @@ func sanitizeConfig(cfg *Config) error {
 	switch {
 	case cfg.WinVar > 1.0:
 		cfg.WinVar = 1.0
+	case cfg.WinVar < 0.0:
+		cfg.WinVar = 0.0
 	default:
 	}
 

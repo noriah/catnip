@@ -10,13 +10,40 @@ import (
 	"github.com/nsf/termbox-go"
 )
 
+// DrawType is the type
+type DrawType int
+
+// Constants
 const (
 
-	// MaxWidth will be removed at some point
-	MaxWidth = 5000
+	// Bar Constants
 
 	// DisplaySpace is the block we use for space (if we were to print one)
-	DisplaySpace rune = '\u0020'
+	DisplaySpace = '\u0020'
+
+	BarRuneR = '\u2580'
+	BarRune  = '\u2588'
+
+	// drawing constants
+
+	// styles
+
+	StyleDefault     = termbox.ColorDefault
+	StyleDefaultBack = termbox.ColorDefault
+	StyleCenter      = termbox.ColorMagenta
+	// StyleCenter  = StyleDefault
+	StyleReverse = termbox.AttrReverse
+
+	// types
+
+	DrawMin DrawType = iota
+	DrawUp
+	DrawUpDown
+	DrawDown
+	DrawMax
+
+	// DrawDefault is the default draw type
+	DrawDefault = DrawUpDown
 
 	// NumRunes number of runes for sub step bars
 	NumRunes = 8
@@ -25,45 +52,12 @@ const (
 
 	// ScalingSlowWindow in seconds
 	ScalingSlowWindow = 5
-
 	// ScalingFastWindow in seconds
 	ScalingFastWindow = ScalingSlowWindow * 0.2
-
 	// ScalingDumpPercent is how much we erase on rescale
 	ScalingDumpPercent = 0.75
-
 	// ScalingResetDeviation standard deviations from the mean before reset
 	ScalingResetDeviation = 1
-)
-
-// DrawType is the type
-type DrawType int
-
-// Draw Types
-const (
-	DrawMin DrawType = iota
-	DrawUp
-	DrawUpDown
-	DrawDown
-	DrawMax
-)
-
-// DrawDefault is the default draw type
-const DrawDefault = DrawUpDown
-
-// Bar runes
-const (
-	BarRuneR = '\u2580'
-	BarRune  = '\u2588'
-)
-
-// Temp styles
-const (
-	StyleDefault     = termbox.ColorDefault
-	StyleDefaultBack = termbox.ColorDefault
-	StyleCenter      = termbox.ColorMagenta
-	// StyleCenter  = StyleDefault
-	StyleReverse = termbox.AttrReverse
 )
 
 // Config is a Display Config Object
@@ -77,10 +71,8 @@ type Config struct {
 
 // Display handles drawing our visualizer
 type Display struct {
-	running uint32
-
-	cfg Config
-
+	running    uint32
+	cfg        Config
 	slowWindow *util.MovingWindow
 	fastWindow *util.MovingWindow
 }
@@ -151,16 +143,16 @@ func eventPoller(ctx context.Context, fn context.CancelFunc, d *Display) {
 			switch ev.Key {
 
 			case termbox.KeyArrowUp:
-				d.SetWidths(d.cfg.BarWidth+1, d.cfg.SpaceWidth)
+				d.AdjustWidths(1, 0)
 
 			case termbox.KeyArrowRight:
-				d.SetWidths(d.cfg.BarWidth, d.cfg.SpaceWidth+1)
+				d.AdjustWidths(0, 1)
 
 			case termbox.KeyArrowDown:
-				d.SetWidths(d.cfg.BarWidth-1, d.cfg.SpaceWidth)
+				d.AdjustWidths(-1, 0)
 
 			case termbox.KeyArrowLeft:
-				d.SetWidths(d.cfg.BarWidth, d.cfg.SpaceWidth-1)
+				d.AdjustWidths(0, -1)
 
 			case termbox.KeySpace:
 				d.SetDrawType(d.cfg.DrawType + 1)
@@ -171,10 +163,10 @@ func eventPoller(ctx context.Context, fn context.CancelFunc, d *Display) {
 
 				switch ev.Ch {
 				case '+', '=':
-					d.SetBase(d.cfg.BaseThick + 1)
+					d.AdjustBase(1)
 
 				case '-', '_':
-					d.SetBase(d.cfg.BaseThick - 1)
+					d.AdjustBase(-1)
 
 				case 'q', 'Q':
 					return
@@ -191,7 +183,9 @@ func eventPoller(ctx context.Context, fn context.CancelFunc, d *Display) {
 		default:
 
 		} // switch ev.Type
-	}
+
+	} // for
+
 }
 
 // Stop display not work
@@ -212,6 +206,7 @@ func (d *Display) Close() error {
 // SetWidths takes a bar width and spacing width
 // Returns number of bars able to show
 func (d *Display) SetWidths(bar, space int) {
+
 	if bar < 1 {
 		bar = 1
 	}
@@ -225,25 +220,39 @@ func (d *Display) SetWidths(bar, space int) {
 	d.cfg.BinWidth = bar + space
 }
 
+// AdjustWidths modifies the bar and space width by barDelta and spaceDelta
+func (d *Display) AdjustWidths(barDelta, spaceDelta int) {
+	d.SetWidths(d.cfg.BarWidth+barDelta, d.cfg.SpaceWidth+spaceDelta)
+}
+
 // SetBase will set the base thickness
 func (d *Display) SetBase(thick int) {
-	if thick < 0 {
-		thick = 0
-	}
+	switch {
 
-	d.cfg.BaseThick = thick
+	case thick < 0:
+		d.cfg.BaseThick = 0
+
+	default:
+		d.cfg.BaseThick = thick
+
+	}
+}
+
+// AdjustBase will change the base by delta units
+func (d *Display) AdjustBase(delta int) {
+	d.SetBase(d.cfg.BaseThick + delta)
 }
 
 // SetDrawType sets the draw type for future draws
 func (d *Display) SetDrawType(dt DrawType) {
 	switch {
 	case dt <= DrawMin:
-		dt = DrawMax - 1
+		d.cfg.DrawType = DrawMax - 1
 	case dt >= DrawMax:
-		dt = DrawMin + 1
+		d.cfg.DrawType = DrawMin + 1
+	default:
+		d.cfg.DrawType = dt
 	}
-
-	d.cfg.DrawType = dt
 }
 
 // Bars returns the number of bars we will draw
@@ -256,12 +265,12 @@ func (d *Display) Bars(sets ...int) int {
 	var width, _ = termbox.Size()
 
 	switch d.cfg.DrawType {
-	case DrawUpDown:
-		return width / d.cfg.BinWidth
 	case DrawUp, DrawDown:
 		return (width / d.cfg.BinWidth) / x
+	case DrawUpDown:
+		return width / d.cfg.BinWidth
 	default:
-		return -1
+		return 0
 	}
 }
 
@@ -282,16 +291,16 @@ func (d *Display) updateWindow(peak float64) float64 {
 		return math.Max(vMean+(2.5*vSD), 1.0)
 	}
 
-	return 1
+	return 1.0
 }
 
 // Draw takes data and draws
-func (d *Display) Draw(bins [][]float64, c, b int) error {
+func (d *Display) Draw(bufs [][]float64, channels, bins int) error {
 	var peak = 0.0
 
-	for xCh := 0; xCh < c; xCh++ {
-		for xBin := 0; xBin < b; xBin++ {
-			if v := bins[xCh][xBin]; peak < v {
+	for xCh := 0; xCh < channels; xCh++ {
+		for xBin := 0; xBin < bins; xBin++ {
+			if v := bufs[xCh][xBin]; peak < v {
 				peak = v
 			}
 		}
@@ -303,11 +312,11 @@ func (d *Display) Draw(bins [][]float64, c, b int) error {
 
 	switch d.cfg.DrawType {
 	case DrawUp:
-		err = drawUp(bins, b, d.cfg, scale)
+		err = drawUp(bufs, bins, d.cfg, scale)
 	case DrawUpDown:
-		err = drawUpDown(bins, b, d.cfg, scale)
+		err = drawUpDown(bufs, bins, d.cfg, scale)
 	case DrawDown:
-		err = drawDown(bins, b, d.cfg, scale)
+		err = drawDown(bufs, bins, d.cfg, scale)
 	default:
 		return nil
 	}

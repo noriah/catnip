@@ -5,7 +5,7 @@ package window
 
 import "math"
 
-// Function is a function that will do window things for you
+// Function is a function that will do window things for you on a slice
 type Function func(buf []float64)
 
 // Rectangle is just do nothing
