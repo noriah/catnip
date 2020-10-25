@@ -51,12 +51,12 @@ type SpectrumType int
 
 // Spectrum calculation types
 const (
-	SpectrumEqual SpectrumType = iota
-	SpectrumLog
-)
+	SpectrumLog SpectrumType = iota
+	SpectrumEqual
 
-// SpectrumDefault is the default spectrum type
-const SpectrumDefault = SpectrumEqual
+	// SpectrumDefault is the default spectrum type
+	SpectrumDefault = SpectrumLog
+)
 
 // Some notes:
 //
@@ -169,84 +169,20 @@ func (sp *Spectrum) Recalculate(bins int, stype SpectrumType) int {
 
 	// clean the bins
 	for xB := 0; xB < bins; xB++ {
-		sp.bins[xB] = bin{
-			eqVal: math.Log2(float64(xB)+2) * cCoef,
-		}
+		sp.bins[xB].floorFFT = 0
+		sp.bins[xB].ceilFFT = 0
+
+		sp.bins[xB].eqVal = math.Log2(float64(xB)+2) * cCoef
 	}
 
 	switch stype {
 
-	case SpectrumEqual:
-
-		var loF = dividers[0]
-		var hiF = math.Min(dividers[4], sp.sampleRate/2)
-		var minIdx = sp.freqToIdx(loF, math.Floor)
-		var maxIdx = sp.freqToIdx(hiF, math.Round)
-
-		var size = maxIdx - minIdx
-
-		var spread = size / bins
-
-		if spread < 1 {
-			spread++
-		}
-
-		var last = size % spread
-
-		var start = minIdx
-		var lBins = bins
-		if last > 0 {
-			lBins--
-		}
-
-		for xB := 0; xB < lBins; xB++ {
-			sp.bins[xB].widthFFT = spread
-			sp.bins[xB].floorFFT = start
-			start += spread
-
-			sp.bins[xB].ceilFFT = start
-		}
-
-		if last > 0 {
-			sp.bins[lBins].floorFFT = start
-			sp.bins[lBins].ceilFFT = start + last
-			sp.bins[lBins].widthFFT = last
-		}
-
 	case SpectrumLog:
-
-		var lo = (dividers[1])
-		var hi = dividers[4]
-
-		var cF = math.Log10(lo/hi) / ((1 / float64(bins)) - 1)
-
-		var getBinBase = func(b int) int {
-			var vFreq = ((float64(b+1) / float64(bins)) * cF) - cF
-			vFreq = math.Pow(10.0, vFreq) * hi
-			return sp.freqToIdx(vFreq, math.Round)
-		}
-
-		for xB := 0; xB <= bins; xB++ {
-
-			// sp.bins[xB].floorFFT =
-			sp.bins[xB].floorFFT = getBinBase(xB)
-
-			if xB > 0 {
-				if sp.bins[xB-1].floorFFT >= sp.bins[xB].floorFFT {
-					// sp.bins[xB].floorFFT = sp.bins[xB-1].floorFFT + 1
-
-					// if xB > 1 {
-					// 	sp.bins[xB].floorFFT += sp.bins[xB-1].floorFFT
-					// 	sp.bins[xB].floorFFT -= sp.bins[xB-2].floorFFT + 1
-					// }
-				}
-
-				sp.bins[xB-1].ceilFFT = sp.bins[xB].floorFFT
-			}
-		}
+		sp.distributeLog(bins)
+	case SpectrumEqual:
+		sp.distributeEqual(bins)
 
 	default:
-		return bins
 	}
 
 	for xB := 0; xB < bins; xB++ {
@@ -259,6 +195,70 @@ func (sp *Spectrum) Recalculate(bins int, stype SpectrumType) int {
 	}
 
 	return bins
+}
+
+// distributeLog distributes the
+func (sp *Spectrum) distributeLog(bins int) {
+	var lo = (dividers[1])
+	var hi = dividers[4]
+
+	var cF = math.Log10(lo/hi) / ((1 / float64(bins)) - 1)
+
+	var getBinBase = func(b int) int {
+		var vFreq = ((float64(b+1) / float64(bins)) * cF) - cF
+		vFreq = math.Pow(10.0, vFreq) * hi
+		return sp.freqToIdx(vFreq, math.Round)
+	}
+
+	for xB := 0; xB <= bins; xB++ {
+
+		sp.bins[xB].floorFFT = getBinBase(xB)
+
+		if xB > 0 {
+			if sp.bins[xB-1].floorFFT >= sp.bins[xB].floorFFT {
+				sp.bins[xB].floorFFT = sp.bins[xB-1].floorFFT + 1
+			}
+
+			sp.bins[xB-1].ceilFFT = sp.bins[xB].floorFFT
+		}
+	}
+}
+
+func (sp *Spectrum) distributeEqual(bins int) {
+	var loF = dividers[0]
+	var hiF = math.Min(dividers[4], sp.sampleRate/2)
+	var minIdx = sp.freqToIdx(loF, math.Floor)
+	var maxIdx = sp.freqToIdx(hiF, math.Round)
+
+	var size = maxIdx - minIdx
+
+	var spread = size / bins
+
+	if spread < 1 {
+		spread++
+	}
+
+	var last = size % spread
+
+	var start = minIdx
+	var lBins = bins
+	if last > 0 {
+		lBins--
+	}
+
+	for xB := 0; xB < lBins; xB++ {
+		sp.bins[xB].widthFFT = spread
+		sp.bins[xB].floorFFT = start
+		start += spread
+
+		sp.bins[xB].ceilFFT = start
+	}
+
+	if last > 0 {
+		sp.bins[lBins].floorFFT = start
+		sp.bins[lBins].ceilFFT = start + last
+		sp.bins[lBins].widthFFT = last
+	}
 }
 
 func (sp *Spectrum) idxToFreq(bin int) float64 {
