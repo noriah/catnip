@@ -13,21 +13,15 @@ import (
 	"github.com/pkg/errors"
 )
 
-// OverlapRatio Ratio of overlap
-const OverlapRatio = 0.5
-
 // Run starts to draw the visualizer on the tcell Screen.
 func Run(cfg Config) error {
-	if err := sanitizeConfig(&cfg); err != nil {
-		return err
-	}
-
 	// DrawDelay is the time we wait between ticks to draw.
 	var drawDelay = time.Second / time.Duration(
 		int((cfg.SampleRate/float64(cfg.SampleSize))+1))
 
 	// Draw type
 	var drawType = graphic.DrawType(cfg.DrawType)
+	var calcMethod = dsp.SpectrumType(cfg.SpectrumType)
 
 	var audio, err = cfg.InputBackend.Start(input.SessionConfig{
 		Device:     cfg.InputDevice,
@@ -75,7 +69,7 @@ func Run(cfg Config) error {
 	ctx = display.Start(ctx)
 	defer display.Stop()
 
-	var barCount = 0
+	var barCount int
 
 	if err := audio.Start(); err != nil {
 		return errors.Wrap(err, "failed to start input session")
@@ -101,7 +95,7 @@ func Run(cfg Config) error {
 		}
 
 		if termWidth := display.Bars(cfg.ChannelCount); barCount != termWidth {
-			barCount = spectrum.Recalculate(termWidth)
+			barCount = spectrum.Recalculate(termWidth, calcMethod)
 		}
 
 		spectrum.Process()

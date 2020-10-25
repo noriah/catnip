@@ -90,17 +90,24 @@ func main() {
 				Destination: &globalCfg.SpaceWidth,
 			},
 			&cli.IntFlag{
+				Name:        "channel-count",
+				Aliases:     []string{"c"},
+				Hidden:      true,
+				Value:       globalCfg.ChannelCount,
+				Destination: &globalCfg.ChannelCount,
+			},
+			&cli.IntFlag{
 				Name:        "draw-type",
 				Aliases:     []string{"dt"},
 				Value:       globalCfg.DrawType,
 				Destination: &globalCfg.DrawType,
 			},
 			&cli.IntFlag{
-				Name:        "channel-count",
-				Aliases:     []string{"c"},
+				Name:        "spectrum-type",
+				Aliases:     []string{"st"},
 				Hidden:      true,
-				Value:       globalCfg.ChannelCount,
-				Destination: &globalCfg.ChannelCount,
+				Value:       globalCfg.SpectrumType,
+				Destination: &globalCfg.SpectrumType,
 			},
 		},
 	}
@@ -191,6 +198,10 @@ func run(c *cli.Context) error {
 	}
 
 	if err := initInputDevice(c); err != nil {
+		return err
+	}
+
+	if err := sanitizeConfig(&globalCfg); err != nil {
 		return err
 	}
 
