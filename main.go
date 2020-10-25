@@ -66,10 +66,10 @@ func main() {
 				Destination: &globalCfg.SmoothFactor,
 			},
 			&cli.Float64Flag{
-				Name:        "spread-factor",
-				Aliases:     []string{"g"},
-				Value:       globalCfg.Gamma,
-				Destination: &globalCfg.Gamma,
+				Name:        "window-variable",
+				Aliases:     []string{"wv"},
+				Value:       globalCfg.WinVar,
+				Destination: &globalCfg.WinVar,
 			},
 			&cli.IntFlag{
 				Name:        "base-thickness",
