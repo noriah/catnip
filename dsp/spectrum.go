@@ -1,3 +1,14 @@
+// Package dsp provides audio analysis
+//
+// Some notes:
+//
+// https://dlbeer.co.nz/articles/fftvis.html
+// https://www.cg.tuwien.ac.at/courses/WissArbeiten/WS2010/processing.pdf
+// https://github.com/hvianna/audioMotion-analyzer/blob/master/src/audioMotion-analyzer.js#L1053
+// https://dsp.stackexchange.com/questions/6499/help-calculating-understanding-the-mfccs-mel-frequency-cepstrum-coefficients
+// https://stackoverflow.com/questions/3694918/how-to-extract-frequency-associated-with-fft-values-in-python
+//  - https://stackoverflow.com/a/27191172
+//
 package dsp
 
 import (
@@ -25,11 +36,12 @@ type Spectrum struct {
 	numBins      int          // number of bins we look at
 	fftSize      int          // number of fft bins
 	sampleSize   int          // number of samples per slice
+	sType        SpectrumType // the type of spectrum distribution
 	sampleRate   float64      // audio sample rate
 	winVar       float64      // window variable
 	smoothFactor float64      // smothing factor
-	bins         []bin        // bins for processing
 	fftBuf       []complex128 // fft return buffer
+	bins         []bin        // bins for processing
 	streams      []*stream    // streams of data
 }
 
@@ -50,28 +62,19 @@ type stream struct {
 // Frequencies are the dividing frequencies
 var Frequencies = []float64{
 	// sub sub bass
-	20.0,
+	20.0, // 0
 	// sub bass
-	60.0,
+	60.0, // 1
 	// bass
-	250.0,
+	250.0, // 2
 	// midrange
-	4000.0,
+	4000.0, // 3
 	// treble
-	12000.0,
+	12000.0, // 4
 	// brilliance
-	22050.0,
+	22050.0, // 5
 	// everything else
 }
-
-// Some notes:
-//
-// https://stackoverflow.com/questions/3694918/how-to-extract-frequency-associated-with-fft-values-in-python
-//  - https://stackoverflow.com/a/27191172
-// https://dlbeer.co.nz/articles/fftvis.html
-// https://github.com/hvianna/audioMotion-analyzer/blob/master/src/audioMotion-analyzer.js#L1053
-// https://www.cg.tuwien.ac.at/courses/WissArbeiten/WS2010/processing.pdf
-// https://dsp.stackexchange.com/questions/6499/help-calculating-understanding-the-mfccs-mel-frequency-cepstrum-coefficients
 
 // NewSpectrum will set up our spectrum
 func NewSpectrum(hz float64, size int) *Spectrum {
@@ -84,8 +87,8 @@ func NewSpectrum(hz float64, size int) *Spectrum {
 		sampleRate:   hz,
 		smoothFactor: 0.1969,
 		winVar:       1.0,
-		bins:         make([]bin, size+1),
 		fftBuf:       make([]complex128, fftSize),
+		bins:         make([]bin, size+1),
 		streams:      make([]*stream, 0, 2),
 	}
 
@@ -169,7 +172,7 @@ func (sp *Spectrum) Process(win window.Function) {
 
 			mag = math.Pow(mag, pow)
 
-			// Smoothing
+			// time smoothing
 
 			mag *= (1.0 - sf)
 			mag += stream.pBuf[xB] * sf
@@ -185,7 +188,7 @@ func (sp *Spectrum) Process(win window.Function) {
 }
 
 // Recalculate rebuilds our frequency bins
-func (sp *Spectrum) Recalculate(bins int, stype SpectrumType) int {
+func (sp *Spectrum) Recalculate(bins int) int {
 
 	switch {
 	case bins >= sp.fftSize:
@@ -204,7 +207,7 @@ func (sp *Spectrum) Recalculate(bins int, stype SpectrumType) int {
 		sp.bins[xB].eqVal = 1.0
 	}
 
-	switch stype {
+	switch sp.sType {
 
 	case SpectrumLog:
 		sp.distributeLog(bins)
@@ -215,6 +218,7 @@ func (sp *Spectrum) Recalculate(bins int, stype SpectrumType) int {
 	default:
 	}
 
+	// set widths
 	for xB := 0; xB < bins; xB++ {
 		if sp.bins[xB].ceilFFT == sp.bins[xB].floorFFT {
 			sp.bins[xB].widthFFT = 1
@@ -227,6 +231,9 @@ func (sp *Spectrum) Recalculate(bins int, stype SpectrumType) int {
 	return bins
 }
 
+// distributeLog does not *actually* distribute logarithmically
+// it is a best guess naive attempt right now.
+// i will continue work on it - winter
 func (sp *Spectrum) distributeLog(bins int) {
 	var lo = (Frequencies[1])
 	var hi = Frequencies[4]
@@ -241,7 +248,9 @@ func (sp *Spectrum) distributeLog(bins int) {
 
 	var cCoef = 100.0 / float64(bins+1)
 
-	for xB := 0; xB <= bins; xB++ {
+	sp.bins[0].floorFFT = lo &
+
+	for xB := 0; xB < bins; xB++ {
 
 		sp.bins[xB].floorFFT = getBinBase(xB)
 		sp.bins[xB].eqVal = math.Log2(float64(xB)+2) * cCoef
@@ -307,6 +316,11 @@ func (sp *Spectrum) freqToIdx(freq float64, round mathFunc) int {
 	}
 
 	return sp.fftSize - 1
+}
+
+// SetType will set the spectrum type
+func (sp *Spectrum) SetType(st SpectrumType) {
+	sp.sType = st
 }
 
 // SetWinVar sets the winVar used for distribution spread

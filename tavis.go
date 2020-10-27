@@ -20,9 +20,6 @@ func Run(cfg Config) error {
 	var drawDelay = time.Second / time.Duration(
 		int((cfg.SampleRate/float64(cfg.SampleSize))+1))
 
-	// Draw type
-	var spectrumType = dsp.SpectrumType(cfg.SpectrumType)
-
 	var audio, err = cfg.InputBackend.Start(input.SessionConfig{
 		Device:     cfg.InputDevice,
 		FrameSize:  cfg.ChannelCount,
@@ -38,6 +35,7 @@ func Run(cfg Config) error {
 	var spectrum = dsp.NewSpectrum(cfg.SampleRate, cfg.SampleSize)
 	spectrum.SetSmoothing(cfg.SmoothFactor)
 	spectrum.SetWinVar(cfg.WinVar)
+	spectrum.SetType(dsp.SpectrumType(cfg.SpectrumType))
 
 	for ch := 0; ch < cfg.ChannelCount; ch++ {
 		spectrum.AddStream(audio.SampleBuffers()[ch])
@@ -94,7 +92,7 @@ func Run(cfg Config) error {
 		}
 
 		if termWidth := display.Bars(cfg.ChannelCount); barCount != termWidth {
-			barCount = spectrum.Recalculate(termWidth, spectrumType)
+			barCount = spectrum.Recalculate(termWidth)
 		}
 
 		spectrum.Process(win)
