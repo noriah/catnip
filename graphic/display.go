@@ -328,28 +328,23 @@ func (d *Display) Draw(bufs [][]float64, channels, bins int) error {
 
 	termbox.Flush()
 
-	termbox.Clear(termbox.ColorDefault, termbox.ColorDefault)
+	termbox.Clear(StyleDefault, StyleDefaultBack)
 
 	return nil
 }
 
 func stopAndTop(value float64, height int, up bool) (int, rune) {
 	if stop := int(value * NumRunes); stop < height*NumRunes {
-		if up {
-			top := BarRuneR + rune(stop%NumRunes)
-			stop = height - (stop / NumRunes)
 
-			return stop, top
+		if up {
+			return height - (stop / NumRunes), BarRuneR + rune(stop%NumRunes)
 		}
 
-		top := BarRune - rune(stop%NumRunes)
-		stop /= NumRunes
-
-		return stop, top
+		return stop / NumRunes, BarRune - rune(stop%NumRunes)
 	}
 
 	if up {
-		return 0, BarRune
+		return 0, BarRuneR
 	}
 
 	return height, BarRune
