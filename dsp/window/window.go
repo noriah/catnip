@@ -23,9 +23,12 @@ func CosSum(buf []float64, a0 float64) {
 	}
 }
 
+// HammingConst is the hamming window constant
+const HammingConst = 25.0 / 46.0
+
 // Hamming modifies the buffer to a Hamming window
 func Hamming(buf []float64) {
-	CosSum(buf, 25.0/46.0)
+	CosSum(buf, HammingConst)
 }
 
 // Hann modifies the buffer to a Hann window
