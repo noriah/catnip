@@ -3,36 +3,50 @@ package graphic
 import "github.com/nsf/termbox-go"
 
 func drawDown(bins [][]float64, count int, cfg Config, scale float64) error {
-	var cSetCount = len(bins)
-
 	var cWidth, cHeight = termbox.Size()
 
-	var cChanWidth = (cfg.BinWidth * count) - cfg.SpaceWidth
-	var cPaddedWidth = (cfg.BinWidth * count * cSetCount) - cfg.SpaceWidth
-	var cOffset = (cWidth - cPaddedWidth) / 2
-
 	var vHeight = cHeight - cfg.BaseThick
+	if vHeight < 0 {
+		vHeight = 0
+	}
 
 	scale = float64(vHeight) / scale
 
+	var cPaddedWidth = (cfg.BinWidth * count * len(bins)) - cfg.SpaceWidth
+
+	if cPaddedWidth > cWidth || cPaddedWidth < 0 {
+		cPaddedWidth = cWidth
+	}
+
 	var xBin int
-	var xCol = cOffset
+	var xCol = (cWidth - cPaddedWidth) / 2
 	var delta = 1
 
 	for xCh := range bins {
 		var stop, top = stopAndTop(bins[xCh][xBin]*scale, vHeight, false)
+		if stop += cfg.BaseThick; stop >= cHeight {
+			stop = cHeight
+			top = BarRune
+		}
 
 		var lCol = xCol + cfg.BarWidth
-		var lColMax = xCol + cChanWidth
+		var lColMax = xCol + (cfg.BinWidth * count) - cfg.SpaceWidth
 
-		for xCol < lColMax {
-
+		for {
 			if xCol >= lCol {
+				if xCol >= lColMax {
+					break
+				}
+
 				if xBin += delta; xBin >= count || xBin < 0 {
 					break
 				}
 
 				stop, top = stopAndTop(bins[xCh][xBin]*scale, vHeight, false)
+				if stop += cfg.BaseThick; stop >= cHeight {
+					stop = cHeight
+					top = BarRune
+				}
 
 				xCol += cfg.SpaceWidth
 				lCol = xCol + cfg.BarWidth
@@ -65,20 +79,3 @@ func drawDown(bins [][]float64, count int, cfg Config, scale float64) error {
 
 	return nil
 }
-
-// var stopAndTop = func(value float64) (stop int, top int) {
-// 	if value *= scale; value < float64(vHeight) {
-// 		top = int(value * NumRunes)
-// 	} else {
-// 		top = vHeight * NumRunes
-// 	}
-// 	stop = (top / NumRunes) + cfg.BaseThick
-// 	top %= NumRunes
-
-// 	if stop > cHeight {
-// 		stop = cHeight
-// 		top = 0
-// 	}
-
-// 	return
-// }

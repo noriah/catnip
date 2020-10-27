@@ -86,7 +86,7 @@ func NewSpectrum(hz float64, size int) *Spectrum {
 		sampleSize:   size,
 		sampleRate:   hz,
 		smoothFactor: 0.1969,
-		winVar:       1.0,
+		winVar:       0.5,
 		fftBuf:       make([]complex128, fftSize),
 		bins:         make([]bin, size+1),
 		streams:      make([]*stream, 0, 2),
@@ -220,10 +220,6 @@ func (sp *Spectrum) Recalculate(bins int) int {
 
 	// set widths
 	for xB := 0; xB < bins; xB++ {
-		if sp.bins[xB].ceilFFT == sp.bins[xB].floorFFT {
-			sp.bins[xB].widthFFT = 1
-			continue
-		}
 
 		sp.bins[xB].widthFFT = sp.bins[xB].ceilFFT - sp.bins[xB].floorFFT
 	}
@@ -248,9 +244,7 @@ func (sp *Spectrum) distributeLog(bins int) {
 
 	var cCoef = 100.0 / float64(bins+1)
 
-	sp.bins[0].floorFFT = lo &
-
-	for xB := 0; xB < bins; xB++ {
+	for xB := 0; xB <= bins; xB++ {
 
 		sp.bins[xB].floorFFT = getBinBase(xB)
 		sp.bins[xB].eqVal = math.Log2(float64(xB)+2) * cCoef
@@ -269,7 +263,7 @@ func (sp *Spectrum) distributeEqual(bins int) {
 	var loF = Frequencies[0]
 	var hiF = math.Min(Frequencies[4], sp.sampleRate/2)
 	var minIdx = sp.freqToIdx(loF, math.Floor)
-	var maxIdx = sp.freqToIdx(hiF, math.Round)
+	var maxIdx = sp.freqToIdx(hiF, math.Ceil)
 
 	var size = maxIdx - minIdx
 

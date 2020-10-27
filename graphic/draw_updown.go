@@ -30,9 +30,9 @@ func drawUpDown(bins [][]float64, count int, cfg Config, scale float64) error {
 
 	var lStop, lTop = stopAndTop(bins[0][xBin]*scale, centerStart, true)
 	var rStop, rTop = stopAndTop(bins[1%cSetCount][xBin]*scale, centerStart, false)
-	if rStop += centerStop; rStop > cHeight {
+	if rStop += centerStop; rStop >= cHeight {
 		rStop = cHeight
-		rTop = 0
+		rTop = BarRune
 	}
 
 	var lCol = xCol + cfg.BarWidth
@@ -51,10 +51,9 @@ func drawUpDown(bins [][]float64, count int, cfg Config, scale float64) error {
 
 			lStop, lTop = stopAndTop(bins[0][xBin]*scale, centerStart, true)
 			rStop, rTop = stopAndTop(bins[1%cSetCount][xBin]*scale, centerStart, false)
-
-			if rStop += centerStop; rStop > cHeight {
+			if rStop += centerStop; rStop >= cHeight {
 				rStop = cHeight
-				rTop = 0
+				rTop = BarRune
 			}
 
 			xCol += cfg.SpaceWidth

@@ -2,7 +2,6 @@ package graphic
 
 import "github.com/nsf/termbox-go"
 
-// DrawUp takes data and draws
 func drawUp(bins [][]float64, count int, cfg Config, scale float64) error {
 	var cWidth, cHeight = termbox.Size()
 
