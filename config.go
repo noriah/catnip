@@ -1,6 +1,8 @@
 package main
 
 import (
+	"errors"
+
 	"github.com/noriah/tavis/dsp"
 	"github.com/noriah/tavis/graphic"
 	"github.com/noriah/tavis/input"
@@ -61,6 +63,24 @@ func NewZeroConfig() Config {
 }
 
 func sanitizeConfig(cfg *Config) error {
+
+	if cfg.SampleRate < float64(cfg.SampleSize) {
+		return errors.New("sample rate lower than sample size")
+	}
+
+	if cfg.SampleSize < 4 {
+		return errors.New("sample size too small (4+ required)")
+	}
+
+	switch {
+
+	case cfg.ChannelCount > 2:
+		return errors.New("too many channels (2 max)")
+
+	case cfg.ChannelCount < 1:
+		return errors.New("too few channels (1 min)")
+
+	}
 
 	switch {
 	case cfg.WinVar > 1.0:
