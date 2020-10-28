@@ -13,7 +13,7 @@ tavis
 we are working on this project all the time. its a sort of time filler for us at this point. expect lots of additions and changes at random times.
 
 ## supported audio backends
-- PortAudio (linux/macOS/*windows**)
+- PortAudio (linux/macOS/*windblows**)
 - PulseAudio (parec/FFmpeg)
 - AVFoundation (FFmpeg)
 - ALSA (FFmpeg)
@@ -27,7 +27,7 @@ we are working on this project all the time. its a sort of time filler for us at
 	- github.com/lawl/pulseaudio
 	- gonum.org/v1/gonum
 
-- c libraries (`CGO_ENABLED=1`)
+- c libraries (optional, disable with `CGO_ENABLED=0`)
 	- fftw (fftw3)
 	- portaudio (portaudio-2.0)
 
@@ -52,10 +52,10 @@ CGO_ENABLED=0 go get github.com/noriah/tavis
 # get source
 git clone https://github.com/noriah/tavis.git
 
-# move to source
+# cd to source
 cd tavis
 
-# build tavis
+# build and install tavis
 go install
 # without cgo
 CGO_ENABLED=0 go install

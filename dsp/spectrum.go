@@ -163,7 +163,7 @@ func (sp *Spectrum) Process(win window.Function) {
 				mag = 0.0
 
 			case sp.bins[xB].floorFFT < bassCut:
-				pow *= math.Max(0.75, float64(xF)/fBassCut)
+				pow *= math.Max(0.5, float64(xF)/fBassCut)
 			}
 
 			mag *= sp.bins[xB].eqVal
