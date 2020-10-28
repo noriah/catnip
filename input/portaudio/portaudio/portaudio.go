@@ -6,7 +6,6 @@ package portaudio
 
 // #cgo pkg-config: portaudio-2.0
 // #include <portaudio.h>
-// extern PaStreamCallback* paStreamCallback;
 import "C"
 
 import (
@@ -60,10 +59,6 @@ const (
 	OutputUnderflowed                     Error = C.paOutputUnderflowed
 	HostApiNotFound                       Error = C.paHostApiNotFound
 	InvalidHostApi                        Error = C.paInvalidHostApi
-	CanNotReadFromACallbackStream         Error = C.paCanNotReadFromACallbackStream
-	CanNotWriteToACallbackStream          Error = C.paCanNotWriteToACallbackStream
-	CanNotReadFromAnOutputOnlyStream      Error = C.paCanNotReadFromAnOutputOnlyStream
-	CanNotWriteToAnInputOnlyStream        Error = C.paCanNotWriteToAnInputOnlyStream
 	IncompatibleStreamHostApi             Error = C.paIncompatibleStreamHostApi
 	BadBufferPtr                          Error = C.paBadBufferPtr
 )
@@ -399,8 +394,6 @@ type Stream struct {
 	paStream            unsafe.Pointer
 	inParams, outParams *C.PaStreamParameters
 	in, out             *reflect.SliceHeader
-	timeInfo            StreamCallbackTimeInfo
-	flags               StreamCallbackFlags
 	args                []reflect.Value
 	callback            reflect.Value
 	closed              bool
@@ -438,47 +431,6 @@ func delStream(s *Stream) {
 	delete(streams, s.id)
 }
 
-// StreamCallbackTimeInfo contains timing information for the
-// buffers passed to the stream callback.
-type StreamCallbackTimeInfo struct {
-	InputBufferAdcTime, CurrentTime, OutputBufferDacTime time.Duration
-}
-
-// StreamCallbackFlags are flag bit constants for the statusFlags to StreamCallback.
-type StreamCallbackFlags C.PaStreamCallbackFlags
-
-// PortAudio stream callback flags.
-const (
-	// In a stream opened with FramesPerBufferUnspecified,
-	// InputUnderflow indicates that input data is all silence (zeros)
-	// because no real data is available.
-	//
-	// In a stream opened without FramesPerBufferUnspecified,
-	// InputUnderflow indicates that one or more zero samples have been inserted
-	// into the input buffer to compensate for an input underflow.
-	InputUnderflow StreamCallbackFlags = C.paInputUnderflow
-
-	// In a stream opened with FramesPerBufferUnspecified,
-	// indicates that data prior to the first sample of the
-	// input buffer was discarded due to an overflow, possibly
-	// because the stream callback is using too much CPU time.
-	//
-	// Otherwise indicates that data prior to one or more samples
-	// in the input buffer was discarded.
-	InputOverflow StreamCallbackFlags = C.paInputOverflow
-
-	// Indicates that output data (or a gap) was inserted,
-	// possibly because the stream callback is using too much CPU time.
-	OutputUnderflow StreamCallbackFlags = C.paOutputUnderflow
-
-	// Indicates that output data will be discarded because no room is available.
-	OutputOverflow StreamCallbackFlags = C.paOutputOverflow
-
-	// Some of all of the output data will be used to prime the stream,
-	// input data may be zero.
-	PrimingOutput StreamCallbackFlags = C.paPrimingOutput
-)
-
 // OpenStream creates an instance of a Stream.
 //
 // For an input- or output-only stream, p.Output.Device or p.Input.Device must be nil, respectively.
@@ -494,11 +446,7 @@ func OpenStream(p StreamParameters, args ...interface{}) (*Stream, error) {
 		delStream(s)
 		return nil, err
 	}
-	cb := C.paStreamCallback
-	if !s.callback.IsValid() {
-		cb = nil
-	}
-	paErr := C.Pa_OpenStream(&s.paStream, s.inParams, nil, C.double(p.SampleRate), C.ulong(p.FramesPerBuffer), C.PaStreamFlags(p.Flags), cb, unsafe.Pointer(s.id))
+	paErr := C.Pa_OpenStream(&s.paStream, s.inParams, nil, C.double(p.SampleRate), C.ulong(p.FramesPerBuffer), C.PaStreamFlags(p.Flags), nil, unsafe.Pointer(s.id))
 	if paErr != C.paNoError {
 		delStream(s)
 		return nil, newError(paErr)
@@ -627,21 +575,6 @@ func (s *Stream) Start() error {
 	return newError(C.Pa_StartStream(s.paStream))
 }
 
-//export streamCallback
-func streamCallback(inputBuffer, outputBuffer unsafe.Pointer, frames C.ulong, timeInfo *C.PaStreamCallbackTimeInfo, statusFlags C.PaStreamCallbackFlags, userData unsafe.Pointer) {
-	// defer func() {
-	// 	// Don't let PortAudio silently swallow panics.
-	// 	if x := recover(); x != nil {
-	// 		buf := make([]byte, 1<<10)
-	// 		for runtime.Stack(buf, true) == len(buf) {
-	// 			buf = make([]byte, 2*len(buf))
-	// 		}
-	// 		fmt.Fprintf(os.Stderr, "panic in portaudio stream callback: %s\n\n%s", x, buf)
-	// 		os.Exit(2)
-	// 	}
-	// }()
-}
-
 // Stop terminates audio processing. It waits until all pending
 // audio buffers have been played before it returns.
 func (s *Stream) Stop() error {
@@ -702,12 +635,6 @@ func (s *Stream) AvailableToRead() (int, error) {
 // Read uses the buffer provided to OpenStream.
 // The number of samples to read is determined by the size of the buffer.
 func (s *Stream) Read() error {
-	if s.callback.IsValid() {
-		return CanNotReadFromACallbackStream
-	}
-	if s.in == nil {
-		return CanNotReadFromAnOutputOnlyStream
-	}
 	buf, frames, err := getBuffer(s.in, s.inParams)
 	if err != nil {
 		return err
