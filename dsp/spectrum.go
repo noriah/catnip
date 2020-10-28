@@ -161,11 +161,9 @@ func (sp *Spectrum) Process(win window.Function) {
 			switch {
 			case mag < 0.0:
 				mag = 0.0
-				continue
 
 			case sp.bins[xB].floorFFT < bassCut:
-				pow *= math.Max(0.6, float64(xF)/fBassCut)
-
+				pow *= math.Max(0.75, float64(xF)/fBassCut)
 			}
 
 			mag *= sp.bins[xB].eqVal
@@ -216,11 +214,12 @@ func (sp *Spectrum) Recalculate(bins int) int {
 		sp.distributeEqual(bins)
 
 	default:
+		sp.distributeLog(bins)
+
 	}
 
 	// set widths
 	for xB := 0; xB < bins; xB++ {
-
 		sp.bins[xB].widthFFT = sp.bins[xB].ceilFFT - sp.bins[xB].floorFFT
 	}
 
@@ -237,9 +236,9 @@ func (sp *Spectrum) distributeLog(bins int) {
 	var cF = math.Log10(lo/hi) / ((1 / float64(bins)) - 1)
 
 	var getBinBase = func(b int) int {
-		var vFreq = ((float64(b+1) / float64(bins)) * cF) - cF
+		var vFreq = ((float64(b) / float64(bins)) * cF) - cF
 		vFreq = math.Pow(10.0, vFreq) * hi
-		return sp.freqToIdx(vFreq, math.Round)
+		return sp.freqToIdx(vFreq, math.Floor)
 	}
 
 	var cCoef = 100.0 / float64(bins+1)
@@ -282,7 +281,6 @@ func (sp *Spectrum) distributeEqual(bins int) {
 	}
 
 	for xB := 0; xB < lBins; xB++ {
-		sp.bins[xB].widthFFT = spread
 		sp.bins[xB].floorFFT = start
 		start += spread
 
@@ -292,7 +290,6 @@ func (sp *Spectrum) distributeEqual(bins int) {
 	if last > 0 {
 		sp.bins[lBins].floorFFT = start
 		sp.bins[lBins].ceilFFT = start + last
-		sp.bins[lBins].widthFFT = last
 	}
 }
 
@@ -328,7 +325,6 @@ func (sp *Spectrum) SetWinVar(g float64) {
 		sp.winVar = g
 
 	}
-
 }
 
 // SetSmoothing sets the smoothing parameters
@@ -342,5 +338,4 @@ func (sp *Spectrum) SetSmoothing(factor float64) {
 		sp.smoothFactor = factor
 
 	}
-
 }

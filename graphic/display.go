@@ -15,9 +15,6 @@ const (
 
 	// Bar Constants
 
-	// DisplaySpace is the block we use for space (if we were to print one)
-	DisplaySpace = '\u0020'
-
 	BarRuneR = '\u2580'
 	BarRune  = '\u2588'
 
@@ -99,6 +96,44 @@ func NewDisplay(hz float64, samples int) *Display {
 	}
 
 	return d
+}
+
+// Draw takes data and draws
+func (d *Display) Draw(bufs [][]float64, channels, bins int) error {
+	var peak = 0.0
+
+	for xCh := 0; xCh < channels; xCh++ {
+		for xBin := 0; xBin < bins; xBin++ {
+			if v := bufs[xCh][xBin]; peak < v {
+				peak = v
+			}
+		}
+	}
+
+	var scale = d.updateWindow(peak)
+
+	var err error
+
+	switch d.cfg.DrawType {
+	case DrawUp:
+		err = drawUp(bufs, bins, d.cfg, scale)
+	case DrawUpDown:
+		err = drawUpDown(bufs, bins, d.cfg, scale)
+	case DrawDown:
+		err = drawDown(bufs, bins, d.cfg, scale)
+	default:
+		return nil
+	}
+
+	if err != nil {
+		return err
+	}
+
+	termbox.Flush()
+
+	termbox.Clear(StyleDefault, StyleDefaultBack)
+
+	return nil
 }
 
 // Init initializes the display
@@ -293,44 +328,6 @@ func (d *Display) updateWindow(peak float64) float64 {
 	}
 
 	return 1.0
-}
-
-// Draw takes data and draws
-func (d *Display) Draw(bufs [][]float64, channels, bins int) error {
-	var peak = 0.0
-
-	for xCh := 0; xCh < channels; xCh++ {
-		for xBin := 0; xBin < bins; xBin++ {
-			if v := bufs[xCh][xBin]; peak < v {
-				peak = v
-			}
-		}
-	}
-
-	var scale = d.updateWindow(peak)
-
-	var err error
-
-	switch d.cfg.DrawType {
-	case DrawUp:
-		err = drawUp(bufs, bins, d.cfg, scale)
-	case DrawUpDown:
-		err = drawUpDown(bufs, bins, d.cfg, scale)
-	case DrawDown:
-		err = drawDown(bufs, bins, d.cfg, scale)
-	default:
-		return nil
-	}
-
-	if err != nil {
-		return err
-	}
-
-	termbox.Flush()
-
-	termbox.Clear(StyleDefault, StyleDefaultBack)
-
-	return nil
 }
 
 func stopAndTop(value float64, height int, up bool) (int, rune) {

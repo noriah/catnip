@@ -18,7 +18,7 @@ import (
 func Run(cfg Config) error {
 	// DrawDelay is the time we wait between ticks to draw.
 	var drawDelay = time.Second / time.Duration(
-		int((cfg.SampleRate/float64(cfg.SampleSize))+1))
+		int((cfg.SampleRate / float64(cfg.SampleSize))))
 
 	var audio, err = cfg.InputBackend.Start(input.SessionConfig{
 		Device:     cfg.InputDevice,
@@ -26,6 +26,7 @@ func Run(cfg Config) error {
 		SampleSize: cfg.SampleSize,
 		SampleRate: cfg.SampleRate,
 	})
+	defer cfg.InputBackend.Close()
 
 	if err != nil {
 		return errors.Wrap(err, "failed to start the input backend")
@@ -54,9 +55,6 @@ func Run(cfg Config) error {
 	display.SetBase(cfg.BaseThick)
 	display.SetDrawType(graphic.DrawType(cfg.DrawType))
 
-	var timer = time.NewTimer(0)
-	defer timer.Stop()
-
 	var endSig = make(chan os.Signal, 2)
 	signal.Notify(endSig, os.Interrupt)
 	signal.Notify(endSig, os.Kill)
@@ -82,12 +80,15 @@ func Run(cfg Config) error {
 	}
 	defer audio.Stop()
 
+	var timer = time.NewTimer(0)
+	defer timer.Stop()
+
 	for {
 		if audio.ReadyRead() < cfg.SampleSize {
 			continue
 		}
 
-		if err := audio.Read(ctx); err != nil {
+		if err = audio.Read(ctx); err != nil {
 			return errors.Wrap(err, "failed to read audio input")
 		}
 
@@ -97,8 +98,8 @@ func Run(cfg Config) error {
 
 		spectrum.Process(win)
 
-		if err := display.Draw(barBuffers, cfg.ChannelCount, barCount); err != nil {
-			return errors.Wrap(err, "graphic threw an error. this should not happen.")
+		if err = display.Draw(barBuffers, cfg.ChannelCount, barCount); err != nil {
+			return errors.Wrap(err, "graphic threw error. this should not happen.")
 		}
 
 		select {

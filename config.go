@@ -61,6 +61,7 @@ func NewZeroConfig() Config {
 }
 
 func sanitizeConfig(cfg *Config) error {
+
 	switch {
 	case cfg.WinVar > 1.0:
 		cfg.WinVar = 1.0
