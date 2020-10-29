@@ -5,12 +5,19 @@ tavis
 [![made-with-go][withgo]][go-dev]
 [![betamax-was-a-thing][betamax]][betawhat]
 
-### terminal audio visualizer for linux/unix/macOS/windows*
-*windows needs work
+> terminal audio visualizer for linux/unix/macOS/windows*
+
+<p align="center">
+	<a href="https://www.youtube.com/watch?v=NGtCoEsgJww" target="_blank">
+		<img src="../media/preview0.gif?raw=true"/>
+	</a>
+</p>
 
 ## early development - expect things to change and break
 
 we are working on this project all the time. its a sort of time filler for us at this point. expect lots of additions and changes at random times.
+
+*windows needs work
 
 ## supported audio backends
 - PortAudio (linux/macOS/*windblows**)
@@ -88,7 +95,9 @@ COMMANDS:
 [go-dev]: https://go.dev
 [betawhat]: https://google.com/search?q=betamax
 
+
 <!-- Images -->
 [withlove]: https://forthebadge.com/images/badges/built-with-love.svg
 [withgo]: https://forthebadge.com/images/badges/made-with-go.svg
 [betamax]: https://forthebadge.com/images/badges/compatibility-betamax.svg
+
