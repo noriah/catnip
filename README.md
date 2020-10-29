@@ -1,5 +1,4 @@
-tavis
-===
+# tavis
 
 [![love][withlove]][noriah-dev]
 [![made-with-go][withgo]][go-dev]
@@ -8,14 +7,17 @@ tavis
 > terminal audio visualizer for linux/unix/macOS/windows*
 
 <p align="center">
-	<a href="https://www.youtube.com/watch?v=NGtCoEsgJww" target="_blank">
+	<a href="https://www.youtube.com/watch?v=NGtCoEsgJww">
 		<img src="../media/preview0.gif?raw=true"/>
 	</a>
 </p>
 
 ## early development - expect things to change and break
 
-we are working on this project all the time. its a sort of time filler for us at this point. expect lots of additions and changes at random times.
+this project is still in the early stages of development.
+roadmaps and milestones are not currently priorities.
+
+expect lots of additions and changes at random times.
 
 *windows needs work
 
@@ -38,9 +40,9 @@ we are working on this project all the time. its a sort of time filler for us at
 	- fftw (fftw3)
 	- portaudio (portaudio-2.0)
 
-- binaries (optional)
-	- ffmpeg
-	- parec
+- binaries
+	- ffmpeg (required for FFmpeg backends)
+	- parec (required for PulseAudio backend with parec)
 
 ## installation
 

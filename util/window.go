@@ -4,31 +4,9 @@ import (
 	"math"
 )
 
-// as long as we know what comes next, we can keep a chain
-type node struct {
-	value float64
-	next  *node
-}
-
 // MovingWindow is a moving window
-//
-// we only keep a reference to the tail node
-// the tail node is not a value hold node, but is referenced by the last
-// valid node, and points to the "first" valid node.
-// we add new items to the window by setting the tail "value" attribute,
-// make a new node, point that node "next" to the first valid value.
-// then set the current tail to point to this new node
-// then set our tail to be this new node
-//
-// removal of a value is much simpler, remove the node from the list
-// by removing the "first" node. set the current tail to point to the
-// node referenced by this removed node
-// return value of removed node
 type MovingWindow struct {
-	tail *node
-
-	pool []*node
-
+	index    int
 	length   int
 	capacity int
 
@@ -37,31 +15,23 @@ type MovingWindow struct {
 
 	sum     float64
 	average float64
+
+	pool []float64
 }
 
 // NewMovingWindow returns a new moving window.
-func NewMovingWindow(size int) *MovingWindow {
-
-	var mw = &MovingWindow{
-		tail:     &node{},
-		pool:     make([]*node, size),
+func NewMovingWindow(size int) MovingWindow {
+	return MovingWindow{
+		pool:     make([]float64, size),
 		capacity: size,
 	}
-
-	for xNode := 0; xNode < size; xNode++ {
-		mw.pool[xNode] = &node{}
-	}
-
-	mw.tail.next = mw.tail
-
-	return mw
 }
 
 func (mw *MovingWindow) calcFinal() (float64, float64) {
 	if mw.length > 1 {
 		// mw.stddev = math.Sqrt(mw.variance / (mw.length - 1))
 		// okay so this came from dpayne/cli-visualizer
-		mw.stddev = (mw.variance / float64(mw.length-1)) - (mw.average * mw.average)
+		mw.stddev = (mw.variance / float64(mw.length-1)) - math.Pow(mw.average, 2)
 		mw.stddev = math.Sqrt(math.Abs(mw.stddev))
 	} else {
 		mw.stddev = 0
@@ -80,39 +50,43 @@ func (mw *MovingWindow) calcFinal() (float64, float64) {
 func (mw *MovingWindow) Update(value float64) (float64, float64) {
 	if mw.length < mw.capacity {
 
-		mw.pool[mw.length].next = mw.tail.next
-		mw.tail.next = mw.pool[mw.length]
-
 		mw.length++
 
-		mw.variance += value * value
 		mw.sum += value
+		mw.variance += math.Pow(value, 2)
 
 	} else {
-		mw.variance += (value * value) - (mw.tail.next.value * mw.tail.next.value)
-		mw.sum += value - mw.tail.next.value
+		mw.sum += value - mw.pool[mw.index]
+		mw.variance += math.Pow(value, 2) - math.Pow(mw.pool[mw.index], 2)
 	}
 
-	mw.tail.value = value
-	mw.tail = mw.tail.next
+	mw.pool[mw.index] = value
+
+	if mw.index++; mw.index >= mw.capacity {
+		mw.index = 0
+	}
 
 	return mw.calcFinal()
 }
 
 // Drop removes count items from the window
+// TODO(winter): look into a better index calculation
 func (mw *MovingWindow) Drop(count int) (float64, float64) {
 	if mw.length <= 0 {
 		return mw.calcFinal()
 	}
 
 	for count > 0 && mw.length > 0 {
-		mw.sum -= mw.tail.next.value
-		mw.variance -= mw.tail.next.value * mw.tail.next.value
+
+		var idx = (mw.index - mw.length)
+		if idx < 0 {
+			idx = mw.capacity + idx
+		}
+
+		mw.sum -= mw.pool[idx]
+		mw.variance -= math.Pow(mw.pool[idx], 2)
 
 		mw.length--
-
-		mw.pool[mw.length] = mw.tail.next
-		mw.tail.next = mw.tail.next.next
 
 		count--
 	}
