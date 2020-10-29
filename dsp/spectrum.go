@@ -133,7 +133,7 @@ func (sp *Spectrum) Process(win window.Function) {
 
 	sf = math.Pow(sf, float64(sp.sampleSize)/sp.sampleRate)
 
-	var bassCut = sp.freqToIdx(Frequencies[2], math.Round)
+	var bassCut = sp.freqToIdx(Frequencies[2], math.Ceil)
 	var fBassCut = float64(bassCut)
 
 	for _, stream := range sp.streams {
@@ -233,11 +233,14 @@ func (sp *Spectrum) distributeLog(bins int) {
 	var lo = (Frequencies[1])
 	var hi = Frequencies[4]
 
-	var cF = math.Log10(lo/hi) / ((1 / float64(bins)) - 1)
+	var loLog = math.Log10(lo)
+	var hiLog = math.Log10(hi)
+
+	var cF = (hiLog - loLog) / float64(bins)
 
 	var getBinBase = func(b int) int {
-		var vFreq = ((float64(b) / float64(bins)) * cF) - cF
-		vFreq = math.Pow(10.0, vFreq) * hi
+		var vFreq = ((float64(b) * cF) + loLog)
+		vFreq = math.Pow(10.0, vFreq)
 		return sp.freqToIdx(vFreq, math.Floor)
 	}
 
@@ -262,7 +265,7 @@ func (sp *Spectrum) distributeEqual(bins int) {
 	var loF = Frequencies[0]
 	var hiF = math.Min(Frequencies[4], sp.sampleRate/2)
 	var minIdx = sp.freqToIdx(loF, math.Floor)
-	var maxIdx = sp.freqToIdx(hiF, math.Ceil)
+	var maxIdx = sp.freqToIdx(hiF, math.Round)
 
 	var size = maxIdx - minIdx
 
