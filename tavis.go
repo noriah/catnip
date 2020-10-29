@@ -37,10 +37,7 @@ func Run(cfg Config) error {
 	spectrum.SetSmoothing(cfg.SmoothFactor)
 	spectrum.SetWinVar(cfg.WinVar)
 	spectrum.SetType(dsp.SpectrumType(cfg.SpectrumType))
-
-	for ch := 0; ch < cfg.ChannelCount; ch++ {
-		spectrum.AddStream(audio.SampleBuffers()[ch])
-	}
+	spectrum.AddStream(audio.SampleBuffers()...)
 
 	var barBuffers = spectrum.BinBuffers()
 

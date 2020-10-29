@@ -40,7 +40,7 @@ const (
 	// ScalingDumpPercent is how much we erase on rescale
 	ScalingDumpPercent = 0.75
 	// ScalingResetDeviation standard deviations from the mean before reset
-	ScalingResetDeviation = 1
+	ScalingResetDeviation = 1.0
 )
 
 // DrawType is the type
@@ -71,8 +71,8 @@ type Config struct {
 type Display struct {
 	running    uint32
 	cfg        Config
-	slowWindow *util.MovingWindow
-	fastWindow *util.MovingWindow
+	slowWindow util.MovingWindow
+	fastWindow util.MovingWindow
 }
 
 // NewDisplay sets up a new display
@@ -83,9 +83,7 @@ func NewDisplay(hz float64, samples int) *Display {
 	slowMax := int((ScalingSlowWindow*hz)/float64(samples)) * 2
 	fastMax := int((ScalingFastWindow*hz)/float64(samples)) * 2
 
-	var d = &Display{
-		slowWindow: util.NewMovingWindow(slowMax),
-		fastWindow: util.NewMovingWindow(fastMax),
+	return &Display{
 		cfg: Config{
 			BarWidth:   2,
 			SpaceWidth: 1,
@@ -93,9 +91,9 @@ func NewDisplay(hz float64, samples int) *Display {
 			BaseThick:  1,
 			DrawType:   DrawDefault,
 		},
+		slowWindow: util.NewMovingWindow(slowMax),
+		fastWindow: util.NewMovingWindow(fastMax),
 	}
-
-	return d
 }
 
 // Draw takes data and draws

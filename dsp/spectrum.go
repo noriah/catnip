@@ -31,18 +31,24 @@ const (
 	SpectrumDefault = SpectrumLog
 )
 
+// misc coonstants
+const (
+	MaxStreams = 2
+)
+
 // Spectrum is an audio spectrum in a buffer
 type Spectrum struct {
-	numBins      int          // number of bins we look at
-	fftSize      int          // number of fft bins
-	sampleSize   int          // number of samples per slice
-	sType        SpectrumType // the type of spectrum distribution
-	sampleRate   float64      // audio sample rate
-	winVar       float64      // window variable
-	smoothFactor float64      // smothing factor
-	fftBuf       []complex128 // fft return buffer
-	bins         []bin        // bins for processing
-	streams      []*stream    // streams of data
+	numBins      int                // number of bins we look at
+	numStreams   int                // number of streams we process
+	fftSize      int                // number of fft bins
+	sampleSize   int                // number of samples per slice
+	sType        SpectrumType       // the type of spectrum distribution
+	sampleRate   float64            // audio sample rate
+	winVar       float64            // window variable
+	smoothFactor float64            // smothing factor
+	fftBuf       []complex128       // fft return buffer
+	bins         []bin              // bins for processing
+	streams      [MaxStreams]stream // streams of data
 }
 
 type bin struct {
@@ -81,18 +87,15 @@ func NewSpectrum(hz float64, size int) *Spectrum {
 
 	var fftSize = (size / 2) + 1
 
-	var sp = &Spectrum{
+	return &Spectrum{
 		fftSize:      fftSize,
 		sampleSize:   size,
 		sampleRate:   hz,
-		smoothFactor: 0.1969,
+		smoothFactor: 0.5069,
 		winVar:       0.5,
 		fftBuf:       make([]complex128, fftSize),
 		bins:         make([]bin, size+1),
-		streams:      make([]*stream, 0, 2),
 	}
-
-	return sp
 }
 
 // StreamCount returns the number of streams in our buffers
@@ -101,22 +104,22 @@ func (sp *Spectrum) StreamCount() int {
 }
 
 // AddStream adds an input buffer to the spectrum
-func (sp *Spectrum) AddStream(input []float64) {
-	var s = &stream{
-		input: input,
-		buf:   make([]float64, sp.sampleSize),
-		pBuf:  make([]float64, sp.sampleSize),
-		plan:  fft.NewPlan(input, sp.fftBuf),
-	}
+func (sp *Spectrum) AddStream(input ...[]float64) {
 
-	sp.streams = append(sp.streams, s)
+	for idx := range input {
+		sp.streams[idx].input = input[idx]
+		sp.streams[idx].buf = make([]float64, sp.sampleSize)
+		sp.streams[idx].pBuf = make([]float64, sp.sampleSize)
+		sp.streams[idx].plan = fft.NewPlan(input[idx], sp.fftBuf)
+		sp.numStreams++
+	}
 }
 
 // BinBuffers returns our bin buffers
 func (sp *Spectrum) BinBuffers() [][]float64 {
-	var buf = make([][]float64, len(sp.streams))
-	for idx, stream := range sp.streams {
-		buf[idx] = stream.buf
+	var buf = make([][]float64, sp.numStreams)
+	for idx := range sp.streams[:sp.numStreams] {
+		buf[idx] = sp.streams[idx].buf
 	}
 
 	return buf
@@ -129,18 +132,18 @@ func (sp *Spectrum) BinCount() int {
 
 // Process makes numBins and dumps them in the buffer
 func (sp *Spectrum) Process(win window.Function) {
-	var sf = math.Pow(10.0, (1-sp.smoothFactor)*(-10.0))
+	var sf = math.Pow(10.0, (1.0-sp.smoothFactor)*(-20.0))
 
 	sf = math.Pow(sf, float64(sp.sampleSize)/sp.sampleRate)
 
-	var bassCut = sp.freqToIdx(Frequencies[2], math.Ceil)
+	var bassCut = sp.freqToIdx(Frequencies[2], math.Floor)
 	var fBassCut = float64(bassCut)
 
-	for _, stream := range sp.streams {
+	for idx := range sp.streams {
 
-		win(stream.input)
+		win(sp.streams[idx].input)
 
-		stream.plan.Execute()
+		sp.streams[idx].plan.Execute()
 
 		for xB := 0; xB < sp.numBins; xB++ {
 			var mag = 0.0
@@ -164,6 +167,7 @@ func (sp *Spectrum) Process(win window.Function) {
 
 			case sp.bins[xB].floorFFT < bassCut:
 				pow *= math.Max(0.5, float64(xF)/fBassCut)
+
 			}
 
 			mag *= sp.bins[xB].eqVal
@@ -173,9 +177,9 @@ func (sp *Spectrum) Process(win window.Function) {
 			// time smoothing
 
 			mag *= (1.0 - sf)
-			mag += stream.pBuf[xB] * sf
-			stream.pBuf[xB] = mag
-			stream.buf[xB] = mag
+			mag += sp.streams[idx].pBuf[xB] * sf
+			sp.streams[idx].pBuf[xB] = mag
+			sp.streams[idx].buf[xB] = mag
 
 			// mag += stream.pBuf[xB] * sp.smoothFactor
 			// stream.pBuf[xB] = mag * (1 - (1 / (1 + (mag * 2))))
@@ -230,25 +234,24 @@ func (sp *Spectrum) Recalculate(bins int) int {
 // it is a best guess naive attempt right now.
 // i will continue work on it - winter
 func (sp *Spectrum) distributeLog(bins int) {
-	var lo = (Frequencies[1])
-	var hi = Frequencies[4]
+	var lo = Frequencies[1]
+	var hi = math.Min(sp.sampleRate/2, Frequencies[4])
 
-	var loLog = math.Log10(lo)
-	var hiLog = math.Log10(hi)
+	// var loLog = math.Log10(lo)
+	// var hiLog = math.Log10(hi)
 
-	var cF = (hiLog - loLog) / float64(bins)
-
-	var getBinBase = func(b int) int {
-		var vFreq = ((float64(b) * cF) + loLog)
-		vFreq = math.Pow(10.0, vFreq)
-		return sp.freqToIdx(vFreq, math.Floor)
-	}
+	// var cF = (hiLog - loLog) / float64(bins)
+	var cF = math.Log10(lo/hi) / ((1 / float64(bins)) - 1)
 
 	var cCoef = 100.0 / float64(bins+1)
 
 	for xB := 0; xB <= bins; xB++ {
 
-		sp.bins[xB].floorFFT = getBinBase(xB)
+		// 	var vFreq = ((float64(b) * cF) +  loLog)
+		// 	vFreq = math.Pow(10.0, vFreq)
+		var vFreq = ((float64(xB) / float64(bins)) * cF) - cF
+		vFreq = math.Pow(10.0, vFreq) * hi
+		sp.bins[xB].floorFFT = sp.freqToIdx(vFreq, math.Floor)
 		sp.bins[xB].eqVal = math.Log2(float64(xB)+2) * cCoef
 
 		if xB > 0 {

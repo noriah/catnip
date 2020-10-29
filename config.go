@@ -50,7 +50,7 @@ type Config struct {
 func NewZeroConfig() Config {
 	return Config{
 		SampleRate:   44100,
-		SmoothFactor: 19.69,
+		SmoothFactor: 50.69,
 		WinVar:       0.50,
 		BaseThick:    1,
 		BarWidth:     2,
@@ -91,9 +91,9 @@ func sanitizeConfig(cfg *Config) error {
 	}
 
 	switch {
-	case cfg.SmoothFactor > 100.0:
-		cfg.SmoothFactor = 1.0
-	case cfg.SmoothFactor <= 0.0:
+	case cfg.SmoothFactor > 99.99:
+		cfg.SmoothFactor = 0.9999
+	case cfg.SmoothFactor < 0.00001:
 		cfg.SmoothFactor = 0.00001
 	default:
 		cfg.SmoothFactor /= 100.0
