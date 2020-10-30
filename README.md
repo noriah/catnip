@@ -68,24 +68,25 @@ go install
 CGO_ENABLED=0 go install
 ```
 
+## usage
+
 - use `catnip list-backends` to show available backends
 - use `catnip -b {backend} list-devices` to show available devices
 - use `catnip -b {backend} -d {device}` to run - use the full device name
 - use `catnip -h` for information on several more customizations
+
 ## faq
 
 ### catnip?
 
- - noriah/catnip@98f989fd45bef8706cbc5c90422209600943ebc1
+ - https://github.com/noriah/catnip/commit/98f989fd45bef8706cbc5c90422209600943ebc1
 
 <!-- Links -->
 [noriah-dev]: https://noriah.dev
 [go-dev]: https://go.dev
 [betawhat]: https://google.com/search?q=betamax
 
-
 <!-- Images -->
 [withlove]: https://forthebadge.com/images/badges/built-with-love.svg
 [withgo]: https://forthebadge.com/images/badges/made-with-go.svg
 [betamax]: https://forthebadge.com/images/badges/compatibility-betamax.svg
-
