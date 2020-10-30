@@ -5,7 +5,7 @@ import (
 	"math"
 	"sync/atomic"
 
-	"github.com/noriah/tavis/util"
+	"github.com/noriah/catnip/util"
 
 	"github.com/nsf/termbox-go"
 )
@@ -80,8 +80,8 @@ type Display struct {
 // something to think about
 func NewDisplay(hz float64, samples int) *Display {
 
-	slowMax := int((ScalingSlowWindow*hz)/float64(samples)) * 2
-	fastMax := int((ScalingFastWindow*hz)/float64(samples)) * 2
+	slowMax := (int(ScalingSlowWindow*hz) / samples) * 2
+	fastMax := (int(ScalingFastWindow*hz) / samples) * 2
 
 	return &Display{
 		cfg: Config{
@@ -163,12 +163,6 @@ func eventPoller(ctx context.Context, fn context.CancelFunc, d *Display) {
 	defer atomic.StoreUint32(&d.running, 0)
 
 	for {
-		// first check if we need to exit
-		select {
-		case <-ctx.Done():
-			return
-		default:
-		}
 
 		var ev = termbox.PollEvent()
 
@@ -217,6 +211,13 @@ func eventPoller(ctx context.Context, fn context.CancelFunc, d *Display) {
 		default:
 
 		} // switch ev.Type
+
+		// check if we need to exit
+		select {
+		case <-ctx.Done():
+			return
+		default:
+		}
 
 	} // for
 

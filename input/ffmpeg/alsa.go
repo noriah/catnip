@@ -6,7 +6,7 @@ import (
 	"os"
 	"strings"
 
-	"github.com/noriah/tavis/input"
+	"github.com/noriah/catnip/input"
 	"github.com/pkg/errors"
 )
 

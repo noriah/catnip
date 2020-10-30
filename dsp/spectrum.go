@@ -15,8 +15,8 @@ import (
 	"math"
 	"math/cmplx"
 
-	"github.com/noriah/tavis/dsp/window"
-	"github.com/noriah/tavis/fft"
+	"github.com/noriah/catnip/dsp/window"
+	"github.com/noriah/catnip/fft"
 )
 
 // SpectrumType is the type of calculation we run
@@ -149,7 +149,8 @@ func (sp *Spectrum) Process(win window.Function) {
 			var mag = 0.0
 
 			var xF = sp.bins[xB].floorFFT
-			for xF < sp.bins[xB].ceilFFT && xF < sp.fftSize {
+			var lF = sp.bins[xB].ceilFFT
+			for xF < lF && xF < sp.fftSize {
 				if power := cmplx.Abs(sp.fftBuf[xF]); mag < power {
 					mag = power
 				}
@@ -165,7 +166,7 @@ func (sp *Spectrum) Process(win window.Function) {
 			case mag < 0.0:
 				mag = 0.0
 
-			case sp.bins[xB].floorFFT < bassCut:
+			case lF < bassCut:
 				pow *= math.Max(0.5, float64(xF)/fBassCut)
 
 			}

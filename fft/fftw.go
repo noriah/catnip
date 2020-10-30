@@ -2,7 +2,7 @@
 
 package fft
 
-// This only included bindings are those that are needed by tavis.
+// This only included bindings are those that are needed by catnip.
 // This includes the use of `fftw_plan_dft_r2c_2d`.
 // It is the only fftw plan we need, and the only one we have chosen to
 // implement here.
@@ -16,7 +16,7 @@ import (
 	"unsafe"
 )
 
-// FFTW is true if Tavis is built with cgo.
+// FFTW is true if Catnip is built with cgo.
 const FFTW = true
 
 // Plan holds an FFTW C plan

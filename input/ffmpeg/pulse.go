@@ -3,8 +3,8 @@ package ffmpeg
 import (
 	"fmt"
 
-	"github.com/noriah/tavis/input"
-	"github.com/noriah/tavis/input/parec"
+	"github.com/noriah/catnip/input"
+	"github.com/noriah/catnip/input/parec"
 )
 
 func init() {

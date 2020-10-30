@@ -3,206 +3,111 @@ package main
 import (
 	"fmt"
 	"log"
-	"os"
 
-	"github.com/noriah/tavis/input"
+	"github.com/noriah/catnip/input"
 	"github.com/pkg/errors"
-	"github.com/urfave/cli/v2"
 
-	// Input backends.
-	_ "github.com/noriah/tavis/input/ffmpeg"
-	_ "github.com/noriah/tavis/input/parec"
+	_ "github.com/noriah/catnip/input/ffmpeg"
+	_ "github.com/noriah/catnip/input/parec"
+
+	"github.com/integrii/flaggy"
 )
 
-func init() {
-	log.SetFlags(0)
-}
+// AppName is the app name
+const AppName = "catnip"
 
-var globalCfg = NewZeroConfig()
+// AppDesc is the app description
+const AppDesc = "Continuous Automatic Terminal Number Interpretation Printer"
+
+// AppSite is the app website
+const AppSite = "https://github.com/noriah/catnip"
+
+var version = "unknown"
 
 func main() {
-	app := cli.App{
-		Name:   "tavis",
-		Usage:  "terminal audio visualizer",
-		Action: run,
-		Commands: []*cli.Command{
-			{
-				Name:        "list-backends",
-				Action:      listBackends,
-				Description: "List all available backends",
-			},
-			{
-				Name:        "list-devices",
-				Action:      listDevices,
-				Description: "List all visible input devices",
-			},
-		},
-		Flags: []cli.Flag{
-			&cli.StringFlag{
-				Name:    "backend",
-				Value:   "portaudio",
-				Aliases: []string{"b"},
-			},
-			&cli.StringFlag{
-				Name:    "device",
-				Aliases: []string{"d"},
-			},
-			&cli.Float64Flag{
-				Name:        "sample-rate",
-				Aliases:     []string{"r"},
-				Value:       globalCfg.SampleRate,
-				Destination: &globalCfg.SampleRate,
-			},
-			&cli.IntFlag{
-				Name:        "sample-size",
-				Aliases:     []string{"f"},
-				Value:       globalCfg.SampleSize,
-				Destination: &globalCfg.SampleSize,
-			},
-			&cli.Float64Flag{
-				Name:        "smoothness-factor",
-				Aliases:     []string{"sf"},
-				Value:       globalCfg.SmoothFactor,
-				Destination: &globalCfg.SmoothFactor,
-			},
-			&cli.Float64Flag{
-				Name:        "window-variable",
-				Aliases:     []string{"wv"},
-				Value:       globalCfg.WinVar,
-				Destination: &globalCfg.WinVar,
-			},
-			&cli.IntFlag{
-				Name:        "base-thickness",
-				Aliases:     []string{"bt"},
-				Value:       globalCfg.BaseThick,
-				Destination: &globalCfg.BaseThick,
-			},
-			&cli.IntFlag{
-				Name:        "bar-width",
-				Aliases:     []string{"bw"},
-				Value:       globalCfg.BarWidth,
-				Destination: &globalCfg.BarWidth,
-			},
-			&cli.IntFlag{
-				Name:        "space-width",
-				Aliases:     []string{"sw"},
-				Value:       globalCfg.SpaceWidth,
-				Destination: &globalCfg.SpaceWidth,
-			},
-			&cli.IntFlag{
-				Name:        "channel-count",
-				Aliases:     []string{"c"},
-				Value:       globalCfg.ChannelCount,
-				Destination: &globalCfg.ChannelCount,
-			},
-			&cli.IntFlag{
-				Name:        "draw-type",
-				Aliases:     []string{"dt"},
-				Value:       globalCfg.DrawType,
-				Destination: &globalCfg.DrawType,
-			},
-			&cli.IntFlag{
-				Name:        "spectrum-type",
-				Aliases:     []string{"st"},
-				Hidden:      true,
-				Value:       globalCfg.SpectrumType,
-				Destination: &globalCfg.SpectrumType,
-			},
-		},
+
+	log.SetFlags(0)
+
+	var parser = flaggy.NewParser(AppName)
+	parser.Description = AppDesc
+	parser.AdditionalHelpPrepend = AppSite
+	parser.Version = version
+
+	var listBackendsCmd = &flaggy.Subcommand{
+		Name:                 "list-backends",
+		ShortName:            "lb",
+		Description:          "list all supported backends",
+		AdditionalHelpAppend: "\nuse the full name after the '-'",
 	}
 
-	if err := app.Run(os.Args); err != nil {
-		log.Fatalln("Error:", err)
-	}
-}
+	parser.AttachSubcommand(listBackendsCmd, 1)
 
-func listBackends(c *cli.Context) error {
-	for _, backend := range input.Backends {
-		fmt.Printf("- %s\n", backend.Name)
-	}
-	return nil
-}
-
-func initBackend(c *cli.Context) error {
-	backendName := c.String("backend")
-
-	globalCfg.InputBackend = input.FindBackend(backendName)
-	if globalCfg.InputBackend == nil {
-		return fmt.Errorf("backend not found: %q", backendName)
+	var listDevicesCmd = &flaggy.Subcommand{
+		Name:                 "list-devices",
+		ShortName:            "ld",
+		Description:          "list all devices for a backend",
+		AdditionalHelpAppend: "\nuse the full name after the '-'",
 	}
 
-	if err := globalCfg.InputBackend.Init(); err != nil {
-		return errors.Wrap(err, "failed to initialize input backend")
-	}
+	parser.AttachSubcommand(listDevicesCmd, 1)
 
-	return nil
-}
+	var cfg = NewZeroConfig()
 
-func listDevices(c *cli.Context) error {
-	if err := initBackend(c); err != nil {
-		return err
-	}
+	parser.String(&cfg.Backend, "b", "backend", "backend name")
+	parser.String(&cfg.Device, "d", "device", "device name")
+	parser.Float64(&cfg.SampleRate, "r", "rate", "sample rate")
+	parser.Int(&cfg.SampleSize, "n", "samples", "sample size")
+	parser.Int(&cfg.ChannelCount, "ch", "channels", "channel count (1 or 2)")
+	parser.Float64(&cfg.SmoothFactor, "sf", "smoothing", "smooth factor (0-100)")
+	parser.Float64(&cfg.WinVar, "wv", "win", "a0 applied to the window function")
+	parser.Int(&cfg.BaseThick, "bt", "base", "base thickness [0, +Inf)")
+	parser.Int(&cfg.BarWidth, "bw", "bar", "bar width [1, +Inf)")
+	parser.Int(&cfg.SpaceWidth, "sw", "space", "space width [0, +Inf)")
+	parser.Int(&cfg.DrawType, "dt", "draw", "draw type (1, 2, 3)")
+	parser.Int(&cfg.SpectrumType, "st", "distribute",
+		"spectrum distribution type (here be dragons)")
 
-	devices, err := globalCfg.InputBackend.Devices()
-	if err != nil {
-		return errors.Wrap(err, "failed to get devices")
-	}
+	chk(parser.Parse())
 
-	// optional default device
-	defaultDevice, _ := globalCfg.InputBackend.DefaultDevice()
+	chk(sanitizeConfig(cfg))
 
-	for _, device := range devices {
-		fmt.Printf("- %v", device)
-
-		if defaultDevice != nil && device.String() == defaultDevice.String() {
-			fmt.Print(" (default)")
+	if listBackendsCmd.Used {
+		for _, backend := range input.Backends {
+			fmt.Printf("- %s\n", backend.Name)
 		}
-
-		fmt.Println()
+		return
 	}
 
-	return nil
-}
+	if listDevicesCmd.Used {
+		var backend, err = initBackend(cfg)
+		chk(err)
 
-func initInputDevice(c *cli.Context) error {
-	deviceName := c.String("device")
-	if deviceName == "" {
-		def, err := globalCfg.InputBackend.DefaultDevice()
+		devices, err := backend.Devices()
 		if err != nil {
-			return errors.Wrap(err, "failed to get default device")
+			log.Fatalln("error", errors.Wrap(err, "failed to get devices"))
 		}
 
-		globalCfg.InputDevice = def
-		return nil
-	}
+		var defaultDevice, _ = backend.DefaultDevice()
 
-	devices, err := globalCfg.InputBackend.Devices()
-	if err != nil {
-		return errors.Wrap(err, "failed to get devices")
-	}
+		fmt.Printf("all devices for %q backend. '*' marks default\n", cfg.Backend)
 
-	for _, d := range devices {
-		if d.String() == deviceName {
-			globalCfg.InputDevice = d
-			return nil
+		for idx := range devices {
+			var star = 0x20
+			if defaultDevice != nil && devices[idx].String() == defaultDevice.String() {
+				star = 0x2a
+			}
+
+			fmt.Printf("- %v %c\n", devices[idx], rune(star))
 		}
+
+		return
 	}
 
-	return fmt.Errorf("device %q not found; check list-devices", deviceName)
+	chk(Catnip(cfg))
 }
 
-func run(c *cli.Context) error {
-	if err := initBackend(c); err != nil {
-		return err
+func chk(err error) {
+	if err != nil {
+		log.Fatalln("error", err)
 	}
-
-	if err := initInputDevice(c); err != nil {
-		return err
-	}
-
-	if err := sanitizeConfig(&globalCfg); err != nil {
-		return err
-	}
-
-	return Run(globalCfg)
 }

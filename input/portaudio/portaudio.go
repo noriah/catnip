@@ -5,8 +5,8 @@ import (
 	"fmt"
 	"log"
 
-	"github.com/noriah/tavis/input"
-	"github.com/noriah/tavis/input/portaudio/portaudio"
+	"github.com/noriah/catnip/input"
+	"github.com/noriah/catnip/input/portaudio/portaudio"
 	"github.com/pkg/errors"
 )
 
