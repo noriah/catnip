@@ -1,4 +1,4 @@
-# tavis
+# catnip
 
 [![love][withlove]][noriah-dev]
 [![made-with-go][withgo]][go-dev]
@@ -16,7 +16,6 @@
 
 this project is still in the early stages of development.
 roadmaps and milestones are not currently priorities.
-
 expect lots of additions and changes at random times.
 
 *windows needs work
@@ -31,7 +30,6 @@ expect lots of additions and changes at random times.
 
 - go modules
 	- github.com/nsf/termbox-go
-	- github.com/urfave/cli/v2
 	- github.com/pkg/errors
 	- github.com/lawl/pulseaudio
 	- gonum.org/v1/gonum
@@ -50,47 +48,35 @@ expect lots of additions and changes at random times.
 
 ```sh
 # with cgo (fftw, portaudio)
-go get github.com/noriah/tavis
+go get github.com/noriah/catnip
 # without cgo
-CGO_ENABLED=0 go get github.com/noriah/tavis
+CGO_ENABLED=0 go get github.com/noriah/catnip
 ```
 
 ### with `git`
 
 ```sh
 # get source
-git clone https://github.com/noriah/tavis.git
+git clone https://github.com/noriah/catnip.git
 
 # cd to source
-cd tavis
+cd catnip
 
-# build and install tavis
+# build and install catnip
 go install
 # without cgo
 CGO_ENABLED=0 go install
 ```
 
-## usage
+- use `catnip list-backends` to show available backends
+- use `catnip -b {backend} list-devices` to show available devices
+- use `catnip -b {backend} -d {device}` to run - use the full device name
+- use `catnip -h` for information on several more customizations
+## faq
 
-```sh
-NAME:
-   tavis - terminal audio visualizer
+### catnip?
 
-USAGE:
-   tavis [global options] command [command options] [arguments...]
-
-COMMANDS:
-   list-backends
-   list-devices
-   help, h        Shows a list of commands or help for one command
-
-```
-
-- use `tavis list-backends` to show available backends
-- use `tavis -b {backend} list-devices` to show available devices
-- use `tavis -b {backend} -d {device}` to run - use the full device name
-- use `tavis -h` for information on several more customizations
-
+ - noriah/catnip@98f989fd45bef8706cbc5c90422209600943ebc1
 
 <!-- Links -->
 [noriah-dev]: https://noriah.dev

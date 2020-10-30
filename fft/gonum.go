@@ -4,7 +4,7 @@ package fft
 
 import "gonum.org/v1/gonum/dsp/fourier"
 
-// FFTW is false if Tavis is not built with cgo. It will use gonum instead.
+// FFTW is false if Catnip is not built with cgo. It will use gonum instead.
 const FFTW = false
 
 // Plan holds a gonum FFT plan.

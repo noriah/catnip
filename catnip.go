@@ -2,31 +2,44 @@ package main
 
 import (
 	"context"
+	"fmt"
 	"os"
 	"os/signal"
 	"time"
 
-	"github.com/noriah/tavis/dsp"
-	"github.com/noriah/tavis/dsp/window"
-	"github.com/noriah/tavis/graphic"
-	"github.com/noriah/tavis/input"
+	"github.com/noriah/catnip/dsp"
+	"github.com/noriah/catnip/dsp/window"
+	"github.com/noriah/catnip/graphic"
+	"github.com/noriah/catnip/input"
 
 	"github.com/pkg/errors"
 )
 
-// Run starts to draw the visualizer on the tcell Screen.
-func Run(cfg Config) error {
+// Catnip starts to draw the visualizer on the termbox screen.
+func Catnip(cfg *Config) error {
+
 	// DrawDelay is the time we wait between ticks to draw.
 	var drawDelay = time.Second / time.Duration(
 		int((cfg.SampleRate / float64(cfg.SampleSize))))
 
-	var audio, err = cfg.InputBackend.Start(input.SessionConfig{
-		Device:     cfg.InputDevice,
+	var backend, err = initBackend(cfg)
+	if err != nil {
+		return err
+	}
+
+	device, err := initDevice(backend, cfg)
+
+	if err != nil {
+		return err
+	}
+
+	audio, err := backend.Start(input.SessionConfig{
+		Device:     device,
 		FrameSize:  cfg.ChannelCount,
 		SampleSize: cfg.SampleSize,
 		SampleRate: cfg.SampleRate,
 	})
-	defer cfg.InputBackend.Close()
+	defer backend.Close()
 
 	if err != nil {
 		return errors.Wrap(err, "failed to start the input backend")
@@ -108,4 +121,41 @@ func Run(cfg Config) error {
 			timer.Reset(drawDelay)
 		}
 	}
+}
+
+func initBackend(cfg *Config) (input.Backend, error) {
+
+	var backend = input.FindBackend(cfg.Backend)
+	if backend == nil {
+		return nil, fmt.Errorf("backend not found: %q", cfg.Backend)
+	}
+
+	if err := backend.Init(); err != nil {
+		return nil, errors.Wrap(err, "failed to initialize input backend")
+	}
+
+	return backend, nil
+}
+
+func initDevice(backend input.Backend, cfg *Config) (input.Device, error) {
+	if cfg.Device == "" {
+		var def, err = backend.DefaultDevice()
+		if err != nil {
+			return nil, errors.Wrap(err, "failed to get default device")
+		}
+		return def, nil
+	}
+
+	var devices, err = backend.Devices()
+	if err != nil {
+		return nil, errors.Wrap(err, "failed to get devices")
+	}
+
+	for idx := range devices {
+		if devices[idx].String() == cfg.Device {
+			return devices[idx], nil
+		}
+	}
+
+	return nil, errors.Errorf("device %q not found; check list-devices", cfg.Device)
 }

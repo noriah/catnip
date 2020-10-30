@@ -5,8 +5,8 @@ import (
 	"os"
 	"os/exec"
 
-	"github.com/noriah/tavis/input"
-	"github.com/noriah/tavis/input/common/execread"
+	"github.com/noriah/catnip/input"
+	"github.com/noriah/catnip/input/common/execread"
 )
 
 type FFmpegBackend interface {

@@ -3,17 +3,16 @@ package main
 import (
 	"errors"
 
-	"github.com/noriah/tavis/dsp"
-	"github.com/noriah/tavis/graphic"
-	"github.com/noriah/tavis/input"
+	"github.com/noriah/catnip/dsp"
+	"github.com/noriah/catnip/graphic"
 )
 
 // Config is a temporary struct to define parameters
 type Config struct {
-	// InputBackend is the backend that the input belongs to
-	InputBackend input.Backend
-	// InputDevice is the device we want to listen to
-	InputDevice input.Device
+	// Backend is the backend name from list-backends
+	Backend string
+	// Device is the device name from list-devices
+	Device string
 	// SampleRate is the rate at which samples are read
 	SampleRate float64
 	//LoCutFrqq is the low end of our audio spectrum
@@ -30,7 +29,7 @@ type Config struct {
 	BarWidth int
 	// SpaceWidth is the width of spaces, in columns
 	SpaceWidth int
-	// SampleSize is how much we draw. Play with it
+	// SampleSiz is how much we draw. Play with it
 	SampleSize int
 	// ChannelCount is the number of channels we want to look at. DO NOT TOUCH
 	ChannelCount int
@@ -47,8 +46,9 @@ type Config struct {
 //  - sampleRate: 122880
 //  - sampleSize: 2048
 //  - super smooth detail view
-func NewZeroConfig() Config {
-	return Config{
+func NewZeroConfig() *Config {
+	return &Config{
+		Backend:      "portaudio",
 		SampleRate:   44100,
 		SmoothFactor: 50.69,
 		WinVar:       0.50,

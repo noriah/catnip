@@ -2,4 +2,4 @@
 
 package main
 
-import _ "github.com/noriah/tavis/input/portaudio"
+import _ "github.com/noriah/catnip/input/portaudio"
