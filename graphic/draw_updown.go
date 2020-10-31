@@ -2,15 +2,14 @@ package graphic
 
 import "github.com/nsf/termbox-go"
 
-func drawUpDown(bins [][]float64, count int, cfg Config, scale float64) error {
+func drawUpDown(bins [][]float64, count int, scale float64, state State, cfg Config) error {
 	var cSetCount = len(bins)
 
 	// We dont keep track of the offset/width because we have to assume that
 	// the user changed the window, always. It is easier to do this now, and
 	// implement SIGWINCH handling later on (or not?)
-	var cWidth, cHeight = termbox.Size()
 
-	var centerStart = (cHeight - cfg.BaseThick) / 2
+	var centerStart = (state.Height - cfg.BaseThick) / 2
 	if centerStart < 0 {
 		centerStart = 0
 	}
@@ -20,7 +19,7 @@ func drawUpDown(bins [][]float64, count int, cfg Config, scale float64) error {
 	scale = float64(centerStart) / scale
 
 	var xBin = 0
-	var xCol = (cWidth - ((cfg.BinWidth * count) - cfg.SpaceWidth)) / 2
+	var xCol = (state.Width - ((cfg.BinWidth * count) - cfg.SpaceWidth)) / 2
 
 	if xCol < 0 {
 		xCol = 0
@@ -30,8 +29,8 @@ func drawUpDown(bins [][]float64, count int, cfg Config, scale float64) error {
 
 	var lStop, lTop = stopAndTop(bins[0][xBin]*scale, centerStart, true)
 	var rStop, rTop = stopAndTop(bins[1%cSetCount][xBin]*scale, centerStart, false)
-	if rStop += centerStop; rStop >= cHeight {
-		rStop = cHeight
+	if rStop += centerStop; rStop >= state.Height {
+		rStop = state.Height
 		rTop = BarRune
 	}
 
@@ -41,7 +40,7 @@ func drawUpDown(bins [][]float64, count int, cfg Config, scale float64) error {
 
 		if xCol >= lCol {
 
-			if xCol >= cWidth {
+			if xCol >= state.Width {
 				break
 			}
 
@@ -51,8 +50,8 @@ func drawUpDown(bins [][]float64, count int, cfg Config, scale float64) error {
 
 			lStop, lTop = stopAndTop(bins[0][xBin]*scale, centerStart, true)
 			rStop, rTop = stopAndTop(bins[1%cSetCount][xBin]*scale, centerStart, false)
-			if rStop += centerStop; rStop >= cHeight {
-				rStop = cHeight
+			if rStop += centerStop; rStop >= state.Height {
+				rStop = state.Height
 				rTop = BarRune
 			}
 
@@ -64,7 +63,6 @@ func drawUpDown(bins [][]float64, count int, cfg Config, scale float64) error {
 
 		if lTop > BarRuneR {
 			termbox.SetCell(xCol, xRow-1, lTop, StyleDefault, StyleDefaultBack)
-
 		}
 
 		for xRow < centerStart {

@@ -50,7 +50,7 @@ func NewZeroConfig() *Config {
 	return &Config{
 		Backend:      "portaudio",
 		SampleRate:   44100,
-		SmoothFactor: 50.69,
+		SmoothFactor: 40.69,
 		WinVar:       0.50,
 		BaseThick:    1,
 		BarWidth:     2,

@@ -79,12 +79,13 @@ CGO_ENABLED=0 go install
 
 ### catnip?
 
- - https://github.com/noriah/catnip/commit/98f989fd45bef8706cbc5c90422209600943ebc1
+ - [long story, short explanation][speakers]
 
 <!-- Links -->
 [noriah-dev]: https://noriah.dev
 [go-dev]: https://go.dev
 [betawhat]: https://google.com/search?q=betamax
+[speakers]: https://github.com/noriah/catnip/commit/98f989fd45bef8706cbc5c90422209600943ebc1
 
 <!-- Images -->
 [withlove]: https://forthebadge.com/images/badges/built-with-love.svg

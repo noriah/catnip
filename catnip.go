@@ -27,7 +27,7 @@ func Catnip(cfg *Config) error {
 		return err
 	}
 
-	device, err := initDevice(backend, cfg)
+	device, err := getDevice(backend, cfg)
 
 	if err != nil {
 		return err
@@ -94,6 +94,15 @@ func Catnip(cfg *Config) error {
 	defer timer.Stop()
 
 	for {
+		select {
+		case <-endSig:
+			return nil
+		case <-ctx.Done():
+			return nil
+		case <-timer.C:
+			timer.Reset(drawDelay)
+		}
+
 		if audio.ReadyRead() < cfg.SampleSize {
 			continue
 		}
@@ -110,15 +119,6 @@ func Catnip(cfg *Config) error {
 
 		if err = display.Draw(barBuffers, cfg.ChannelCount, barCount); err != nil {
 			return errors.Wrap(err, "graphic threw error. this should not happen.")
-		}
-
-		select {
-		case <-endSig:
-			return nil
-		case <-ctx.Done():
-			return nil
-		case <-timer.C:
-			timer.Reset(drawDelay)
 		}
 	}
 }
@@ -137,7 +137,7 @@ func initBackend(cfg *Config) (input.Backend, error) {
 	return backend, nil
 }
 
-func initDevice(backend input.Backend, cfg *Config) (input.Device, error) {
+func getDevice(backend input.Backend, cfg *Config) (input.Device, error) {
 	if cfg.Device == "" {
 		var def, err = backend.DefaultDevice()
 		if err != nil {
