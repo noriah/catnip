@@ -91,7 +91,7 @@ func NewSpectrum(hz float64, size int) *Spectrum {
 		fftSize:      fftSize,
 		sampleSize:   size,
 		sampleRate:   hz,
-		smoothFactor: 0.5069,
+		smoothFactor: 0.4069,
 		winVar:       0.5,
 		fftBuf:       make([]complex128, fftSize),
 		bins:         make([]bin, size+1),
@@ -100,7 +100,7 @@ func NewSpectrum(hz float64, size int) *Spectrum {
 
 // StreamCount returns the number of streams in our buffers
 func (sp *Spectrum) StreamCount() int {
-	return len(sp.streams)
+	return sp.numStreams
 }
 
 // AddStream adds an input buffer to the spectrum
@@ -177,14 +177,13 @@ func (sp *Spectrum) Process(win window.Function) {
 
 			// time smoothing
 
-			mag *= (1.0 - sf)
-			mag += sp.streams[idx].pBuf[xB] * sf
-			sp.streams[idx].pBuf[xB] = mag
+			mag = (mag * (1.0 - sf)) + sp.streams[idx].pBuf[xB]
+			sp.streams[idx].pBuf[xB] = mag * sf
 			sp.streams[idx].buf[xB] = mag
 
-			// mag += stream.pBuf[xB] * sp.smoothFactor
-			// stream.pBuf[xB] = mag * (1 - (1 / (1 + (mag * 2))))
-			// stream.buf[xB] = mag
+			// mag += sp.streams[idx].pBuf[xB] * sp.smoothFactor
+			// sp.streams[idx].pBuf[xB] = mag * (1 - (1 / (1 + (mag * 2))))
+			// sp.streams[idx].buf[xB] = mag
 
 		}
 	}
@@ -238,21 +237,21 @@ func (sp *Spectrum) distributeLog(bins int) {
 	var lo = Frequencies[1]
 	var hi = math.Min(sp.sampleRate/2, Frequencies[4])
 
-	// var loLog = math.Log10(lo)
-	// var hiLog = math.Log10(hi)
+	var loLog = math.Log10(lo)
+	var hiLog = math.Log10(hi)
 
-	// var cF = (hiLog - loLog) / float64(bins)
-	var cF = math.Log10(lo/hi) / ((1 / float64(bins)) - 1)
+	var cF = (hiLog - loLog) / float64(bins)
+	// var cF = math.Log10(lo/hi) / ((1 / float64(bins)) - 1)
 
 	var cCoef = 100.0 / float64(bins+1)
 
 	for xB := 0; xB <= bins; xB++ {
 
-		// 	var vFreq = ((float64(b) * cF) +  loLog)
-		// 	vFreq = math.Pow(10.0, vFreq)
-		var vFreq = ((float64(xB) / float64(bins)) * cF) - cF
-		vFreq = math.Pow(10.0, vFreq) * hi
-		sp.bins[xB].floorFFT = sp.freqToIdx(vFreq, math.Floor)
+		var vFreq = ((float64(xB) * cF) + loLog)
+		vFreq = math.Pow(10.0, vFreq)
+		// var vFreq = ((float64(xB) / float64(bins)) * cF) - cF
+		// vFreq = math.Pow(10.0, vFreq) * hi
+		sp.bins[xB].floorFFT = sp.freqToIdx(vFreq, math.Round)
 		sp.bins[xB].eqVal = math.Log2(float64(xB)+2) * cCoef
 
 		if xB > 0 {

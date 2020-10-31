@@ -20,8 +20,8 @@ type MovingWindow struct {
 }
 
 // NewMovingWindow returns a new moving window.
-func NewMovingWindow(size int) MovingWindow {
-	return MovingWindow{
+func NewMovingWindow(size int) *MovingWindow {
+	return &MovingWindow{
 		pool:     make([]float64, size),
 		capacity: size,
 	}

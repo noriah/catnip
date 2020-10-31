@@ -2,10 +2,9 @@ package graphic
 
 import "github.com/nsf/termbox-go"
 
-func drawUp(bins [][]float64, count int, cfg Config, scale float64) error {
-	var cWidth, cHeight = termbox.Size()
+func drawUp(bins [][]float64, count int, scale float64, state State, cfg Config) error {
 
-	var vHeight = cHeight - cfg.BaseThick
+	var vHeight = state.Height - cfg.BaseThick
 	if vHeight < 0 {
 		vHeight = 0
 	}
@@ -14,11 +13,11 @@ func drawUp(bins [][]float64, count int, cfg Config, scale float64) error {
 
 	var cPaddedWidth = (cfg.BinWidth * count * len(bins)) - cfg.SpaceWidth
 
-	if cPaddedWidth > cWidth || cPaddedWidth < 0 {
-		cPaddedWidth = cWidth
+	if cPaddedWidth > state.Width || cPaddedWidth < 0 {
+		cPaddedWidth = state.Width
 	}
 
-	var xCol = (cWidth - cPaddedWidth) / 2
+	var xCol = (state.Width - cPaddedWidth) / 2
 
 	var delta = 1
 	var xBin int
@@ -46,7 +45,7 @@ func drawUp(bins [][]float64, count int, cfg Config, scale float64) error {
 				lCol = xCol + cfg.BarWidth
 			}
 
-			var xRow = cHeight
+			var xRow = state.Height
 
 			for xRow >= vHeight {
 				termbox.SetCell(xCol, xRow, BarRune, StyleCenter, StyleDefaultBack)
