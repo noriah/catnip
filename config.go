@@ -37,6 +37,10 @@ type Config struct {
 	DrawType int
 	// SpectrumType is the spectrum calculation method
 	SpectrumType int
+	// FFTSize is the size
+	fftSize int
+	// didFlag is a temp value for main
+	didFlag bool
 }
 
 // NewZeroConfig returns a zero config
@@ -46,11 +50,11 @@ type Config struct {
 //  - sampleRate: 122880
 //  - sampleSize: 2048
 //  - super smooth detail view
-func NewZeroConfig() *Config {
-	return &Config{
+func NewZeroConfig() Config {
+	return Config{
 		Backend:      "portaudio",
 		SampleRate:   44100,
-		SmoothFactor: 40.69,
+		SmoothFactor: 65.69,
 		WinVar:       0.50,
 		BaseThick:    1,
 		BarWidth:     2,
@@ -58,11 +62,12 @@ func NewZeroConfig() *Config {
 		SampleSize:   1024,
 		ChannelCount: 2,
 		DrawType:     int(graphic.DrawDefault),
-		SpectrumType: int(dsp.SpectrumDefault),
+		SpectrumType: int(dsp.TypeDefault),
 	}
 }
 
-func sanitizeConfig(cfg *Config) error {
+// Sanitize cleans things up
+func (cfg *Config) Sanitize() error {
 
 	if cfg.SampleRate < float64(cfg.SampleSize) {
 		return errors.New("sample rate lower than sample size")
@@ -71,6 +76,8 @@ func sanitizeConfig(cfg *Config) error {
 	if cfg.SampleSize < 4 {
 		return errors.New("sample size too small (4+ required)")
 	}
+
+	cfg.fftSize = cfg.SampleSize/2 + 1
 
 	switch {
 

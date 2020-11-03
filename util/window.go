@@ -6,9 +6,8 @@ import (
 
 // MovingWindow is a moving window
 type MovingWindow struct {
-	index    int
-	length   int
-	capacity int
+	index  int
+	length int
 
 	variance float64
 	stddev   float64
@@ -16,15 +15,9 @@ type MovingWindow struct {
 	sum     float64
 	average float64
 
-	pool []float64
-}
+	Capacity int
 
-// NewMovingWindow returns a new moving window.
-func NewMovingWindow(size int) *MovingWindow {
-	return &MovingWindow{
-		pool:     make([]float64, size),
-		capacity: size,
-	}
+	Data []float64
 }
 
 func (mw *MovingWindow) calcFinal() (float64, float64) {
@@ -32,7 +25,10 @@ func (mw *MovingWindow) calcFinal() (float64, float64) {
 		// mw.stddev = math.Sqrt(mw.variance / (mw.length - 1))
 		// okay so this came from dpayne/cli-visualizer
 		mw.stddev = (mw.variance / float64(mw.length-1)) - math.Pow(mw.average, 2)
-		mw.stddev = math.Sqrt(math.Abs(mw.stddev))
+		if mw.stddev < 0.0 {
+			mw.stddev = -mw.stddev
+		}
+		mw.stddev = math.Sqrt(mw.stddev)
 	} else {
 		mw.stddev = 0
 	}
@@ -48,21 +44,22 @@ func (mw *MovingWindow) calcFinal() (float64, float64) {
 
 // Update updates the moving window
 func (mw *MovingWindow) Update(value float64) (float64, float64) {
-	if mw.length < mw.capacity {
+	if mw.length < mw.Capacity {
 
 		mw.length++
 
 		mw.sum += value
-		mw.variance += math.Pow(value, 2)
+		mw.variance += (value * value)
 
 	} else {
-		mw.sum += value - mw.pool[mw.index]
-		mw.variance += math.Pow(value, 2) - math.Pow(mw.pool[mw.index], 2)
+		var old = mw.Data[mw.index]
+		mw.sum += value - old
+		mw.variance += (value * value) - (old * old)
 	}
 
-	mw.pool[mw.index] = value
+	mw.Data[mw.index] = value
 
-	if mw.index++; mw.index >= mw.capacity {
+	if mw.index++; mw.index >= mw.Capacity {
 		mw.index = 0
 	}
 
@@ -80,11 +77,13 @@ func (mw *MovingWindow) Drop(count int) (float64, float64) {
 
 		var idx = (mw.index - mw.length)
 		if idx < 0 {
-			idx = mw.capacity + idx
+			idx = mw.Capacity + idx
 		}
 
-		mw.sum -= mw.pool[idx]
-		mw.variance -= math.Pow(mw.pool[idx], 2)
+		var old = mw.Data[idx]
+
+		mw.sum -= old
+		mw.variance -= old * old
 
 		mw.length--
 
@@ -112,7 +111,7 @@ func (mw *MovingWindow) Len() int {
 
 // Cap returns max size of window
 func (mw *MovingWindow) Cap() int {
-	return mw.capacity
+	return mw.Capacity
 }
 
 // Mean is the moving window average

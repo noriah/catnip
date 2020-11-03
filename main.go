@@ -3,6 +3,7 @@ package main
 import (
 	"fmt"
 	"log"
+	"os"
 
 	"github.com/noriah/catnip/input"
 	"github.com/pkg/errors"
@@ -28,30 +29,43 @@ func main() {
 
 	log.SetFlags(0)
 
+	var cfg = NewZeroConfig()
+
+	chk(doFlags(&cfg))
+
+	if cfg.didFlag {
+		os.Exit(0)
+	}
+
+	chk(cfg.Sanitize())
+
+	chk(Catnip(&cfg))
+}
+
+func doFlags(cfg *Config) error {
+
 	var parser = flaggy.NewParser(AppName)
 	parser.Description = AppDesc
 	parser.AdditionalHelpPrepend = AppSite
 	parser.Version = version
 
-	var listBackendsCmd = &flaggy.Subcommand{
+	var listBackendsCmd = flaggy.Subcommand{
 		Name:                 "list-backends",
 		ShortName:            "lb",
 		Description:          "list all supported backends",
 		AdditionalHelpAppend: "\nuse the full name after the '-'",
 	}
 
-	parser.AttachSubcommand(listBackendsCmd, 1)
+	parser.AttachSubcommand(&listBackendsCmd, 1)
 
-	var listDevicesCmd = &flaggy.Subcommand{
+	var listDevicesCmd = flaggy.Subcommand{
 		Name:                 "list-devices",
 		ShortName:            "ld",
 		Description:          "list all devices for a backend",
 		AdditionalHelpAppend: "\nuse the full name after the '-'",
 	}
 
-	parser.AttachSubcommand(listDevicesCmd, 1)
-
-	var cfg = NewZeroConfig()
+	parser.AttachSubcommand(&listDevicesCmd, 1)
 
 	parser.String(&cfg.Backend, "b", "backend", "backend name")
 	parser.String(&cfg.Device, "d", "device", "device name")
@@ -69,22 +83,25 @@ func main() {
 
 	chk(parser.Parse())
 
-	chk(sanitizeConfig(cfg))
-
 	if listBackendsCmd.Used {
+		cfg.didFlag = true
+
 		for _, backend := range input.Backends {
 			fmt.Printf("- %s\n", backend.Name)
 		}
-		return
+
+		return nil
 	}
 
 	if listDevicesCmd.Used {
+		cfg.didFlag = true
+
 		var backend, err = initBackend(cfg)
 		chk(err)
 
 		devices, err := backend.Devices()
 		if err != nil {
-			log.Fatalln("error", errors.Wrap(err, "failed to get devices"))
+			return errors.Wrap(err, "failed to get devices")
 		}
 
 		var defaultDevice, _ = backend.DefaultDevice()
@@ -100,10 +117,10 @@ func main() {
 			fmt.Printf("- %v %c\n", devices[idx], rune(star))
 		}
 
-		return
+		return nil
 	}
 
-	chk(Catnip(cfg))
+	return nil
 }
 
 func chk(err error) {
