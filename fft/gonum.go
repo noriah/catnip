@@ -9,21 +9,15 @@ const FFTW = false
 
 // Plan holds a gonum FFT plan.
 type Plan struct {
-	input  []float64
-	output []complex128
+	Input  []float64
+	Output []complex128
 	fft    *fourier.FFT
 }
 
-// NewPlan creates a new gonum plan.
-func NewPlan(in []float64, out []complex128) *Plan {
-	return &Plan{
-		input:  in,
-		output: out,
-		fft:    fourier.NewFFT(len(in)),
-	}
-}
-
 // Execute executes the gonum plan.
-func (p Plan) Execute() {
-	p.fft.Coefficients(p.output, p.input)
+func (p *Plan) Execute() {
+	if p.fft == nil {
+		p.fft = fourier.NewFFT(len(p.Input))
+	}
+	p.fft.Coefficients(p.Output, p.Input)
 }

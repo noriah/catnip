@@ -3,7 +3,6 @@ package portaudio
 import (
 	"context"
 	"fmt"
-	"log"
 
 	"github.com/noriah/catnip/input"
 	"github.com/noriah/catnip/input/portaudio/portaudio"
@@ -142,26 +141,26 @@ func (s *Session) ReadyRead() int {
 // Read signals portaudio to dump some data into the buffer we gave it.
 // Will block if there is not enough data yet.
 func (s *Session) Read(ctx context.Context) error {
-	for s.ReadyRead() < s.config.SampleSize {
-		select {
-		case <-ctx.Done():
-			log.Println("read timed out")
-			return ErrReadTimedOut
-		default:
-		}
-	}
+	// for s.ReadyRead() < s.config.SampleSize {
+	// 	select {
+	// 	case <-ctx.Done():
+	// 		log.Println("read timed out")
+	// 		return ErrReadTimedOut
+	// 	default:
+	// 	}
+	// }
 
 	err := s.stream.Read()
 
-	for i, v := range s.sampleBuf {
-		s.retBufs[i%s.config.FrameSize][i/s.config.FrameSize] = float64(v)
-	}
-
-	// for xBuf := range s.retBufs {
-	// 	for xSmpl := range s.retBufs[xBuf] {
-	// 		s.retBufs[xBuf][xSmpl] = input.Sample(s.sampleBuf[(xSmpl*s.config.FrameSize)+xBuf])
-	// 	}
+	// for i, v := range s.sampleBuf {
+	// 	s.retBufs[i%s.config.FrameSize][i/s.config.FrameSize] = float64(v)
 	// }
+
+	for xBuf := range s.retBufs {
+		for xSmpl := range s.retBufs[xBuf] {
+			s.retBufs[xBuf][xSmpl] = input.Sample(s.sampleBuf[(xSmpl*s.config.FrameSize)+xBuf])
+		}
+	}
 
 	if err != portaudio.InputOverflowed {
 		return err
