@@ -17,12 +17,6 @@ const (
 	BarRuneR = '\u2580'
 	BarRune  = '\u2588'
 
-	// styles
-
-	StyleDefault     = termbox.ColorDefault
-	StyleDefaultBack = termbox.ColorDefault
-	StyleCenter      = termbox.ColorMagenta
-	// StyleCenter  = StyleDefault
 	StyleReverse = termbox.AttrReverse
 
 	// NumRunes number of runes for sub step bars
@@ -44,6 +38,39 @@ const (
 	DrawDefault = DrawUpDown
 )
 
+// Styles is the structure for the styles that Display will draw using.
+type Styles struct {
+	Foreground termbox.Attribute
+	Background termbox.Attribute
+	CenterLine termbox.Attribute
+}
+
+// DefaultStyles returns the default styles.
+func DefaultStyles() Styles {
+	return Styles{
+		Foreground: termbox.ColorDefault,
+		Background: termbox.ColorDefault,
+		CenterLine: termbox.ColorMagenta,
+	}
+}
+
+// StylesFromUInt16 converts 3 uint16 values to styles.
+func StylesFromUInt16(fg, bg, center uint16) Styles {
+	return Styles{
+		Foreground: termbox.Attribute(fg),
+		Background: termbox.Attribute(bg),
+		CenterLine: termbox.Attribute(center),
+	}
+}
+
+// AsUInt16s converts the styles to 3 uint16 values.
+func (s Styles) AsUInt16s() (fg, bg, center uint16) {
+	fg = uint16(s.Foreground)
+	bg = uint16(s.Background)
+	center = uint16(s.CenterLine)
+	return
+}
+
 // Display handles drawing our visualizer
 type Display struct {
 	running    uint32
@@ -54,6 +81,7 @@ type Display struct {
 	termWidth  int
 	termHeight int
 	drawType   DrawType
+	styles     Styles
 }
 
 // Init initializes the display
@@ -181,7 +209,7 @@ func (d *Display) Draw(bufs [][]float64, channels, count int, scale float64) err
 
 	termbox.Flush()
 
-	termbox.Clear(StyleDefault, StyleDefaultBack)
+	termbox.Clear(d.styles.Foreground, d.styles.Background)
 
 	return nil
 }
@@ -219,6 +247,12 @@ func (d *Display) SetBase(thick int) {
 		d.baseThick = thick
 
 	}
+}
+
+func (d *Display) SetStyles(styles Styles) {
+	if styles.Background > 266 {
+	}
+	d.styles = styles
 }
 
 // AdjustBase will change the base by delta units
@@ -328,15 +362,15 @@ func (d *Display) DrawUp(bins [][]float64, count int, scale float64) error {
 			var xRow = d.termHeight
 
 			for ; xRow >= vHeight; xRow-- {
-				termbox.SetCell(xCol, xRow, BarRune, StyleCenter, StyleDefaultBack)
+				termbox.SetCell(xCol, xRow, BarRune, d.styles.CenterLine, d.styles.Background)
 			}
 
 			for ; xRow >= stop; xRow-- {
-				termbox.SetCell(xCol, xRow, BarRune, StyleDefault, StyleDefaultBack)
+				termbox.SetCell(xCol, xRow, BarRune, d.styles.Foreground, d.styles.Background)
 			}
 
 			if top > BarRuneR {
-				termbox.SetCell(xCol, xRow, top, StyleDefault, StyleDefaultBack)
+				termbox.SetCell(xCol, xRow, top, d.styles.Foreground, d.styles.Background)
 			}
 		}
 
@@ -400,15 +434,15 @@ func (d *Display) DrawDown(bins [][]float64, count int, scale float64) error {
 			var xRow = 0
 
 			for ; xRow < d.baseThick; xRow++ {
-				termbox.SetCell(xCol, xRow, BarRune, StyleCenter, StyleDefaultBack)
+				termbox.SetCell(xCol, xRow, BarRune, d.styles.CenterLine, d.styles.Background)
 			}
 
 			for ; xRow < stop; xRow++ {
-				termbox.SetCell(xCol, xRow, BarRune, StyleDefault, StyleDefaultBack)
+				termbox.SetCell(xCol, xRow, BarRune, d.styles.Foreground, d.styles.Background)
 			}
 
 			if top < BarRune {
-				termbox.SetCell(xCol, xRow, top, StyleReverse, StyleDefault)
+				termbox.SetCell(xCol, xRow, top, StyleReverse, d.styles.Foreground)
 			}
 
 			xCol++
@@ -483,26 +517,26 @@ func (d *Display) DrawUpDown(bins [][]float64, count int, scale float64) error {
 		var xRow = lStop
 
 		if lTop > BarRuneR {
-			termbox.SetCell(xCol, xRow-1, lTop, StyleDefault, StyleDefaultBack)
+			termbox.SetCell(xCol, xRow-1, lTop, d.styles.Foreground, d.styles.Background)
 		}
 
 		for ; xRow < centerStart; xRow++ {
-			termbox.SetCell(xCol, xRow, BarRune, StyleDefault, StyleDefaultBack)
+			termbox.SetCell(xCol, xRow, BarRune, d.styles.Foreground, d.styles.Background)
 		}
 
 		// center line
 		for ; xRow < centerStop; xRow++ {
-			termbox.SetCell(xCol, xRow, BarRune, StyleCenter, StyleDefaultBack)
+			termbox.SetCell(xCol, xRow, BarRune, d.styles.CenterLine, d.styles.Background)
 		}
 
 		// right bars go down
 		for ; xRow < rStop; xRow++ {
-			termbox.SetCell(xCol, xRow, BarRune, StyleDefault, StyleDefaultBack)
+			termbox.SetCell(xCol, xRow, BarRune, d.styles.Foreground, d.styles.Background)
 		}
 
 		// last part of right bars.
 		if rTop < BarRune {
-			termbox.SetCell(xCol, xRow, rTop, StyleReverse, StyleDefault)
+			termbox.SetCell(xCol, xRow, rTop, StyleReverse, d.styles.Foreground)
 		}
 	}
 
