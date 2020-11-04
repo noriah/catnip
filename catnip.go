@@ -108,6 +108,7 @@ func Catnip(cfg *Config) error {
 	display.SetWidths(cfg.BarWidth, cfg.SpaceWidth)
 	display.SetBase(cfg.BaseThick)
 	display.SetDrawType(graphic.DrawType(cfg.DrawType))
+	display.SetStyles(cfg.Styles)
 
 	var endSig = make(chan os.Signal, 2)
 	signal.Notify(endSig, os.Interrupt)
