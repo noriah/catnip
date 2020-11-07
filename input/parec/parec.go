@@ -46,7 +46,7 @@ func (p Backend) Devices() ([]input.Device, error) {
 }
 
 func (p Backend) DefaultDevice() (input.Device, error) {
-	return PulseDevice("default"), nil
+	return PulseDevice(""), nil
 }
 
 func (p Backend) Start(cfg input.SessionConfig) (input.Session, error) {
@@ -73,14 +73,17 @@ func NewSession(cfg input.SessionConfig) (*execread.Session, error) {
 		return nil, errors.New("channel count not supported, mono/stereo only")
 	}
 
-	cmd := exec.Command(
-		"parec",
+	var args = []string{
 		"--format=float32le",
 		fmt.Sprintf("--rate=%.0f", cfg.SampleRate),
 		fmt.Sprintf("--channels=%d", cfg.FrameSize),
-		"-d", dv.String(),
-	)
+	}
 
+	if dv != "" {
+		args = append(args, "-d", dv.String())
+	}
+
+	cmd := exec.Command("parec", args...)
 	cmd.Stderr = os.Stderr
 
 	return execread.NewSession(cmd, true, cfg)
