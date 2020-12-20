@@ -6,11 +6,9 @@ import (
 	"context"
 	"encoding/binary"
 	"io"
-	"log"
 	"math"
 	"os"
 	"os/exec"
-	"time"
 
 	"github.com/noriah/catnip/input"
 	"github.com/pkg/errors"
@@ -102,9 +100,7 @@ func (s *Session) Start(ctx context.Context, dst [][]input.Sample, proc input.Pr
 		if cursor++; cursor == smSize {
 			cursor = 0
 
-			now := time.Now()
 			proc.Process()
-			log.Println("processor took", time.Now().Sub(now))
 
 			// Discard the buffer and read a new one.
 			outbuf.Discard(outbuf.Buffered())
