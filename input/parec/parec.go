@@ -2,8 +2,6 @@ package parec
 
 import (
 	"fmt"
-	"os"
-	"os/exec"
 
 	"github.com/lawl/pulseaudio"
 	"github.com/noriah/catnip/input"
@@ -74,6 +72,7 @@ func NewSession(cfg input.SessionConfig) (*execread.Session, error) {
 	}
 
 	var args = []string{
+		"parec",
 		"--format=float32le",
 		fmt.Sprintf("--rate=%.0f", cfg.SampleRate),
 		fmt.Sprintf("--channels=%d", cfg.FrameSize),
@@ -83,8 +82,5 @@ func NewSession(cfg input.SessionConfig) (*execread.Session, error) {
 		args = append(args, "-d", dv.String())
 	}
 
-	cmd := exec.Command("parec", args...)
-	cmd.Stderr = os.Stderr
-
-	return execread.NewSession(cmd, true, cfg)
+	return execread.NewSession(args, true, cfg)
 }
