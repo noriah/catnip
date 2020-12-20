@@ -132,29 +132,19 @@ func (s *Session) Start(ctx context.Context, dst [][]input.Sample, proc input.Pr
 	s.device.discard()
 	defer stream.Close()
 
+	// Terminate the stream if the context times out.
+	go func() {
+		<-ctx.Done()
+		stream.Close()
+	}()
+
 	if err := stream.Start(); err != nil {
 		return errors.Wrap(err, "failed to start stream")
 	}
 	defer stream.Stop()
 
 	for {
-		n, err := stream.AvailableToRead()
-		if err != nil {
-			return errors.Wrap(err, "failed to get read avail")
-		}
-
-		select {
-		case <-ctx.Done():
-			return ctx.Err()
-		default:
-		}
-
-		// Continue until we have enough samples.
-		if n < s.config.SampleSize {
-			continue
-		}
-
-		// Ignore overflow.
+		// Ignore overflow in case the processing is too slow.
 		if err := stream.Read(); err != nil && err != portaudio.InputOverflowed {
 			return errors.Wrap(err, "failed to read stream")
 		}
