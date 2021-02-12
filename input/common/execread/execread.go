@@ -65,13 +65,8 @@ func (s *Session) Start(ctx context.Context, dst [][]input.Sample, proc input.Pr
 	defer cmd.Process.Signal(os.Interrupt)
 	defer o.Close()
 
-	// Calculate the frame rate and use that as the buffer multiplier. This
-	// ensures that the read buffer is big enough for a 1-second lag before
-	// Reads are spammed.
-	var bufferMultiplier = int(s.cfg.SampleRate) / s.cfg.SampleSize
-
 	// Calculate the optimum size of the buffer.
-	var bufsz = s.sampleSize * 4 * bufferMultiplier
+	var bufsz = s.sampleSize * 4
 	if !s.f32mode {
 		bufsz *= 2
 	}
@@ -101,9 +96,6 @@ func (s *Session) Start(ctx context.Context, dst [][]input.Sample, proc input.Pr
 			cursor = 0
 
 			proc.Process()
-
-			// Discard the buffer and read a new one.
-			outbuf.Discard(outbuf.Buffered())
 		}
 	}
 }
