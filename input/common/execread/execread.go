@@ -11,6 +11,7 @@ import (
 	"os/exec"
 
 	"github.com/noriah/catnip/input"
+	"github.com/noriah/catnip/input/common/timer"
 	"github.com/pkg/errors"
 )
 
@@ -65,53 +66,43 @@ func (s *Session) Start(ctx context.Context, dst [][]input.Sample, proc input.Pr
 	defer cmd.Process.Signal(os.Interrupt)
 	defer o.Close()
 
-	// Calculate the optimum size of the buffer.
-	var bufsz = s.sampleSize * 4
+	// Allocate triple the required buffer size.
+	var bufsz = s.sampleSize * 4 * 10
 	if !s.f32mode {
 		bufsz *= 2
 	}
 
 	// Make a read buffer the size of sampleSize float64s in bytes.
-	var outbuf = bufio.NewReaderSize(o, bufsz)
-	var flread = NewFloatReader(outbuf, binary.LittleEndian, s.f32mode)
+	outbuf := bufio.NewReaderSize(o, bufsz)
+	flread := NewFrameReader(outbuf, binary.LittleEndian, s.f32mode)
+	cursor := 0
 
-	var cursor = 0 // cursor
-	var frSize = s.cfg.FrameSize
-	var smSize = s.sampleSize
-
-	for {
-		f, err := flread.ReadFloat64()
-		if err != nil {
-			// EOF is graceful.
-			if errors.Is(err, io.EOF) {
-				return nil
+	return timer.Process(s.cfg, proc, func() error {
+		for cursor = 0; cursor < s.sampleSize; cursor++ {
+			f, err := flread.ReadFloat64()
+			if err != nil {
+				return err
 			}
-			return errors.Wrap(err, "failed to read float64")
+
+			// Write to an intermediary buffer.
+			dst[cursor%s.cfg.FrameSize][cursor/s.cfg.FrameSize] = f
 		}
 
-		// Write to an intermediary buffer.
-		dst[cursor%frSize][cursor/frSize] = f
-
-		if cursor++; cursor == smSize {
-			cursor = 0
-
-			proc.Process()
-		}
-	}
+		return nil
+	})
 }
 
-// FloatReader is an io.Reader abstraction that allows using a shared bytes
+// FrameReader is an io.Reader abstraction that allows using a shared bytes
 // buffer.
-type FloatReader struct {
+type FrameReader struct {
 	order   binary.ByteOrder
 	reader  io.Reader
 	buffer  []byte
 	f64mode bool
 }
 
-// NewFloatReader creates a new FloatReader that optionally reads float32 or
-// float64.
-func NewFloatReader(r io.Reader, order binary.ByteOrder, f32mode bool) *FloatReader {
+// NewFrameReader creates a new FrameReader that concurrently reads a frame.
+func NewFrameReader(r io.Reader, order binary.ByteOrder, f32mode bool) *FrameReader {
 	var buf []byte
 	if f32mode {
 		buf = make([]byte, 4)
@@ -119,7 +110,7 @@ func NewFloatReader(r io.Reader, order binary.ByteOrder, f32mode bool) *FloatRea
 		buf = make([]byte, 8)
 	}
 
-	return &FloatReader{
+	return &FrameReader{
 		order:   order,
 		reader:  r,
 		buffer:  buf,
@@ -128,7 +119,7 @@ func NewFloatReader(r io.Reader, order binary.ByteOrder, f32mode bool) *FloatRea
 }
 
 // ReadFloat64 reads maximum 4 or 8 bytes and returns a float64.
-func (f *FloatReader) ReadFloat64() (float64, error) {
+func (f *FrameReader) ReadFloat64() (float64, error) {
 	n, err := f.reader.Read(f.buffer)
 	if err != nil {
 		return 0, err
