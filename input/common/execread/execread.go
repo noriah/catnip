@@ -10,6 +10,7 @@ import (
 	"os"
 	"os/exec"
 	"sync"
+	"sync/atomic"
 
 	"github.com/noriah/catnip/input"
 	"github.com/pkg/errors"
@@ -18,16 +19,18 @@ import (
 // Session is a session that reads floating-point audio values from a Cmd.
 type Session struct {
 	cmd        *exec.Cmd
-	f32mode    bool
-	frameSize  int
-	sampleSize int
+	cfg        input.SessionConfig
+	sampleSize int // multiplied
 
-	copymut sync.Mutex
-	isFull  bool // mutex guarded
+	readErr atomic.Value
+	swapMut sync.Mutex
+	isFull  bool // atomic; only 1 bit used!
 
-	readbuf   [][]input.Sample // copied from middlebuf on demand
-	middlebuf [][]input.Sample // copied from writebuf after each fill
-	writebuf  [][]input.Sample // free write without mutex
+	readbuf   [][]input.Sample // copied from copybuf on demand
+	middlebuf [][]input.Sample // atomic; swapped with writebuf after each fill
+
+	// maligned.
+	f32mode bool
 }
 
 // NewSession creates a new execread session. It never returns an error.
@@ -36,12 +39,11 @@ func NewSession(cmd *exec.Cmd, f32mode bool, cfg input.SessionConfig) (*Session,
 
 	return &Session{
 		cmd:        cmd,
-		frameSize:  cfg.FrameSize,
-		sampleSize: sampleSize,
+		cfg:        cfg,
 		f32mode:    f32mode,
+		sampleSize: sampleSize,
 		readbuf:    input.MakeBuffers(cfg),
 		middlebuf:  input.MakeBuffers(cfg),
-		writebuf:   input.MakeBuffers(cfg),
 	}, nil
 }
 
@@ -56,44 +58,61 @@ func (s *Session) Start() error {
 		return errors.Wrap(err, "failed to start ffmpeg")
 	}
 
-	// Kind of optimal guess to reduce syscalls.
-	const bufferMultiplier = 10
-
-	// Calculate the optimum size of the buffer.
-	var bufsz = s.sampleSize * 4 * bufferMultiplier
-	if !s.f32mode {
-		bufsz *= 2
-	}
-
-	// Make a read buffer the size of sampleSize float64s in bytes.
-	var outbuf = bufio.NewReaderSize(o, bufsz)
-	var flread = NewFloatReader(outbuf, binary.LittleEndian, s.f32mode)
-
 	go func() {
 		defer o.Close()
 
+		// Calculate the frame rate and use that as the buffer multiplier. This
+		// ensures that the read buffer is big enough for a 1-second lag before
+		// Reads are spammed.
+		var bufferMultiplier = int(s.cfg.SampleRate) / s.cfg.SampleSize
+
+		// Calculate the optimum size of the buffer.
+		var bufsz = s.sampleSize * 4 * bufferMultiplier
+		if !s.f32mode {
+			bufsz *= 2
+		}
+
+		// Make a read buffer the size of sampleSize float64s in bytes.
+		var outbuf = bufio.NewReaderSize(o, bufsz)
+		var flread = NewFloatReader(outbuf, binary.LittleEndian, s.f32mode)
+
 		var cursor = 0 // cursor
+		var frSize = s.cfg.FrameSize
+		var smSize = s.sampleSize
+
+		var writebuf = input.MakeBuffers(s.cfg)
 
 		for {
 			f, err := flread.ReadFloat64()
 			if err != nil {
-				s.Stop()
+				// Store the error atomically.
+				s.readErr.Store(err)
+
+				// Mark the buffer as full to trick Read() into being called.
+				s.swapMut.Lock()
+				s.isFull = true
+				s.swapMut.Unlock()
+
 				return
 			}
 
-			// Attempt to acquire the mutex-channel. If fail to acquire, skip
-			// writing and keep reading.
-			s.writebuf[cursor%s.frameSize][cursor/s.frameSize] = f
+			// Write to an intermediary buffer.
+			writebuf[cursor%frSize][cursor/frSize] = f
 
-			// Override the write buffer if the read loop is too slow to catch
-			// up.
-			if cursor++; cursor == s.sampleSize {
+			if cursor++; cursor == smSize {
 				cursor = 0
 
-				s.copymut.Lock()
+				s.swapMut.Lock()
+				// Swap the local buffer's array with the shared's.
+				s.middlebuf, writebuf = writebuf, s.middlebuf
+				// Indicate that the buffer is full.
 				s.isFull = true
-				input.CopyBuffers(s.middlebuf, s.writebuf)
-				s.copymut.Unlock()
+				s.swapMut.Unlock()
+
+				// Discard the buffer if it's too old.
+				if buffered := outbuf.Buffered(); buffered >= outbuf.Size() {
+					outbuf.Discard(buffered)
+				}
 			}
 		}
 	}()
@@ -101,30 +120,41 @@ func (s *Session) Start() error {
 	return nil
 }
 
+// Stop terminates the underlying process and wait for it to exit.
 func (s *Session) Stop() error {
 	s.cmd.Process.Signal(os.Interrupt)
 	return s.cmd.Wait()
 }
 
+// SampleBuffers returns the read buffer.
 func (s *Session) SampleBuffers() [][]input.Sample {
 	return s.readbuf
 }
 
-// ReadyRead blocks until there is enough data in the sample buffer.
+// ReadyRead returns 0 if the buffer is not refilled. It returns sampleSize if
+// the buffer is refilled. A ReadyRead call will change the state to assume that
+// a buffer has been consumed. As such, calling ReadyRead immediately afterwards
+// will very likely return 0.
 func (s *Session) ReadyRead() int {
-	s.copymut.Lock()
+	s.swapMut.Lock()
 	if !s.isFull {
-		s.copymut.Unlock()
+		s.swapMut.Unlock()
 		return 0
 	}
 
 	return s.sampleSize
 }
 
-func (s *Session) Read(ctx context.Context) error {
+// Read copies from the middle buffer to the read buffer.
+func (s *Session) Read(context.Context) error {
+	// Do a periodic error check.
+	if readErr, ok := s.readErr.Load().(error); ok {
+		return errors.Wrap(readErr, "read loop failed")
+	}
+
 	// Deep copy.
 	input.CopyBuffers(s.readbuf, s.middlebuf)
-	s.copymut.Unlock()
+	s.swapMut.Unlock()
 	return nil
 }
 
