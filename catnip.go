@@ -202,7 +202,7 @@ func (proc *processor) Process() {
 func initBackend(cfg *Config) (input.Backend, error) {
 	var backend = input.FindBackend(cfg.Backend)
 	if backend == nil {
-		return nil, fmt.Errorf("backend not found: %q; chec list-backends", cfg.Backend)
+		return nil, fmt.Errorf("backend not found: %q; check list-backends", cfg.Backend)
 	}
 
 	if err := backend.Init(); err != nil {
