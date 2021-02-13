@@ -6,7 +6,6 @@ import (
 	"math"
 	"os"
 	"os/signal"
-	"time"
 
 	"github.com/noriah/catnip/dsp"
 	"github.com/noriah/catnip/dsp/window"
@@ -27,53 +26,86 @@ const (
 	ScalingDumpPercent = 0.75
 	// ScalingResetDeviation standard deviations from the mean before reset
 	ScalingResetDeviation = 1.0
+	// PeakThreshold is the threshold to not draw if the peak is less.
+	PeakThreshold = 0.01
 )
+
+type processor struct {
+	cfg *Config
+
+	slowWindow util.MovingWindow
+	fastWindow util.MovingWindow
+
+	fftBuf    []complex128
+	inputBufs [][]input.Sample
+	barBufs   [][]input.Sample
+
+	plans    []*fft.Plan
+	spectrum dsp.Spectrum
+
+	bars    int
+	display graphic.Display
+}
 
 // Catnip starts to draw the visualizer on the termbox screen.
 func Catnip(cfg *Config) error {
 	// allocate as much as possible as soon as possible
 	var (
 		barBufFull = make([]float64, cfg.ChannelCount*cfg.SampleSize)
-		fftBuf     = make([]complex128, cfg.fftSize)
-		spBinBuf   = make(dsp.BinBuf, cfg.SampleSize)
 
 		slowMax    = ((int(ScalingSlowWindow * cfg.SampleRate)) / cfg.SampleSize) * 2
 		fastMax    = ((int(ScalingFastWindow * cfg.SampleRate)) / cfg.SampleSize) * 2
 		windowData = make([]float64, slowMax+fastMax)
-
-		barBufs = make([][]float64, cfg.ChannelCount)
-		plans   = make([]*fft.Plan, cfg.ChannelCount)
 	)
 
-	var slowWindow = &util.MovingWindow{
-		Data:     windowData[0:slowMax],
-		Capacity: slowMax,
+	var sessConfig = input.SessionConfig{
+		FrameSize:  cfg.ChannelCount,
+		SampleSize: cfg.SampleSize,
+		SampleRate: cfg.SampleRate,
 	}
 
-	var fastWindow = &util.MovingWindow{
-		Data:     windowData[slowMax : slowMax+fastMax],
-		Capacity: fastMax,
+	proc := processor{
+		cfg: cfg,
+		slowWindow: util.MovingWindow{
+			Data:     windowData[0:slowMax],
+			Capacity: slowMax,
+		},
+		fastWindow: util.MovingWindow{
+			Data:     windowData[slowMax : slowMax+fastMax],
+			Capacity: fastMax,
+		},
+
+		fftBuf:    make([]complex128, cfg.fftSize),
+		inputBufs: input.MakeBuffers(sessConfig),
+		barBufs:   make([][]float64, cfg.ChannelCount),
+
+		plans: make([]*fft.Plan, cfg.ChannelCount),
+		spectrum: dsp.Spectrum{
+			SampleRate: cfg.SampleRate,
+			SampleSize: cfg.SampleSize,
+			Bins:       make(dsp.BinBuf, cfg.SampleSize),
+		},
+
+		bars:    0,
+		display: graphic.Display{},
 	}
 
-	for idx := range barBufs {
-		barBufs[idx] = barBufFull[(idx * cfg.SampleSize):((idx + 1) * cfg.SampleSize)]
+	for idx := range proc.barBufs {
+		proc.barBufs[idx] = barBufFull[(idx * cfg.SampleSize):((idx + 1) * cfg.SampleSize)]
 	}
 
-	// DrawDelay is the time we wait between ticks to draw.
-	var drawDelay = time.Second / time.Duration(
-		int((cfg.SampleRate / float64(cfg.SampleSize))))
+	for idx, buf := range proc.inputBufs {
+		proc.plans[idx] = &fft.Plan{
+			Input:  buf,
+			Output: proc.fftBuf,
+		}
+	}
 
 	// INPUT SETUP
 
 	var backend, err = initBackend(cfg)
 	if err != nil {
 		return err
-	}
-
-	var sessConfig = input.SessionConfig{
-		FrameSize:  cfg.ChannelCount,
-		SampleSize: cfg.SampleSize,
-		SampleRate: cfg.SampleRate,
 	}
 
 	if sessConfig.Device, err = getDevice(backend, cfg); err != nil {
@@ -87,134 +119,90 @@ func Catnip(cfg *Config) error {
 		return errors.Wrap(err, "failed to start the input backend")
 	}
 
-	// Make a spectrum
-	var spectrum = dsp.Spectrum{
-		SampleRate: cfg.SampleRate,
-		SampleSize: cfg.SampleSize,
-		Bins:       spBinBuf,
-	}
+	proc.spectrum.SetSmoothing(cfg.SmoothFactor)
+	proc.spectrum.SetWinVar(cfg.WinVar)
+	proc.spectrum.SetType(dsp.SpectrumType(cfg.SpectrumType))
 
-	spectrum.SetSmoothing(cfg.SmoothFactor)
-	spectrum.SetWinVar(cfg.WinVar)
-	spectrum.SetType(dsp.SpectrumType(cfg.SpectrumType))
+	proc.display.SetWidths(cfg.BarWidth, cfg.SpaceWidth)
+	proc.display.SetBase(cfg.BaseThick)
+	proc.display.SetDrawType(graphic.DrawType(cfg.DrawType))
+	proc.display.SetStyles(cfg.Styles)
 
-	var display = graphic.Display{}
-	defer display.Close()
-
-	if err = display.Init(); err != nil {
+	if err = proc.display.Init(); err != nil {
 		return err
 	}
+	defer proc.display.Close()
 
-	display.SetWidths(cfg.BarWidth, cfg.SpaceWidth)
-	display.SetBase(cfg.BaseThick)
-	display.SetDrawType(graphic.DrawType(cfg.DrawType))
-
-	var endSig = make(chan os.Signal, 2)
+	endSig := make(chan os.Signal, 2)
 	signal.Notify(endSig, os.Interrupt)
 	signal.Notify(endSig, os.Kill)
 
 	// Root Context
-	var ctx, cancel = context.WithCancel(context.Background())
+	ctx, cancel := context.WithCancel(context.Background())
 	defer cancel()
-
-	var inputBufs = audio.SampleBuffers()
-
-	for idx, buf := range inputBufs {
-		plans[idx] = &fft.Plan{
-			Input:  buf,
-			Output: fftBuf,
-		}
-	}
 
 	// Start the display
 	// replace our context so display can signal quit
-	ctx = display.Start(ctx)
-	defer display.Stop()
+	ctx = proc.display.Start(ctx)
+	defer proc.display.Stop()
 
-	if err := audio.Start(); err != nil {
+	if err := audio.Start(ctx, proc.inputBufs, &proc); err != nil {
 		return errors.Wrap(err, "failed to start input session")
 	}
 
-	defer audio.Stop()
+	return nil
+}
 
-	var barCount int
+// Catnip starts to draw the visualizer on the termbox screen.
+func (proc *processor) Process() {
+	if n := proc.display.Bars(proc.cfg.ChannelCount); n != proc.bars {
+		proc.bars = proc.spectrum.Recalculate(n)
+	}
 
-	var timer = time.NewTimer(drawDelay)
+	var peak float64
 
-	defer func(t *time.Timer) {
-		if !t.Stop() {
-			select {
-			case <-t.C:
-			default:
+	for idx, buf := range proc.barBufs {
+		window.CosSum(proc.inputBufs[idx], proc.cfg.WinVar)
+		proc.plans[idx].Execute()
+		proc.spectrum.Process(buf, proc.fftBuf)
+
+		for _, v := range buf[:proc.bars] {
+			if peak < v {
+				peak = v
 			}
-		}
-	}(timer)
-
-	for {
-		if audio.ReadyRead() < cfg.SampleSize {
-			continue
-		}
-
-		if err = audio.Read(ctx); err != nil {
-			return errors.Wrap(err, "failed to read audio input")
-		}
-
-		if barVar := display.Bars(cfg.ChannelCount); barVar != barCount {
-			barCount = spectrum.Recalculate(barVar)
-		}
-
-		var peak = 0.0
-
-		for idx, buf := range barBufs {
-			window.CosSum(inputBufs[idx], cfg.WinVar)
-			plans[idx].Execute()
-			spectrum.Process(buf, fftBuf)
-
-			for _, v := range buf[:barCount] {
-				if peak < v {
-					peak = v
-				}
-			}
-		}
-
-		var scale = 1.0
-
-		// do some scaling if we are above 0
-		if peak > 0.0 {
-			fastWindow.Update(peak)
-			var vMean, vSD = slowWindow.Update(peak)
-
-			if length := slowWindow.Len(); length >= fastWindow.Cap() {
-
-				if math.Abs(fastWindow.Mean()-vMean) > (ScalingResetDeviation * vSD) {
-					vMean, vSD = slowWindow.Drop(
-						int(float64(length) * ScalingDumpPercent))
-				}
-			}
-
-			if t := vMean + (1.5 * vSD); t > 1.0 {
-				scale = t
-			}
-		}
-
-		display.Draw(barBufs, cfg.ChannelCount, barCount, scale)
-
-		select {
-		case <-endSig:
-			return nil
-		case <-ctx.Done():
-			return nil
-		case <-timer.C:
-			timer.Reset(drawDelay)
 		}
 	}
+
+	// Don't draw if the peak is too small to even draw.
+	if peak <= PeakThreshold {
+		return
+	}
+
+	var scale = 1.0
+
+	// do some scaling if we are above 0
+	if peak > 0.0 {
+		proc.fastWindow.Update(peak)
+		vMean, vSD := proc.slowWindow.Update(peak)
+
+		if length := proc.slowWindow.Len(); length >= proc.fastWindow.Cap() {
+			if math.Abs(proc.fastWindow.Mean()-vMean) > (ScalingResetDeviation * vSD) {
+				vMean, vSD = proc.slowWindow.Drop(int(float64(length) * ScalingDumpPercent))
+			}
+		}
+
+		if t := vMean + (1.5 * vSD); t > 1.0 {
+			scale = t
+		}
+	}
+
+	proc.display.Draw(proc.barBufs, proc.cfg.ChannelCount, proc.bars, scale)
 }
 
 func initBackend(cfg *Config) (input.Backend, error) {
-
 	var backend = input.FindBackend(cfg.Backend)
 	if backend == nil {
-		return nil, fmt.Errorf("backend not found: %q", cfg.Backend)
+		return nil, fmt.Errorf("backend not found: %q; chec list-backends", cfg.Backend)
 	}
 
 	if err := backend.Init(); err != nil {
