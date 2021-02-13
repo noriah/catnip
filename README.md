@@ -24,15 +24,14 @@
 
 - go modules
 	- github.com/nsf/termbox-go
-  - github.com/integrii/flaggy
+	- github.com/integrii/flaggy
 	- github.com/pkg/errors
 	- github.com/lawl/pulseaudio
 	- gonum.org/v1/gonum
 
 - c libraries (optional, disable with `CGO_ENABLED=0`)
 	- fftw (fftw3)
-	- portaudio (portaudio-2.0)
-		- disable with `-build noportaudio`
+	- portaudio (portaudio-2.0) (disable with `-build noportaudio`)
 
 - binaries
 	- ffmpeg (required for FFmpeg backends)
