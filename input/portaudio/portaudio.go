@@ -3,8 +3,10 @@ package portaudio
 import (
 	"context"
 	"fmt"
+	"sync"
 
 	"github.com/noriah/catnip/input"
+	"github.com/noriah/catnip/input/common/timer"
 	"github.com/noriah/catnip/input/portaudio/portaudio"
 	"github.com/pkg/errors"
 )
@@ -74,6 +76,8 @@ type Device struct {
 	*portaudio.DeviceInfo
 }
 
+func (d *Device) discard() { d.DeviceInfo = nil }
+
 // String returns the device name.
 func (d Device) String() string {
 	return d.Name
@@ -84,10 +88,8 @@ type SampleType = float32
 
 // Session is an input source that pulls from Portaudio.
 type Session struct {
-	stream    *portaudio.Stream // our input stream
-	config    input.SessionConfig
-	sampleBuf []SampleType // internal scratch buffer
-	retBufs   [][]input.Sample
+	device Device
+	config input.SessionConfig
 }
 
 // NewSession creates and initializes a new Portaudio session.
@@ -97,86 +99,67 @@ func NewSession(config input.SessionConfig) (*Session, error) {
 		return nil, fmt.Errorf("device is on unknown type %T", config.Device)
 	}
 
-	param := portaudio.StreamParameters{
-		Input: portaudio.StreamDeviceParameters{
-			Device:   dv.DeviceInfo,
-			Latency:  dv.DefaultLowInputLatency,
-			Channels: config.FrameSize,
-		},
-		SampleRate:      config.SampleRate,
-		FramesPerBuffer: config.SampleSize,
-		Flags:           portaudio.ClipOff | portaudio.DitherOff,
-	}
-
-	buffer := make([]SampleType, config.SampleSize*config.FrameSize)
-	retbuf := input.MakeBuffers(config)
-
-	stream, err := portaudio.OpenStream(param, buffer)
-	if err != nil {
-		return nil, errors.Wrap(err, "failed to open stream")
-	}
-
-	// Free up the device.
+	// Free up the device inside the config.
 	config.Device = nil
 
 	return &Session{
-		stream,
+		dv,
 		config,
-		buffer,
-		retbuf,
 	}, nil
 }
 
-// Buffers returns a slice to our buffers
-func (s *Session) SampleBuffers() [][]input.Sample {
-	return s.retBufs
-}
+func (s *Session) Start(ctx context.Context, dst [][]input.Sample, proc input.Processor) error {
+	if !input.EnsureBufferLen(s.config, dst) {
+		return errors.New("invalid dst length given")
+	}
 
-// ReadyRead returns the number of frames ready to read
-func (s *Session) ReadyRead() int {
-	var ready, _ = s.stream.AvailableToRead()
-	return ready
-}
+	param := portaudio.StreamParameters{
+		Input: portaudio.StreamDeviceParameters{
+			Device:   s.device.DeviceInfo,
+			Latency:  s.device.DefaultLowInputLatency,
+			Channels: s.config.FrameSize,
+		},
+		SampleRate:      s.config.SampleRate,
+		FramesPerBuffer: s.config.SampleSize,
+		Flags:           portaudio.ClipOff | portaudio.DitherOff,
+	}
 
-// Read signals portaudio to dump some data into the buffer we gave it.
-// Will block if there is not enough data yet.
-func (s *Session) Read(ctx context.Context) error {
-	// for s.ReadyRead() < s.config.SampleSize {
-	// 	select {
-	// 	case <-ctx.Done():
-	// 		log.Println("read timed out")
-	// 		return ErrReadTimedOut
-	// 	default:
-	// 	}
-	// }
+	// Source buffer in a different format than what we want (dst).
+	src := make([]SampleType, s.config.SampleSize*s.config.FrameSize)
 
-	err := s.stream.Read()
+	stream, err := portaudio.OpenStream(param, src)
+	if err != nil {
+		return errors.Wrap(err, "failed to open stream")
+	}
+	s.device.discard()
+	defer stream.Close()
 
-	// for i, v := range s.sampleBuf {
-	// 	s.retBufs[i%s.config.FrameSize][i/s.config.FrameSize] = float64(v)
-	// }
+	// Terminate the stream if the context times out.
+	go func() {
+		<-ctx.Done()
+		stream.Close()
+	}()
 
-	for xBuf := range s.retBufs {
-		for xSmpl := range s.retBufs[xBuf] {
-			s.retBufs[xBuf][xSmpl] = input.Sample(s.sampleBuf[(xSmpl*s.config.FrameSize)+xBuf])
+	if err := stream.Start(); err != nil {
+		return errors.Wrap(err, "failed to start stream")
+	}
+	defer stream.Stop()
+
+	return timer.Process(s.config, proc, func(mu *sync.Mutex) error {
+		// Ignore overflow in case the processing is too slow.
+		if err := stream.Read(); err != nil && err != portaudio.InputOverflowed {
+			return errors.Wrap(err, "failed to read stream")
 		}
-	}
 
-	if err != portaudio.InputOverflowed {
-		return err
-	}
+		mu.Lock()
+		defer mu.Unlock()
 
-	return nil
-}
+		for xBuf := range dst {
+			for xSmpl := range dst[xBuf] {
+				dst[xBuf][xSmpl] = input.Sample(src[(xSmpl*s.config.FrameSize)+xBuf])
+			}
+		}
 
-// Start opens the stream and starts audio processing.
-func (s *Session) Start() error {
-	return s.stream.Start()
-}
-
-// Stop stops the session.
-func (s *Session) Stop() error {
-	err := s.stream.Stop()
-	s.stream.Close()
-	return err
+		return nil
+	})
 }

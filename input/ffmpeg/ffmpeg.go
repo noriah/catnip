@@ -2,8 +2,6 @@ package ffmpeg
 
 import (
 	"fmt"
-	"os"
-	"os/exec"
 
 	"github.com/noriah/catnip/input"
 	"github.com/noriah/catnip/input/common/execread"
@@ -14,7 +12,7 @@ type FFmpegBackend interface {
 }
 
 func NewSession(b FFmpegBackend, cfg input.SessionConfig) (*execread.Session, error) {
-	args := []string{"-hide_banner", "-loglevel", "panic"}
+	args := []string{"ffmpeg", "-hide_banner", "-loglevel", "panic"}
 	args = append(args, b.InputArgs()...)
 	args = append(args,
 		"-ar", fmt.Sprintf("%.0f", cfg.SampleRate),
@@ -23,8 +21,5 @@ func NewSession(b FFmpegBackend, cfg input.SessionConfig) (*execread.Session, er
 		"-",
 	)
 
-	cmd := exec.Command("ffmpeg", args...)
-	cmd.Stderr = os.Stderr
-
-	return execread.NewSession(cmd, false, cfg)
+	return execread.NewSession(args, false, cfg)
 }

@@ -2,8 +2,6 @@ package parec
 
 import (
 	"fmt"
-	"os"
-	"os/exec"
 
 	"github.com/lawl/pulseaudio"
 	"github.com/noriah/catnip/input"
@@ -46,7 +44,7 @@ func (p Backend) Devices() ([]input.Device, error) {
 }
 
 func (p Backend) DefaultDevice() (input.Device, error) {
-	return PulseDevice("default"), nil
+	return PulseDevice(""), nil
 }
 
 func (p Backend) Start(cfg input.SessionConfig) (input.Session, error) {
@@ -73,15 +71,16 @@ func NewSession(cfg input.SessionConfig) (*execread.Session, error) {
 		return nil, errors.New("channel count not supported, mono/stereo only")
 	}
 
-	cmd := exec.Command(
+	var args = []string{
 		"parec",
 		"--format=float32le",
 		fmt.Sprintf("--rate=%.0f", cfg.SampleRate),
 		fmt.Sprintf("--channels=%d", cfg.FrameSize),
-		"-d", dv.String(),
-	)
+	}
 
-	cmd.Stderr = os.Stderr
+	if dv != "" {
+		args = append(args, "-d", dv.String())
+	}
 
-	return execread.NewSession(cmd, true, cfg)
+	return execread.NewSession(args, true, cfg)
 }
