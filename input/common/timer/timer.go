@@ -5,10 +5,16 @@ package timer
 import (
 	"errors"
 	"io"
+	"sync"
 	"time"
 
 	"github.com/noriah/catnip/input"
 )
+
+// Routine is a background routine that is responsible for reading audio into a
+// shared buffer. The routine must use the given mutex to write into the shared
+// buffer.
+type Routine func(mu *sync.Mutex) error
 
 // Process runs a new timer routine. The timer routine is ticked everytime
 // callback returns or when a tick is supposed to occur based on the given
@@ -19,7 +25,7 @@ import (
 // from this function; returning an io.EOF will make this function return nil.
 //
 // Processor is called on each tick.
-func Process(cfg input.SessionConfig, proc input.Processor, callback func() error) error {
+func Process(cfg input.SessionConfig, proc input.Processor, r Routine) error {
 	// Calculate the theoretical tick duration to satisfy the requested sampling
 	// rate without falling behind.
 	rate := time.Second / time.Duration(cfg.SampleRate/float64(cfg.SampleSize))
@@ -30,10 +36,15 @@ func Process(cfg input.SessionConfig, proc input.Processor, callback func() erro
 	ticker := time.NewTicker(rate)
 	defer ticker.Stop()
 
-	var errorCh = make(chan error)
+	errorCh := make(chan error)
+
+	// Require mutex synchronization, since we're running the routine in
+	// parallel, so proc will be accessing it from another thread.
+	var mutex sync.Mutex
+
 	go func() {
 		for {
-			err := callback()
+			err := r(&mutex)
 			errorCh <- err
 
 			// Bail on error.
@@ -61,6 +72,8 @@ func Process(cfg input.SessionConfig, proc input.Processor, callback func() erro
 			ticker.Reset(rate)
 		}
 
+		mutex.Lock()
 		proc.Process()
+		mutex.Unlock()
 	}
 }

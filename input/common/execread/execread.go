@@ -9,6 +9,7 @@ import (
 	"math"
 	"os"
 	"os/exec"
+	"sync"
 
 	"github.com/noriah/catnip/input"
 	"github.com/noriah/catnip/input/common/timer"
@@ -77,7 +78,11 @@ func (s *Session) Start(ctx context.Context, dst [][]input.Sample, proc input.Pr
 	flread := NewFrameReader(outbuf, binary.LittleEndian, s.f32mode)
 	cursor := 0
 
-	return timer.Process(s.cfg, proc, func() error {
+	// Allocate a buffer specifically for the process routine to reduce lock
+	// contention. The lengths of these buffers are guaranteed above.
+	buf := input.MakeBuffers(s.cfg)
+
+	return timer.Process(s.cfg, proc, func(mu *sync.Mutex) error {
 		for cursor = 0; cursor < s.sampleSize; cursor++ {
 			f, err := flread.ReadFloat64()
 			if err != nil {
@@ -85,8 +90,13 @@ func (s *Session) Start(ctx context.Context, dst [][]input.Sample, proc input.Pr
 			}
 
 			// Write to an intermediary buffer.
-			dst[cursor%s.cfg.FrameSize][cursor/s.cfg.FrameSize] = f
+			buf[cursor%s.cfg.FrameSize][cursor/s.cfg.FrameSize] = f
 		}
+
+		mu.Lock()
+		defer mu.Unlock()
+
+		input.CopyBuffers(dst, buf)
 
 		return nil
 	})

@@ -3,6 +3,7 @@ package portaudio
 import (
 	"context"
 	"fmt"
+	"sync"
 
 	"github.com/noriah/catnip/input"
 	"github.com/noriah/catnip/input/common/timer"
@@ -144,11 +145,14 @@ func (s *Session) Start(ctx context.Context, dst [][]input.Sample, proc input.Pr
 	}
 	defer stream.Stop()
 
-	return timer.Process(s.config, proc, func() error {
+	return timer.Process(s.config, proc, func(mu *sync.Mutex) error {
 		// Ignore overflow in case the processing is too slow.
 		if err := stream.Read(); err != nil && err != portaudio.InputOverflowed {
 			return errors.Wrap(err, "failed to read stream")
 		}
+
+		mu.Lock()
+		defer mu.Unlock()
 
 		for xBuf := range dst {
 			for xSmpl := range dst[xBuf] {
