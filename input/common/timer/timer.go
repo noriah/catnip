@@ -3,6 +3,8 @@
 package timer
 
 import (
+	"errors"
+	"io"
 	"time"
 
 	"github.com/noriah/catnip/input"
@@ -13,7 +15,8 @@ import (
 // sample rate and sample size.
 //
 // The given callback will be called in a busy loop; it should block until an
-// event or error occurs.
+// event or error occurs. The error returned from the callback will be returned
+// from this function; returning an io.EOF will make this function return nil.
 //
 // Processor is called on each tick.
 func Process(cfg input.SessionConfig, proc input.Processor, callback func() error) error {
@@ -47,6 +50,9 @@ func Process(cfg input.SessionConfig, proc input.Processor, callback func() erro
 
 		case err := <-errorCh:
 			if err != nil {
+				if errors.Is(err, io.EOF) {
+					return nil
+				}
 				return err
 			}
 
