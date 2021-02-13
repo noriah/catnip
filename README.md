@@ -32,6 +32,7 @@
 - c libraries (optional, disable with `CGO_ENABLED=0`)
 	- fftw (fftw3)
 	- portaudio (portaudio-2.0)
+		- disable with `-build noportaudio`
 
 - binaries
 	- ffmpeg (required for FFmpeg backends)
