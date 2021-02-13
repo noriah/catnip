@@ -3,10 +3,9 @@ package main
 import (
 	"fmt"
 	"log"
-	"os"
 
+	"github.com/noriah/catnip/graphic"
 	"github.com/noriah/catnip/input"
-	"github.com/pkg/errors"
 
 	_ "github.com/noriah/catnip/input/ffmpeg"
 	_ "github.com/noriah/catnip/input/parec"
@@ -30,19 +29,18 @@ func main() {
 	log.SetFlags(0)
 
 	var cfg = NewZeroConfig()
-
-	chk(doFlags(&cfg))
+	doFlags(&cfg)
 
 	if cfg.didFlag {
-		os.Exit(0)
+		return
 	}
 
-	chk(cfg.Sanitize())
+	chk(cfg.Sanitize(), "invalid config")
 
-	chk(Catnip(&cfg))
+	chk(Catnip(&cfg), "failed to run catnip")
 }
 
-func doFlags(cfg *Config) error {
+func doFlags(cfg *Config) {
 
 	var parser = flaggy.NewParser(AppName)
 	parser.Description = AppDesc
@@ -81,50 +79,54 @@ func doFlags(cfg *Config) error {
 	parser.Int(&cfg.SpectrumType, "st", "distribute",
 		"spectrum distribution type (here be dragons)")
 
-	chk(parser.Parse())
+	fg, bg, center := graphic.DefaultStyles().AsUInt16s()
+	parser.UInt16(&fg, "fg", "foreground",
+		"foreground color within the 256-color range [0, 255] with attributes")
+	parser.UInt16(&bg, "bg", "background",
+		"background color within the 256-color range [0, 255] with attributes")
+	parser.UInt16(&center, "ct", "center",
+		"center line color within the 256-color range [0, 255] with attributes")
 
-	if listBackendsCmd.Used {
+	chk(parser.Parse(), "failed to parse arguments")
+
+	// Manually set the styles.
+	cfg.Styles = graphic.StylesFromUInt16(fg, bg, center)
+
+	switch {
+	case listBackendsCmd.Used:
 		cfg.didFlag = true
 
 		for _, backend := range input.Backends {
 			fmt.Printf("- %s\n", backend.Name)
 		}
 
-		return nil
-	}
-
-	if listDevicesCmd.Used {
+	case listDevicesCmd.Used:
 		cfg.didFlag = true
 
-		var backend, err = initBackend(cfg)
-		chk(err)
+		backend, err := initBackend(cfg)
+		chk(err, "failed to init backend")
 
 		devices, err := backend.Devices()
-		if err != nil {
-			return errors.Wrap(err, "failed to get devices")
-		}
+		chk(err, "failed to get devices")
 
-		var defaultDevice, _ = backend.DefaultDevice()
+		// We don't really need the default device to be indicated.
+		defaultDevice, _ := backend.DefaultDevice()
 
 		fmt.Printf("all devices for %q backend. '*' marks default\n", cfg.Backend)
 
 		for idx := range devices {
-			var star = 0x20
+			var star = ' '
 			if defaultDevice != nil && devices[idx].String() == defaultDevice.String() {
-				star = 0x2a
+				star = '*'
 			}
 
-			fmt.Printf("- %v %c\n", devices[idx], rune(star))
+			fmt.Printf("- %v %c\n", devices[idx], star)
 		}
-
-		return nil
 	}
-
-	return nil
 }
 
-func chk(err error) {
+func chk(err error, wrap string) {
 	if err != nil {
-		log.Fatalln("error", err)
+		log.Fatalln(wrap+": ", err)
 	}
 }

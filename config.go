@@ -35,6 +35,8 @@ type Config struct {
 	ChannelCount int
 	// DrawType is the draw type
 	DrawType int
+	// Styles is the configuration for bar color styles
+	Styles graphic.Styles
 	// SpectrumType is the spectrum calculation method
 	SpectrumType int
 	// FFTSize is the size

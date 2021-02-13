@@ -1,8 +1,6 @@
 package input
 
-import (
-	"context"
-)
+import "context"
 
 type NamedBackend struct {
 	Name string
@@ -53,13 +51,21 @@ type SessionConfig struct {
 	SampleRate float64 // sample rate
 }
 
+// Session is the interface for an input session. Its task is to call the
+// processor everytime the buffer is full using the parameters given in
+// SessionConfig.
 type Session interface {
-	Start() error
-	Stop() error
+	// Start blocks until either the context is canceled or an error is
+	// encountered.
+	Start(context.Context, [][]Sample, Processor) error
+}
 
-	SampleBuffers() [][]Sample
-	ReadyRead() int
-	Read(context.Context) error
+// Processor is called by Session everytime the buffer is full. Session may call
+// this on another goroutine; the implementation must handle synchronization. It
+// must also handle buffer swapping or copying if it wants to synchronize it
+// away.
+type Processor interface {
+	Process()
 }
 
 type Sample = float64
@@ -71,6 +77,20 @@ func MakeBuffers(cfg SessionConfig) [][]Sample {
 		buf[i] = make([]Sample, cfg.SampleSize)
 	}
 	return buf
+}
+
+// EnsureBufferLen ensures that the given buffer has matching sizes with the
+// needed parameters from SessionConfig. It is effectively a bound check.
+func EnsureBufferLen(cfg SessionConfig, buf [][]Sample) bool {
+	if len(buf) != cfg.FrameSize {
+		return false
+	}
+	for _, samples := range buf {
+		if len(samples) != cfg.SampleSize {
+			return false
+		}
+	}
+	return true
 }
 
 // CopyBuffers deep copies src to dst. It does NOT do length check.

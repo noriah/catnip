@@ -15,7 +15,7 @@ import (
 	"time"
 	"unsafe"
 
-	"github.com/noriah/catnip/input/utils/endian"
+	"github.com/noriah/catnip/input/common/endian"
 )
 
 // Version returns the release number of PortAudio.

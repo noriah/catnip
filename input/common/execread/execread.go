@@ -10,166 +10,109 @@ import (
 	"os"
 	"os/exec"
 	"sync"
-	"sync/atomic"
 
 	"github.com/noriah/catnip/input"
+	"github.com/noriah/catnip/input/common/timer"
 	"github.com/pkg/errors"
 )
 
 // Session is a session that reads floating-point audio values from a Cmd.
 type Session struct {
-	cmd        *exec.Cmd
-	cfg        input.SessionConfig
+	argv []string
+	cfg  input.SessionConfig
+
 	sampleSize int // multiplied
-
-	readErr atomic.Value
-	swapMut sync.Mutex
-	isFull  bool // atomic; only 1 bit used!
-
-	readbuf   [][]input.Sample // copied from copybuf on demand
-	middlebuf [][]input.Sample // atomic; swapped with writebuf after each fill
 
 	// maligned.
 	f32mode bool
 }
 
 // NewSession creates a new execread session. It never returns an error.
-func NewSession(cmd *exec.Cmd, f32mode bool, cfg input.SessionConfig) (*Session, error) {
-	var sampleSize = cfg.SampleSize * cfg.FrameSize
+func NewSession(argv []string, f32mode bool, cfg input.SessionConfig) (*Session, error) {
+	if len(argv) < 1 {
+		return nil, errors.New("argv has no arg0")
+	}
 
 	return &Session{
-		cmd:        cmd,
+		argv:       argv,
 		cfg:        cfg,
 		f32mode:    f32mode,
-		sampleSize: sampleSize,
-		readbuf:    input.MakeBuffers(cfg),
-		middlebuf:  input.MakeBuffers(cfg),
+		sampleSize: cfg.SampleSize * cfg.FrameSize,
 	}, nil
 }
 
-func (s *Session) Start() error {
-	o, err := s.cmd.StdoutPipe()
+func (s *Session) Start(ctx context.Context, dst [][]input.Sample, proc input.Processor) error {
+	if !input.EnsureBufferLen(s.cfg, dst) {
+		return errors.New("invalid dst length given")
+	}
+
+	// Take argv and free it soon after, since we won't be needing it again.
+	cmd := exec.CommandContext(ctx, s.argv[0], s.argv[1:]...)
+	cmd.Stderr = os.Stderr
+	s.argv = nil
+
+	o, err := cmd.StdoutPipe()
 	if err != nil {
 		return errors.Wrap(err, "failed to get stdout pipe")
 	}
 
-	if err := s.cmd.Start(); err != nil {
+	if err := cmd.Start(); err != nil {
 		o.Close()
 		return errors.Wrap(err, "failed to start ffmpeg")
 	}
 
-	go func() {
-		defer o.Close()
+	// Close the stdout pipe first, then send SIGINT, then wait for a graceful
+	// death.
+	defer cmd.Wait()
+	defer cmd.Process.Signal(os.Interrupt)
+	defer o.Close()
 
-		// Calculate the frame rate and use that as the buffer multiplier. This
-		// ensures that the read buffer is big enough for a 1-second lag before
-		// Reads are spammed.
-		var bufferMultiplier = int(s.cfg.SampleRate) / s.cfg.SampleSize
+	// Allocate triple the required buffer size.
+	var bufsz = s.sampleSize * 4 * 10
+	if !s.f32mode {
+		bufsz *= 2
+	}
 
-		// Calculate the optimum size of the buffer.
-		var bufsz = s.sampleSize * 4 * bufferMultiplier
-		if !s.f32mode {
-			bufsz *= 2
-		}
+	// Make a read buffer the size of sampleSize float64s in bytes.
+	outbuf := bufio.NewReaderSize(o, bufsz)
+	flread := NewFrameReader(outbuf, binary.LittleEndian, s.f32mode)
+	cursor := 0
 
-		// Make a read buffer the size of sampleSize float64s in bytes.
-		var outbuf = bufio.NewReaderSize(o, bufsz)
-		var flread = NewFloatReader(outbuf, binary.LittleEndian, s.f32mode)
+	// Allocate a buffer specifically for the process routine to reduce lock
+	// contention. The lengths of these buffers are guaranteed above.
+	buf := input.MakeBuffers(s.cfg)
 
-		var cursor = 0 // cursor
-		var frSize = s.cfg.FrameSize
-		var smSize = s.sampleSize
-
-		var writebuf = input.MakeBuffers(s.cfg)
-
-		for {
+	return timer.Process(s.cfg, proc, func(mu *sync.Mutex) error {
+		for cursor = 0; cursor < s.sampleSize; cursor++ {
 			f, err := flread.ReadFloat64()
 			if err != nil {
-				// Store the error atomically.
-				s.readErr.Store(err)
-
-				// Mark the buffer as full to trick Read() into being called.
-				s.swapMut.Lock()
-				s.isFull = true
-				s.swapMut.Unlock()
-
-				return
+				return err
 			}
 
 			// Write to an intermediary buffer.
-			writebuf[cursor%frSize][cursor/frSize] = f
-
-			if cursor++; cursor == smSize {
-				cursor = 0
-
-				s.swapMut.Lock()
-				// Swap the local buffer's array with the shared's.
-				s.middlebuf, writebuf = writebuf, s.middlebuf
-				// Indicate that the buffer is full.
-				s.isFull = true
-				s.swapMut.Unlock()
-
-				// Discard the buffer if it's too old.
-				if buffered := outbuf.Buffered(); buffered >= outbuf.Size() {
-					outbuf.Discard(buffered)
-				}
-			}
+			buf[cursor%s.cfg.FrameSize][cursor/s.cfg.FrameSize] = f
 		}
-	}()
 
-	return nil
+		mu.Lock()
+		defer mu.Unlock()
+
+		input.CopyBuffers(dst, buf)
+
+		return nil
+	})
 }
 
-// Stop terminates the underlying process and wait for it to exit.
-func (s *Session) Stop() error {
-	s.cmd.Process.Signal(os.Interrupt)
-	return s.cmd.Wait()
-}
-
-// SampleBuffers returns the read buffer.
-func (s *Session) SampleBuffers() [][]input.Sample {
-	return s.readbuf
-}
-
-// ReadyRead returns 0 if the buffer is not refilled. It returns sampleSize if
-// the buffer is refilled. A ReadyRead call will change the state to assume that
-// a buffer has been consumed. As such, calling ReadyRead immediately afterwards
-// will very likely return 0.
-func (s *Session) ReadyRead() int {
-	s.swapMut.Lock()
-	if !s.isFull {
-		s.swapMut.Unlock()
-		return 0
-	}
-
-	return s.sampleSize
-}
-
-// Read copies from the middle buffer to the read buffer.
-func (s *Session) Read(context.Context) error {
-	// Do a periodic error check.
-	if readErr, ok := s.readErr.Load().(error); ok {
-		return errors.Wrap(readErr, "read loop failed")
-	}
-
-	// Deep copy.
-	input.CopyBuffers(s.readbuf, s.middlebuf)
-	s.swapMut.Unlock()
-	return nil
-}
-
-// FloatReader is an io.Reader abstraction that allows using a shared bytes
+// FrameReader is an io.Reader abstraction that allows using a shared bytes
 // buffer.
-type FloatReader struct {
+type FrameReader struct {
 	order   binary.ByteOrder
 	reader  io.Reader
 	buffer  []byte
 	f64mode bool
 }
 
-// NewFloatReader creates a new FloatReader that optionally reads float32 or
-// float64.
-func NewFloatReader(r io.Reader, order binary.ByteOrder, f32mode bool) *FloatReader {
+// NewFrameReader creates a new FrameReader that concurrently reads a frame.
+func NewFrameReader(r io.Reader, order binary.ByteOrder, f32mode bool) *FrameReader {
 	var buf []byte
 	if f32mode {
 		buf = make([]byte, 4)
@@ -177,7 +120,7 @@ func NewFloatReader(r io.Reader, order binary.ByteOrder, f32mode bool) *FloatRea
 		buf = make([]byte, 8)
 	}
 
-	return &FloatReader{
+	return &FrameReader{
 		order:   order,
 		reader:  r,
 		buffer:  buf,
@@ -186,7 +129,7 @@ func NewFloatReader(r io.Reader, order binary.ByteOrder, f32mode bool) *FloatRea
 }
 
 // ReadFloat64 reads maximum 4 or 8 bytes and returns a float64.
-func (f *FloatReader) ReadFloat64() (float64, error) {
+func (f *FrameReader) ReadFloat64() (float64, error) {
 	n, err := f.reader.Read(f.buffer)
 	if err != nil {
 		return 0, err
