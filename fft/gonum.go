@@ -16,10 +16,14 @@ type Plan struct {
 	fft    *fourier.FFT
 }
 
-// Execute executes the gonum plan.
-func (p *Plan) Execute() {
+// Init sets up the plan so we dont run checks during execute
+func (p *Plan) Init() {
 	if p.fft == nil {
 		p.fft = fourier.NewFFT(len(p.Input))
 	}
+}
+
+// Execute executes the gonum plan.
+func (p *Plan) Execute() {
 	p.fft.Coefficients(p.Output, p.Input)
 }
