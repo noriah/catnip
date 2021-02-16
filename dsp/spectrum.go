@@ -15,16 +15,16 @@ import (
 	"math"
 )
 
-// SpectrumType is the type of calculation we run
+// SpectrumType is the type of distribution we use
 type SpectrumType int
 
-// Spectrum calculation types
+// Spectrum distribution types
 const (
 	TypeLog SpectrumType = iota
 	TypeEqual
 	TypeLog2
 
-	// SpectrumDefault is the default spectrum type
+	// SpectrumDefault is the default spectrum distribution
 	TypeDefault = TypeLog
 )
 
@@ -50,7 +50,7 @@ type Bin struct {
 	// widthFFT int     // fft floor-ceiling index delta
 }
 
-// BinBuf is an alias for help
+// BinBuf is an alias for a slice of Bins
 type BinBuf = []Bin
 
 // Frequencies are the dividing frequencies

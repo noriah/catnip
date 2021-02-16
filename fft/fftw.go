@@ -26,8 +26,8 @@ type Plan struct {
 	cPlan  C.fftw_plan
 }
 
-// Execute runs the plan
-func (p *Plan) Execute() {
+// Init sets up the plan so we dont run checks during execute
+func (p *Plan) Init() {
 	if p.cPlan == nil {
 		p.cPlan = C.fftw_plan_dft_r2c_1d(
 			C.int(len(p.Input)),
@@ -38,7 +38,10 @@ func (p *Plan) Execute() {
 
 		runtime.SetFinalizer(p, (*Plan).destroy)
 	}
+}
 
+// Execute runs the plan
+func (p *Plan) Execute() {
 	C.fftw_execute(p.cPlan)
 }
 

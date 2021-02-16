@@ -24,7 +24,7 @@ func (mw *MovingWindow) calcFinal() (float64, float64) {
 	if mw.length > 1 {
 		// mw.stddev = math.Sqrt(mw.variance / (mw.length - 1))
 		// okay so this came from dpayne/cli-visualizer
-		mw.stddev = (mw.variance / float64(mw.length-1)) - math.Pow(mw.average, 2)
+		mw.stddev = (mw.variance / float64(mw.length-1)) - (mw.average * mw.average)
 		if mw.stddev < 0.0 {
 			mw.stddev = -mw.stddev
 		}
