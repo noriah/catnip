@@ -53,6 +53,7 @@ func (p Backend) Start(cfg input.SessionConfig) (input.Session, error) {
 
 type PulseDevice string
 
+// InputArgs is used for FFmpeg only.
 func (d PulseDevice) InputArgs() []string {
 	return []string{"-f", "pulse", "-i", string(d)}
 }
