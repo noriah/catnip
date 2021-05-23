@@ -31,7 +31,7 @@
 
 - c libraries (optional, disable with `CGO_ENABLED=0`)
 	- fftw (fftw3)
-	- portaudio (portaudio-2.0) (disable with `-build noportaudio`)
+	- portaudio (portaudio-2.0) (disable with `-tags noportaudio`)
 
 - binaries
 	- ffmpeg (required for FFmpeg backends)
@@ -48,8 +48,12 @@ cd catnip
 
 # build and install catnip
 go install
+
 # without cgo
 CGO_ENABLED=0 go install
+
+# without portaudio
+go install -tags noportaudio
 ```
 
 ## run it
