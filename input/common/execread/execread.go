@@ -67,14 +67,13 @@ func (s *Session) Start(ctx context.Context, dst [][]input.Sample, proc input.Pr
 	defer cmd.Process.Signal(os.Interrupt)
 	defer o.Close()
 
-	// Allocate triple the required buffer size.
-	var bufsz = s.sampleSize * 4 * 10
+	bufsz := s.sampleSize
 	if !s.f32mode {
 		bufsz *= 2
 	}
 
-	// Make a read buffer the size of sampleSize float64s in bytes.
-	outbuf := bufio.NewReaderSize(o, bufsz)
+	// Make a read buffer that's quadruple the size.
+	outbuf := bufio.NewReaderSize(o, bufsz*4)
 	flread := NewFrameReader(outbuf, binary.LittleEndian, s.f32mode)
 	cursor := 0
 
@@ -83,6 +82,9 @@ func (s *Session) Start(ctx context.Context, dst [][]input.Sample, proc input.Pr
 	buf := input.MakeBuffers(s.cfg)
 
 	return timer.Process(s.cfg, proc, func(mu *sync.Mutex) error {
+		// Discard all but the last buffer so we get the latest data.
+		outbuf.Discard(max(outbuf.Buffered()-bufsz, 0))
+
 		for cursor = 0; cursor < s.sampleSize; cursor++ {
 			f, err := flread.ReadFloat64()
 			if err != nil {
@@ -100,6 +102,13 @@ func (s *Session) Start(ctx context.Context, dst [][]input.Sample, proc input.Pr
 
 		return nil
 	})
+}
+
+func max(i, j int) int {
+	if i > j {
+		return i
+	}
+	return j
 }
 
 // FrameReader is an io.Reader abstraction that allows using a shared bytes
