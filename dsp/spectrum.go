@@ -156,7 +156,7 @@ func (sp *Spectrum) Recalculate(bins int) int {
 	return bins
 }
 
-// distributeLog does not *actually* distribute logarithmically
+// distributeLog *does not actually distribute logarithmically*
 // it is a best guess naive attempt right now.
 // i will continue work on it - winter
 func (sp *Spectrum) distributeLog(bins int) {
@@ -174,8 +174,9 @@ func (sp *Spectrum) distributeLog(bins int) {
 
 		var vFreq = ((float64(idx) * cF) + loLog)
 		vFreq = math.Pow(10.0, vFreq)
-		sp.Bins[idx].floorFFT = sp.freqToIdx(vFreq, math.Floor)
-		sp.Bins[idx].eqVal = math.Log2(float64(idx)+2) * cCoef
+		fftIdx := sp.freqToIdx(vFreq, math.Floor)
+		sp.Bins[idx].floorFFT = fftIdx
+		sp.Bins[idx].eqVal = math.Log2(float64(fftIdx)+2) * cCoef
 
 		if idx > 0 {
 			if sp.Bins[idx-1].floorFFT >= sp.Bins[idx].floorFFT {
