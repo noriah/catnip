@@ -134,18 +134,18 @@ func (s *Session) Start(ctx context.Context, dst [][]input.Sample, proc input.Pr
 	s.device.discard()
 	defer stream.Close()
 
-	// Terminate the stream if the context times out.
-	go func() {
-		<-ctx.Done()
-		stream.Close()
-	}()
-
 	if err := stream.Start(); err != nil {
 		return errors.Wrap(err, "failed to start stream")
 	}
 	defer stream.Stop()
 
 	return timer.Process(s.config, proc, func(mu *sync.Mutex) error {
+		select {
+		case <-ctx.Done():
+			return ctx.Err()
+		default:
+		}
+
 		// Ignore overflow in case the processing is too slow.
 		if err := stream.Read(); err != nil && err != portaudio.InputOverflowed {
 			return errors.Wrap(err, "failed to read stream")

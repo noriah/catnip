@@ -38,9 +38,6 @@ func Catnip(cfg *Config) error {
 		fastMax = ((int(ScalingFastWindow * cfg.SampleRate)) / cfg.SampleSize) * 2
 
 		floatData = make([]float64, ((cfg.ChannelCount*cfg.SampleSize)*2)+(slowMax+fastMax))
-
-		// window data will hold the last window elements for the moving windows
-		// windowData = make([]float64)
 	)
 
 	var sessConfig = input.SessionConfig{

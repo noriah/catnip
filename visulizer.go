@@ -49,7 +49,7 @@ func (vis *visualizer) Process() {
 	}
 
 	// Don't draw if the peak is too small to even draw.
-	if peak <= PeakThreshold {
+	if peak < PeakThreshold {
 		return
 	}
 
