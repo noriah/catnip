@@ -64,7 +64,7 @@ var Frequencies = []float64{
 	// midrange
 	4000.0, // 3
 	// treble
-	12000.0, // 4
+	8000.0, // 4
 	// brilliance
 	22050.0, // 5
 	// everything else
@@ -95,6 +95,37 @@ func (sp *Spectrum) Process(dest []float64, src []complex128) {
 		// time smoothing
 		dest[xB] += math.Pow(mag, bin.powVal) * (1.0 - sp.smoothPow)
 	}
+}
+
+func (sp *Spectrum) ProcessBin(idx int, old float64, src []complex128) float64 {
+	mag := 0.0
+	bin := sp.Bins[idx]
+
+	fftFloor, fftCeil := bin.floorFFT, bin.ceilFFT
+	if fftCeil > sp.fftSize {
+		fftCeil = sp.fftSize
+	}
+
+	src = src[fftFloor:fftCeil]
+
+	for _, cmplx := range src {
+		power := math.Hypot(real(cmplx), imag(cmplx))
+		mag += power
+	}
+
+	mag /= float64(fftCeil - fftFloor)
+
+	// shrink old value
+	old *= sp.smoothPow
+
+	if mag <= 0.0 {
+		return old
+	}
+
+	// time smoothing
+	old += math.Pow(mag, bin.powVal) * (1.0 - sp.smoothPow)
+
+	return old
 }
 
 // Recalculate rebuilds our frequency bins
