@@ -37,6 +37,12 @@ func (vis *visualizer) Process() {
 
 	var peak float64
 
+	var floor = 1.0
+	vMean, vSD := vis.slowWindow.Stats()
+	if t := vMean + (1.5 * vSD); t > 0.0 {
+		floor = t
+	}
+
 	for idx := range vis.barBufs {
 		window.CosSum(vis.inputBufs[idx], vis.cfg.WinVar)
 		vis.plans[idx].Execute()
@@ -44,7 +50,7 @@ func (vis *visualizer) Process() {
 		buf := vis.barBufs[idx]
 
 		for bIdx := range buf[:vis.bars] {
-			v := vis.spectrum.ProcessBin(bIdx, buf[bIdx], vis.fftBuf)
+			v := vis.spectrum.ProcessBin(bIdx, floor, buf[bIdx], vis.fftBuf)
 			if peak < v {
 				peak = v
 			}
