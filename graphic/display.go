@@ -29,9 +29,9 @@ type DrawType int
 // draw types
 const (
 	DrawMin DrawType = iota
-	DrawUp
-	DrawUpDown
 	DrawDown
+	DrawUpDown
+	DrawUp
 	DrawMax
 
 	// DrawDefault is the default draw type

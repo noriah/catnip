@@ -37,10 +37,10 @@ func (vis *visualizer) Process() {
 
 	var peak float64
 
-	var floor = 1.0
+	var mScale = 1.0
 	vMean, vSD := vis.slowWindow.Stats()
 	if t := vMean + (1.5 * vSD); t > 0.0 {
-		floor = t
+		mScale = t
 	}
 
 	for idx := range vis.barBufs {
@@ -50,7 +50,7 @@ func (vis *visualizer) Process() {
 		buf := vis.barBufs[idx]
 
 		for bIdx := range buf[:vis.bars] {
-			v := vis.spectrum.ProcessBin(bIdx, floor, buf[bIdx], vis.fftBuf)
+			v := vis.spectrum.ProcessBin(bIdx, mScale, buf[bIdx], vis.fftBuf)
 			if peak < v {
 				peak = v
 			}
