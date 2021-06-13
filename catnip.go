@@ -5,6 +5,7 @@ import (
 	"fmt"
 	"os"
 	"os/signal"
+	"syscall"
 
 	"github.com/noriah/catnip/dsp"
 	"github.com/noriah/catnip/fft"
@@ -125,7 +126,7 @@ func Catnip(cfg *Config) error {
 
 	endSig := make(chan os.Signal, 2)
 	signal.Notify(endSig, os.Interrupt)
-	signal.Notify(endSig, os.Kill)
+	signal.Notify(endSig, syscall.SIGTERM)
 
 	// Root Context
 	ctx, cancel := context.WithCancel(context.Background())

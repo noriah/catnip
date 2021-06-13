@@ -97,7 +97,7 @@ func (sp *Spectrum) Process(dest []float64, src []complex128) {
 	}
 }
 
-func (sp *Spectrum) ProcessBin(idx int, old float64, src []complex128) float64 {
+func (sp *Spectrum) ProcessBin(idx int, scale, old float64, src []complex128) float64 {
 	mag := 0.0
 	bin := sp.Bins[idx]
 
@@ -107,25 +107,28 @@ func (sp *Spectrum) ProcessBin(idx int, old float64, src []complex128) float64 {
 	}
 
 	src = src[fftFloor:fftCeil]
-
 	for _, cmplx := range src {
 		power := math.Hypot(real(cmplx), imag(cmplx))
-		mag += power
+		if mag < power {
+			mag = power
+		}
 	}
 
-	mag /= float64(fftCeil - fftFloor)
+	// mag /= float64(fftCeil - fftFloor)
 
-	// shrink old value
-	old *= sp.smoothPow
-
-	if mag <= 0.0 {
-		return old
-	}
+	// if mag <= 0.0 {
+	// 	return old * sp.smoothPow
+	// }
 
 	// time smoothing
-	old += math.Pow(mag, bin.powVal) * (1.0 - sp.smoothPow)
+	mag = math.Pow(mag, bin.powVal) * (1.0 - sp.smoothPow)
 
-	return old
+	// reduce mag by an amount to remove noise.
+	// this could change over time with song.
+	// maybe look into a moving window of some value.
+	mag = math.Max(mag-(0.015*scale), 0.0)
+
+	return (old * sp.smoothPow) + mag
 }
 
 // Recalculate rebuilds our frequency bins
