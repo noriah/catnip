@@ -9,5 +9,3 @@ require (
 	github.com/pkg/errors v0.9.1
 	gonum.org/v1/gonum v0.8.1
 )
-
-replace github.com/nsf/termbox-go => /Users/noriah/workspace/noriah/termbox-go
