@@ -21,7 +21,7 @@ type Session struct {
 	argv []string
 	cfg  input.SessionConfig
 
-	sampleSize int // multiplied
+	samples int // multiplied
 
 	// maligned.
 	f32mode bool
@@ -34,10 +34,10 @@ func NewSession(argv []string, f32mode bool, cfg input.SessionConfig) (*Session,
 	}
 
 	return &Session{
-		argv:       argv,
-		cfg:        cfg,
-		f32mode:    f32mode,
-		sampleSize: cfg.SampleSize * cfg.FrameSize,
+		argv:    argv,
+		cfg:     cfg,
+		f32mode: f32mode,
+		samples: cfg.SampleSize * cfg.FrameSize,
 	}, nil
 }
 
@@ -67,7 +67,7 @@ func (s *Session) Start(ctx context.Context, dst [][]input.Sample, proc input.Pr
 	defer cmd.Process.Signal(os.Interrupt)
 	defer o.Close()
 
-	bufsz := s.sampleSize
+	bufsz := s.samples
 	if !s.f32mode {
 		bufsz *= 2
 	}
@@ -77,22 +77,27 @@ func (s *Session) Start(ctx context.Context, dst [][]input.Sample, proc input.Pr
 	flread := NewFrameReader(outbuf, binary.LittleEndian, s.f32mode)
 	cursor := 0
 
+	framesz := s.cfg.FrameSize
+	flushsz := s.samples * framesz
+
 	// Allocate a buffer specifically for the process routine to reduce lock
 	// contention. The lengths of these buffers are guaranteed above.
 	buf := input.MakeBuffers(s.cfg)
 
 	return timer.Process(s.cfg, proc, func(mu *sync.Mutex) error {
 		// Discard all but the last buffer so we get the latest data.
-		outbuf.Discard(max(outbuf.Buffered()-bufsz, 0))
+		if discard := outbuf.Buffered() - flushsz; discard > 0 {
+			outbuf.Discard(discard)
+		}
 
-		for cursor = 0; cursor < s.sampleSize; cursor++ {
+		for cursor = 0; cursor < s.samples; cursor++ {
 			f, err := flread.ReadFloat64()
 			if err != nil {
 				return err
 			}
 
 			// Write to an intermediary buffer.
-			buf[cursor%s.cfg.FrameSize][cursor/s.cfg.FrameSize] = f
+			buf[cursor%framesz][cursor/framesz] = f
 		}
 
 		mu.Lock()
@@ -102,13 +107,6 @@ func (s *Session) Start(ctx context.Context, dst [][]input.Sample, proc input.Pr
 
 		return nil
 	})
-}
-
-func max(i, j int) int {
-	if i > j {
-		return i
-	}
-	return j
 }
 
 // FrameReader is an io.Reader abstraction that allows using a shared bytes
