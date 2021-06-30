@@ -126,7 +126,7 @@ func (sp *Spectrum) ProcessBin(idx int, scale, old float64, src []complex128) fl
 	// reduce mag by an amount to remove noise.
 	// this could change over time with song.
 	// maybe look into a moving window of some value.
-	mag = math.Max(mag-(0.015*scale), 0.0)
+	// mag = math.Max(mag-(0.015*scale), 0.0)
 
 	return (old * sp.smoothPow) + mag
 }
