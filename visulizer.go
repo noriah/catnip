@@ -24,9 +24,8 @@ type visualizer struct {
 	plans    []*fft.Plan
 	spectrum dsp.Spectrum
 
-	channels int
-	bars     int
-	display  graphic.Display
+	bars    int
+	display graphic.Display
 }
 
 // Process runs one draw refresh with the visualizer on the termbox screen.
@@ -44,7 +43,7 @@ func (vis *visualizer) Process() {
 	}
 
 	for idx := range vis.barBufs {
-		window.CosSum(vis.inputBufs[idx], vis.cfg.WinVar)
+		window.Lanczos(vis.inputBufs[idx])
 		vis.plans[idx].Execute()
 
 		buf := vis.barBufs[idx]

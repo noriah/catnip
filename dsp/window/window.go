@@ -23,6 +23,18 @@ func CosSum(buf []float64, a0 float64) {
 	}
 }
 
+func sinc(x float64) float64 {
+	return math.Sin(x) / x
+}
+
+// Lanczos modifies the buffer to a Lanczos window
+func Lanczos(buf []float64) {
+	var size = float64(len(buf))
+	for n := range buf {
+		buf[n] *= sinc(((2.0 * float64(n)) / (size - 1.0)) - 1.0)
+	}
+}
+
 // HammingConst is the hamming window constant
 const HammingConst = 25.0 / 46.0
 
