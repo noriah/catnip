@@ -36,8 +36,6 @@ type Config struct {
 	DrawType int
 	// Styles is the configuration for bar color styles
 	Styles graphic.Styles
-	// SpectrumType is the spectrum calculation method
-	SpectrumType int
 	// FFTSize is the size
 	fftSize int
 	// didFlag is a temp value for main
@@ -50,13 +48,14 @@ type Config struct {
 // nora's defaults:
 //  - sampleRate: 122880
 //  - sampleSize: 2048
+//  - smoothFactor: 80.15
 //  - super smooth detail view
 func NewZeroConfig() Config {
 	return Config{
 		Backend:      "portaudio",
 		SampleRate:   44100,
-		SmoothFactor: 65.69,
-		WinVar:       0.50,
+		SmoothFactor: 80.15,
+		WinVar:       0.50, // Deprecated
 		BaseThick:    1,
 		BarWidth:     2,
 		SpaceWidth:   1,

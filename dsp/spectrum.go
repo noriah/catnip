@@ -15,9 +15,6 @@ import (
 	"math"
 )
 
-// SpectrumType is the type of distribution we use
-type SpectrumType int
-
 // Spectrum is an audio spectrum in a buffer
 type Spectrum struct {
 	Bins         []Bin       // bins for processing
