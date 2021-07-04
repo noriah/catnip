@@ -22,7 +22,7 @@ const (
 	// ScalingFastWindow in seconds
 	ScalingFastWindow = ScalingSlowWindow * 0.2
 	// ScalingDumpPercent is how much we erase on rescale
-	ScalingDumpPercent = 0.75
+	ScalingDumpPercent = 0.60
 	// ScalingResetDeviation standard deviations from the mean before reset
 	ScalingResetDeviation = 1.0
 	// PeakThreshold is the threshold to not draw if the peak is less.
@@ -68,7 +68,8 @@ func Catnip(cfg *Config) error {
 		spectrum: dsp.Spectrum{
 			SampleRate: cfg.SampleRate,
 			SampleSize: cfg.SampleSize,
-			Bins:       make(dsp.BinBuf, cfg.SampleSize),
+			Bins:       make([]dsp.Bin, cfg.SampleSize),
+			OldValues:  make([][]float64, cfg.ChannelCount),
 		},
 
 		bars:    0,
@@ -88,6 +89,8 @@ func Catnip(cfg *Config) error {
 			Input:  vis.inputBufs[idx],
 			Output: vis.fftBuf,
 		}
+
+		vis.spectrum.OldValues[idx] = make([]float64, cfg.SampleSize)
 
 		vis.plans[idx].Init()
 	}
@@ -112,7 +115,6 @@ func Catnip(cfg *Config) error {
 
 	vis.spectrum.SetSmoothing(cfg.SmoothFactor)
 	vis.spectrum.SetWinVar(cfg.WinVar)
-	vis.spectrum.SetType(dsp.SpectrumType(cfg.SpectrumType))
 
 	vis.display.SetWidths(cfg.BarWidth, cfg.SpaceWidth)
 	vis.display.SetBase(cfg.BaseThick)
