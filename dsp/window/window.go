@@ -19,19 +19,35 @@ func CosSum(buf []float64, a0 float64) {
 	var a1 = 1.0 - a0
 	var coef = 2.0 * math.Pi / float64(size)
 	for n := 0; n < size; n++ {
-		buf[n] *= (a0 - a1*math.Cos(coef*float64(n)))
+		buf[n] *= (a0 - (a1 * math.Cos(coef*float64(n))))
 	}
 }
 
-func sinc(x float64) float64 {
-	return math.Sin(x) / x
+// sinc(x) = sin(pi * x) / (pi * x)
+func Sinc(x float64) float64 {
+	if x == 0.0 {
+		return 0.0
+	}
+	piX := math.Pi * x
+	return math.Sin(piX) / piX
 }
 
 // Lanczos modifies the buffer to a Lanczos window
+//
+// w[n] = sinc((2n / (N - 1))- 1)
+//
+// N = size
+// n = element
+// k = 2 / (N - 1)
+//
+// buf[n] = sinc(kn - 1)
+//
+// https://www.wikiwand.com/en/Window_function#/Other_windows
+// https://sites.google.com/site/stevedtran/course/intro-to-digital-signal-processing/notes2/windowing/type-of-windowing/lanczos-window
 func Lanczos(buf []float64) {
-	var size = float64(len(buf))
+	k := 2.0 / float64(len(buf)-1.0)
 	for n := range buf {
-		buf[n] *= sinc(((2.0 * float64(n)) / (size - 1.0)) - 1.0)
+		buf[n] *= Sinc((k * float64(n)) - 1.0)
 	}
 }
 
@@ -50,26 +66,34 @@ func Hann(buf []float64) {
 
 // Bartlett modifies the buffer to a Bartlett window
 func Bartlett(buf []float64) {
-	var size = len(buf)
-	var fSize = float64(size)
-	for n := 0; n < size; n++ {
-		buf[n] *= (1.0 - math.Abs((2.0*float64(n)-fSize)/fSize))
+	var N = float64(len(buf))
+	for n := range buf {
+		buf[n] *= (1.0 - (math.Abs(((2.0 * float64(n)) - N) / N)))
 	}
 }
 
 // Blackman modifies the buffer to a Blackman window
+//
+// N = size
+// n = element
+// a = 0.16
+// a_0 = (1 - a) / 2
+// a_1 = 1 / 2
+// a_2 = a / 2
+// w[n] = a_0 - a_1 * cos((2 * pi * n) / N) + a_2 * cos((4 * pi * n) / N)
 func Blackman(buf []float64) {
-	size := len(buf)
-	fSize := float64(size)
+	N := float64(len(buf))
 	twoPi := 2.0 * math.Pi
 
-	for n := 0; n < size; n++ {
-		x := float64(n) / fSize
-		buf[n] *= 0.42 - (0.5 * math.Cos(twoPi*x)) + (0.08 * math.Cos(2.0*twoPi*x))
+	for n := range buf {
+		twoPiX := twoPi * (float64(n) / N)
+		buf[n] *= 0.42 - (0.5 * math.Cos(twoPiX)) + (0.08 * math.Cos(2.0*twoPiX))
 	}
 }
 
 // PlanckTaper modifies the buffer to a Planck-taper window
+//
+// not sure how i got this
 func PlanckTaper(buf []float64, e float64) {
 	var size = len(buf)
 	var eN = e * float64(size)
