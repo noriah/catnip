@@ -108,7 +108,7 @@ func (sp *Spectrum) Recalculate(binCount int) int {
 		}
 	}
 
-	sp.distributeLog(binCount)
+	sp.distribute(binCount)
 
 	var bassCut = sp.freqToIdx(Frequencies[2], math.Floor)
 	var fBassCut = float64(bassCut)
@@ -130,10 +130,7 @@ func (sp *Spectrum) Recalculate(binCount int) int {
 	return binCount
 }
 
-// distributeLog *does not actually distribute logarithmically*
-// it is a best guess naive attempt right now.
-// i will continue work on it - winter
-func (sp *Spectrum) distributeLog(bins int) {
+func (sp *Spectrum) distribute(bins int) {
 	var lo = Frequencies[1]
 	var hi = math.Min(sp.SampleRate/2, Frequencies[4])
 

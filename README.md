@@ -66,12 +66,14 @@ go install -tags noportaudio
 ## question it
 ### catnip?
 [long story, short explanation][speakers]
+[update][speakers-2]
 
 <!-- Links -->
 [noriah-dev]: https://noriah.dev
 [go-dev]: https://go.dev
 [betawhat]: https://google.com/search?q=betamax
 [speakers]: https://github.com/noriah/catnip/commit/98f989fd45bef8706cbc5c90422209600943ebc1
+[speakers-2]: https://github.com/noriah/catnip/commit/d2b559a09936f1018d53a05c95cdfa12dd383105
 
 <!-- Images -->
 [withlove]: https://forthebadge.com/images/badges/built-with-love.svg
