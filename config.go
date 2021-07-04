@@ -3,7 +3,6 @@ package main
 import (
 	"errors"
 
-	"github.com/noriah/catnip/dsp"
 	"github.com/noriah/catnip/graphic"
 )
 
@@ -64,7 +63,6 @@ func NewZeroConfig() Config {
 		SampleSize:   1024,
 		ChannelCount: 2,
 		DrawType:     int(graphic.DrawDefault),
-		SpectrumType: int(dsp.TypeDefault),
 	}
 }
 

@@ -76,8 +76,6 @@ func doFlags(cfg *Config) {
 	parser.Int(&cfg.BarWidth, "bw", "bar", "bar width [1, +Inf)")
 	parser.Int(&cfg.SpaceWidth, "sw", "space", "space width [0, +Inf)")
 	parser.Int(&cfg.DrawType, "dt", "draw", "draw type (1, 2, 3)")
-	parser.Int(&cfg.SpectrumType, "st", "distribute",
-		"spectrum distribution type (here be dragons)")
 
 	fg, bg, center := graphic.DefaultStyles().AsUInt16s()
 	parser.UInt16(&fg, "fg", "foreground",

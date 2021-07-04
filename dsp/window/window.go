@@ -59,11 +59,13 @@ func Bartlett(buf []float64) {
 
 // Blackman modifies the buffer to a Blackman window
 func Blackman(buf []float64) {
-	var size = len(buf)
-	var fSize = float64(size)
+	size := len(buf)
+	fSize := float64(size)
+	twoPi := 2.0 * math.Pi
+
 	for n := 0; n < size; n++ {
-		buf[n] *= (0.42 - (0.5 * math.Cos(((2.0 * float64(n)) / fSize))) +
-			(0.08 * math.Cos((4.0 * float64(n))) / fSize))
+		x := float64(n) / fSize
+		buf[n] *= 0.42 - (0.5 * math.Cos(twoPi*x)) + (0.08 * math.Cos(2.0*twoPi*x))
 	}
 }
 
