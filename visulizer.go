@@ -55,25 +55,22 @@ func (vis *visualizer) Process() {
 
 	var scale = 1.0
 
+	// do some scaling if we are above the PeakThreshold
 	if peak >= PeakThreshold {
+		vis.fastWindow.Update(peak)
+		vMean, vSD := vis.slowWindow.Update(peak)
 
-		// do some scaling if we are above 0
-		if peak > 0.0 {
-			vis.fastWindow.Update(peak)
-			vMean, vSD := vis.slowWindow.Update(peak)
-
-			// if our slow window finally has more values than our fast window
-			if length := vis.slowWindow.Len(); length >= vis.fastWindow.Cap() {
-				// no idea what this is doing
-				if math.Abs(vis.fastWindow.Mean()-vMean) > (ScalingResetDeviation * vSD) {
-					// drop some values and continue
-					vMean, vSD = vis.slowWindow.Drop(int(float64(length) * ScalingDumpPercent))
-				}
+		// if our slow window finally has more values than our fast window
+		if length := vis.slowWindow.Len(); length >= vis.fastWindow.Cap() {
+			// no idea what this is doing
+			if math.Abs(vis.fastWindow.Mean()-vMean) > (ScalingResetDeviation * vSD) {
+				// drop some values and continue
+				vMean, vSD = vis.slowWindow.Drop(int(float64(length) * ScalingDumpPercent))
 			}
+		}
 
-			if t := vMean + (1.5 * vSD); t > 1.0 {
-				scale = t
-			}
+		if t := vMean + (1.5 * vSD); t > 1.0 {
+			scale = t
 		}
 	}
 
