@@ -122,7 +122,7 @@ func (sp *Spectrum) Recalculate(binCount int) int {
 		// sp.Bins[idx].widthFFT = b.ceilFFT - b.floorFFT
 
 		if b.ceilFFT <= bassCut {
-			sp.Bins[idx].powVal *= math.Max(0.5, float64(b.ceilFFT)/fBassCut)
+			sp.Bins[idx].powVal *= math.Max(b.powVal, float64(b.ceilFFT)/fBassCut)
 		}
 
 	}
@@ -143,11 +143,12 @@ func (sp *Spectrum) distribute(bins int) {
 
 	for idx := range sp.Bins[:bins+1] {
 
-		var vFreq = ((float64(idx) * cF) + loLog)
-		vFreq = math.Pow(10.0, vFreq)
-		fftIdx := sp.freqToIdx(vFreq, math.Floor)
+		frequency := ((float64(idx) * cF) + loLog)
+		frequency = math.Pow(10.0, frequency)
+		fftIdx := sp.freqToIdx(frequency, math.Floor)
 		sp.Bins[idx].floorFFT = fftIdx
 		sp.Bins[idx].eqVal = math.Log2(float64(fftIdx)+14) * cCoef
+		// sp.Bins[idx].eqVal = 1.0
 
 		if idx > 0 {
 			if sp.Bins[idx-1].floorFFT >= sp.Bins[idx].floorFFT {
