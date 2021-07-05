@@ -34,18 +34,17 @@ func Sinc(x float64) float64 {
 
 // Lanczos modifies the buffer to a Lanczos window
 //
-// w[n] = sinc((2n / (N - 1))- 1)
+// w[n] = sinc((2n / N) - 1)
 //
 // N = size
 // n = element
-// k = 2 / (N - 1)
+// k = 2 / N
 //
 // buf[n] = sinc(kn - 1)
 //
 // https://www.wikiwand.com/en/Window_function#/Other_windows
-// https://sites.google.com/site/stevedtran/course/intro-to-digital-signal-processing/notes2/windowing/type-of-windowing/lanczos-window
 func Lanczos(buf []float64) {
-	k := 2.0 / float64(len(buf)-1.0)
+	k := 2.0 / float64(len(buf))
 	for n := range buf {
 		buf[n] *= Sinc((k * float64(n)) - 1.0)
 	}

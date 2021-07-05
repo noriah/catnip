@@ -32,6 +32,8 @@ type Config struct {
 	SampleSize int
 	// ChannelCount is the number of channels we want to look at. DO NOT TOUCH
 	ChannelCount int
+	// Combine determines if we merge streams (stereo -> mono)
+	Combine bool
 	// DrawType is the draw type
 	DrawType int
 	// Styles is the configuration for bar color styles
@@ -61,6 +63,7 @@ func NewZeroConfig() Config {
 		SpaceWidth:   1,
 		SampleSize:   1024,
 		ChannelCount: 2,
+		Combine:      false,
 		DrawType:     int(graphic.DrawDefault),
 	}
 }
