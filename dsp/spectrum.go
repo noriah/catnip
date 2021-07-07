@@ -160,10 +160,6 @@ func (sp *Spectrum) distribute(bins int) {
 	}
 }
 
-func (sp *Spectrum) idxToFreq(bin int) float64 {
-	return float64(bin) * sp.SampleRate / float64(sp.SampleSize)
-}
-
 type mathFunc func(float64) float64
 
 func (sp *Spectrum) freqToIdx(freq float64, round mathFunc) int {
