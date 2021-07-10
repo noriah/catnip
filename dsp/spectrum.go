@@ -122,7 +122,7 @@ func (sp *Spectrum) Recalculate(binCount int) int {
 		// sp.Bins[idx].widthFFT = b.ceilFFT - b.floorFFT
 
 		if b.ceilFFT <= bassCut {
-			sp.Bins[idx].powVal *= math.Max(b.powVal, float64(b.ceilFFT)/fBassCut)
+			sp.Bins[idx].powVal *= math.Max(0.5, float64(b.ceilFFT)/fBassCut)
 		}
 
 	}
