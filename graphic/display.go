@@ -76,10 +76,10 @@ func (s Styles) AsUInt16s() (fg, bg, center uint16) {
 // Display handles drawing our visualizer
 type Display struct {
 	running    uint32
-	barWidth   int
-	spaceWidth int
-	binWidth   int
-	baseThick  int
+	barSize    int
+	spaceSize  int
+	binSize    int
+	baseSize   int
 	termWidth  int
 	termHeight int
 	drawType   DrawType
@@ -230,14 +230,14 @@ func (d *Display) SetWidths(bar, space int) {
 		space = 0
 	}
 
-	d.barWidth = bar
-	d.spaceWidth = space
-	d.binWidth = bar + space
+	d.barSize = bar
+	d.spaceSize = space
+	d.binSize = bar + space
 }
 
 // AdjustWidths modifies the bar and space width by barDelta and spaceDelta
 func (d *Display) AdjustWidths(barDelta, spaceDelta int) {
-	d.SetWidths(d.barWidth+barDelta, d.spaceWidth+spaceDelta)
+	d.SetWidths(d.barSize+barDelta, d.spaceSize+spaceDelta)
 }
 
 // SetBase will set the base thickness
@@ -245,10 +245,10 @@ func (d *Display) SetBase(thick int) {
 	switch {
 
 	case thick < 0:
-		d.baseThick = 0
+		d.baseSize = 0
 
 	default:
-		d.baseThick = thick
+		d.baseSize = thick
 
 	}
 }
@@ -261,7 +261,7 @@ func (d *Display) SetStyles(styles Styles) {
 
 // AdjustBase will change the base by delta units
 func (d *Display) AdjustBase(delta int) {
-	d.SetBase(d.baseThick + delta)
+	d.SetBase(d.baseSize + delta)
 }
 
 // SetDrawType sets the draw type for future draws
@@ -285,11 +285,11 @@ func (d *Display) Bars(sets ...int) int {
 
 	switch d.drawType {
 	case DrawUp, DrawDown:
-		return (d.termWidth / d.binWidth) / x
+		return (d.termWidth / d.binSize) / x
 	case DrawUpDown:
-		return d.termWidth / d.binWidth
+		return d.termWidth / d.binSize
 	case DrawLeftRight:
-		return d.termHeight / d.binWidth
+		return d.termHeight / d.binSize
 	default:
 		return 0
 	}
@@ -324,14 +324,14 @@ func stopAndTop(value float64, height int, up bool) (int, rune) {
 // DrawUp will draw up
 func (d *Display) DrawUp(bins [][]float64, count int, scale float64) error {
 
-	var vHeight = d.termHeight - d.baseThick
+	var vHeight = d.termHeight - d.baseSize
 	if vHeight < 0 {
 		vHeight = 0
 	}
 
 	scale = float64(vHeight) / scale
 
-	var cPaddedWidth = (d.binWidth * count * len(bins)) - d.spaceWidth
+	var cPaddedWidth = (d.binSize * count * len(bins)) - d.spaceSize
 
 	if cPaddedWidth > d.termWidth || cPaddedWidth < 0 {
 		cPaddedWidth = d.termWidth
@@ -346,8 +346,8 @@ func (d *Display) DrawUp(bins [][]float64, count int, scale float64) error {
 	for _, chBins := range bins {
 		var stop, top = stopAndTop(chBins[xBin]*scale, vHeight, true)
 
-		var lCol = xCol + d.barWidth
-		var lColMax = xCol + (d.binWidth * count) - d.spaceWidth
+		var lCol = xCol + d.barSize
+		var lColMax = xCol + (d.binSize * count) - d.spaceSize
 
 		for ; ; xCol++ {
 			if xCol >= lCol {
@@ -361,8 +361,8 @@ func (d *Display) DrawUp(bins [][]float64, count int, scale float64) error {
 
 				stop, top = stopAndTop(chBins[xBin]*scale, vHeight, true)
 
-				xCol += d.spaceWidth
-				lCol = xCol + d.barWidth
+				xCol += d.spaceSize
+				lCol = xCol + d.barSize
 			}
 
 			var xRow = d.termHeight
@@ -380,7 +380,7 @@ func (d *Display) DrawUp(bins [][]float64, count int, scale float64) error {
 			}
 		}
 
-		xCol += d.spaceWidth
+		xCol += d.spaceSize
 		delta = -delta
 	}
 
@@ -390,14 +390,14 @@ func (d *Display) DrawUp(bins [][]float64, count int, scale float64) error {
 // DrawDown will draw down
 func (d *Display) DrawDown(bins [][]float64, count int, scale float64) error {
 
-	var vHeight = d.termHeight - d.baseThick
+	var vHeight = d.termHeight - d.baseSize
 	if vHeight < 0 {
 		vHeight = 0
 	}
 
 	scale = float64(vHeight) / scale
 
-	var cPaddedWidth = (d.binWidth * count * len(bins)) - d.spaceWidth
+	var cPaddedWidth = (d.binSize * count * len(bins)) - d.spaceSize
 
 	if cPaddedWidth > d.termWidth || cPaddedWidth < 0 {
 		cPaddedWidth = d.termWidth
@@ -409,13 +409,13 @@ func (d *Display) DrawDown(bins [][]float64, count int, scale float64) error {
 
 	for _, chBins := range bins {
 		var stop, top = stopAndTop(chBins[xBin]*scale, vHeight, false)
-		if stop += d.baseThick; stop >= d.termHeight {
+		if stop += d.baseSize; stop >= d.termHeight {
 			stop = d.termHeight
 			top = BarRune
 		}
 
-		var lCol = xCol + d.barWidth
-		var lColMax = xCol + (d.binWidth * count) - d.spaceWidth
+		var lCol = xCol + d.barSize
+		var lColMax = xCol + (d.binSize * count) - d.spaceSize
 
 		for {
 			if xCol >= lCol {
@@ -428,18 +428,18 @@ func (d *Display) DrawDown(bins [][]float64, count int, scale float64) error {
 				}
 
 				stop, top = stopAndTop(chBins[xBin]*scale, vHeight, false)
-				if stop += d.baseThick; stop >= d.termHeight {
+				if stop += d.baseSize; stop >= d.termHeight {
 					stop = d.termHeight
 					top = BarRune
 				}
 
-				xCol += d.spaceWidth
-				lCol = xCol + d.barWidth
+				xCol += d.spaceSize
+				lCol = xCol + d.barSize
 			}
 
 			var xRow = 0
 
-			for ; xRow < d.baseThick; xRow++ {
+			for ; xRow < d.baseSize; xRow++ {
 				termbox.SetCell(xCol, xRow, BarRune, d.styles.CenterLine, d.styles.Background)
 			}
 
@@ -454,7 +454,7 @@ func (d *Display) DrawDown(bins [][]float64, count int, scale float64) error {
 			xCol++
 		}
 
-		xCol += d.spaceWidth
+		xCol += d.spaceSize
 		delta = -delta
 	}
 
@@ -469,18 +469,18 @@ func (d *Display) DrawUpDown(bins [][]float64, count int, scale float64) error {
 	// the user changed the window, always. It is easier to do this now, and
 	// implement SIGWINCH handling later on (or not?)
 
-	var centerStart = (d.termHeight - d.baseThick) / 2
+	var centerStart = (d.termHeight - d.baseSize) / 2
 	if centerStart < 0 {
 		centerStart = 0
 	}
 
-	var centerStop = centerStart + d.baseThick
+	var centerStop = centerStart + d.baseSize
 
 	scale = float64(centerStart) / scale
 
 	var xBin = 0
 
-	var xCol = (d.termWidth - ((d.binWidth * count) - d.spaceWidth)) / 2
+	var xCol = (d.termWidth - ((d.binSize * count) - d.spaceSize)) / 2
 
 	if xCol < 0 {
 		xCol = 0
@@ -488,14 +488,14 @@ func (d *Display) DrawUpDown(bins [][]float64, count int, scale float64) error {
 
 	// TODO(nora): benchmark
 
-	var lStop, lTop = stopAndTop(bins[0][xBin]*scale, centerStart, true)
+	var lStart, lTop = stopAndTop(bins[0][xBin]*scale, centerStart, true)
 	var rStop, rTop = stopAndTop(bins[1%cSetCount][xBin]*scale, centerStart, false)
 	if rStop += centerStop; rStop >= d.termHeight {
 		rStop = d.termHeight
 		rTop = BarRune
 	}
 
-	var lCol = xCol + d.barWidth
+	var lCol = xCol + d.barSize
 
 	for ; ; xCol++ {
 
@@ -509,41 +509,35 @@ func (d *Display) DrawUpDown(bins [][]float64, count int, scale float64) error {
 				break
 			}
 
-			lStop, lTop = stopAndTop(bins[0][xBin]*scale, centerStart, true)
+			lStart, lTop = stopAndTop(bins[0][xBin]*scale, centerStart, true)
 			rStop, rTop = stopAndTop(bins[1%cSetCount][xBin]*scale, centerStart, false)
 			if rStop += centerStop; rStop >= d.termHeight {
 				rStop = d.termHeight
 				rTop = BarRune
 			}
 
-			xCol += d.spaceWidth
-			lCol = xCol + d.barWidth
+			xCol += d.spaceSize
+			lCol = xCol + d.barSize
 		}
-
-		var xRow = lStop
 
 		if lTop > BarRuneR {
-			termbox.SetCell(xCol, xRow-1, lTop, d.styles.Foreground, d.styles.Background)
+			termbox.SetCell(xCol, lStart-1, lTop, d.styles.Foreground, d.styles.Background)
 		}
 
-		for ; xRow < centerStart; xRow++ {
-			termbox.SetCell(xCol, xRow, BarRune, d.styles.Foreground, d.styles.Background)
-		}
-
-		// center line
-		for ; xRow < centerStop; xRow++ {
-			termbox.SetCell(xCol, xRow, BarRune, d.styles.CenterLine, d.styles.Background)
-		}
-
-		// right bars go down
-		for ; xRow < rStop; xRow++ {
+		for xRow := lStart; xRow < rStop; xRow++ {
 			termbox.SetCell(xCol, xRow, BarRune, d.styles.Foreground, d.styles.Background)
 		}
 
 		// last part of right bars.
 		if rTop < BarRune {
-			termbox.SetCell(xCol, xRow, rTop, StyleReverse, d.styles.Foreground)
+			termbox.SetCell(xCol, rStop, rTop, StyleReverse, d.styles.Foreground)
 		}
+
+		// center line
+		for xRow := centerStart; xRow < centerStop; xRow++ {
+			termbox.SetCell(xCol, xRow, BarRune, d.styles.CenterLine, d.styles.Background)
+		}
+
 	}
 
 	return nil
@@ -568,84 +562,62 @@ func sizeAndCap(value float64, width int, right bool) (int, rune) {
 	return 0, BarRune
 }
 
+func intMax(x1, x2 int) int {
+	if x1 < x2 {
+		return x2
+	}
+	return x1
+}
+
+func intMin(x1, x2 int) int {
+	if x1 > x2 {
+		return x2
+	}
+	return x1
+}
+
 // DrawLeftRight will draw left and right
 func (d *Display) DrawLeftRight(bins [][]float64, count int, scale float64) error {
-	var cSetCount = len(bins)
+	centerStart := intMax((d.termWidth-d.baseSize)/2, 0)
+	centerStop := centerStart + d.baseSize
 
-	var centerStart = (d.termWidth - d.baseThick) / 2
-	if centerStart < 0 {
-		centerStart = 0
-	}
+	scale = float64(intMin(centerStart, d.termWidth-centerStop)) / scale
 
-	var centerStop = centerStart + d.baseThick
+	edgeOffset := intMax((d.termHeight-((d.binSize*count)-d.spaceSize))/2, 0)
 
-	scale = float64(centerStart) / scale
+	cSetCount := len(bins)
 
-	var xBin = count - 1
+	for xBar := 0; xBar < count; xBar++ {
+		xBin := count - 1 - xBar
 
-	var xRow = (d.termHeight - ((d.binWidth * count) - d.spaceWidth)) / 2
+		lStart, lCap := sizeAndCap(bins[0][xBin]*scale, centerStart, false)
+		rStop, rCap := sizeAndCap(bins[1%cSetCount][xBin]*scale, centerStart, true)
+		if rStop += centerStop; rStop >= d.termWidth {
+			rStop = d.termWidth
+			rCap = BarRuneS
+		}
 
-	if xRow < 0 {
-		xRow = 0
-	}
+		xRow := xBar*d.binSize + edgeOffset
+		lRow := intMin(xRow+d.barSize, d.termHeight)
 
-	// TODO(nora): benchmark
-
-	var lStart, lCap = sizeAndCap(bins[0][xBin]*scale, centerStart, false)
-	var rStop, rCap = sizeAndCap(bins[1%cSetCount][xBin]*scale, centerStart, true)
-	if rStop += centerStop; rStop >= d.termWidth {
-		rStop = d.termWidth
-		rCap = BarRune
-	}
-
-	var lRow = xRow + d.barWidth
-
-	for ; ; xRow++ {
-
-		if xRow >= lRow {
-
-			if xRow >= d.termHeight {
-				break
+		for ; xRow < lRow; xRow++ {
+			if lCap > BarRune {
+				termbox.SetCell(lStart-1, xRow, lCap, StyleReverse, d.styles.Background)
 			}
 
-			if xBin--; xBin < 0 {
-				break
+			for xCol := lStart; xCol < rStop; xCol++ {
+				termbox.SetCell(xCol, xRow, BarRune, d.styles.Foreground, d.styles.Background)
 			}
 
-			lStart, lCap = sizeAndCap(bins[0][xBin]*scale, centerStart, false)
-			rStop, rCap = sizeAndCap(bins[1%cSetCount][xBin]*scale, centerStart, true)
-			if rStop += centerStop; rStop >= d.termWidth {
-				rStop = d.termWidth
-				rCap = BarRune
+			// last part of right bars.
+			if rCap < BarRuneS {
+				termbox.SetCell(rStop, xRow, rCap, d.styles.Foreground, d.styles.Foreground)
 			}
 
-			xRow += d.spaceWidth
-			lRow = xRow + d.barWidth
-		}
-
-		var xCol = lStart
-
-		if lCap > BarRune {
-			termbox.SetCell(xCol-1, xRow, lCap, StyleReverse, d.styles.Background)
-		}
-
-		for ; xCol < centerStart; xCol++ {
-			termbox.SetCell(xCol, xRow, BarRune, d.styles.Foreground, d.styles.Background)
-		}
-
-		// center line
-		for ; xCol < centerStop; xCol++ {
-			termbox.SetCell(xCol, xRow, BarRune, d.styles.CenterLine, d.styles.Background)
-		}
-
-		// right bars go down
-		for ; xCol < rStop; xCol++ {
-			termbox.SetCell(xCol, xRow, BarRune, d.styles.Foreground, d.styles.Background)
-		}
-
-		// last part of right bars.
-		if rCap < BarRuneS {
-			termbox.SetCell(xCol, xRow, rCap, d.styles.Foreground, d.styles.Foreground)
+			// center line
+			for xCol := centerStart; xCol < centerStop; xCol++ {
+				termbox.SetCell(xCol, xRow, BarRune, d.styles.CenterLine, d.styles.Background)
+			}
 		}
 	}
 
