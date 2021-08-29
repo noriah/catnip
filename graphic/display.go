@@ -378,15 +378,15 @@ func (d *Display) DrawUp(bins [][]float64, count int, scale float64) {
 		for xBar := 0; xBar < count; xBar++ {
 
 			xBin := (xBar * (1 - xSet)) + (((count - 1) - xBar) * xSet)
-			start, cap := sizeAndCap(chBins[xBin]*scale, barSpace, true, BarRuneV)
+			start, bCap := sizeAndCap(chBins[xBin]*scale, barSpace, true, BarRuneV)
 
 			xCol := (xBar * d.binSize) + (channelWidth * xSet) + edgeOffset
 			lCol := xCol + d.barSize
 
 			for ; xCol < lCol; xCol++ {
 
-				if cap > BarRuneV {
-					termbox.SetCell(xCol, start-1, cap, d.styles.Foreground, d.styles.Background)
+				if bCap > BarRuneV {
+					termbox.SetCell(xCol, start-1, bCap, d.styles.Foreground, d.styles.Background)
 				}
 
 				for xRow := start; xRow < d.termHeight; xRow++ {
@@ -414,10 +414,10 @@ func (d *Display) DrawDown(bins [][]float64, count int, scale float64) {
 		for xBar := 0; xBar < count; xBar++ {
 
 			xBin := (xBar * (1 - xSet)) + (((count - 1) - xBar) * xSet)
-			stop, cap := sizeAndCap(chBins[xBin]*scale, barSpace, false, BarRune)
+			stop, bCap := sizeAndCap(chBins[xBin]*scale, barSpace, false, BarRune)
 			if stop += d.baseSize; stop >= d.termHeight {
 				stop = d.termHeight
-				cap = BarRune
+				bCap = BarRune
 			}
 
 			xCol := (xBar * d.binSize) + (channelWidth * xSet) + edgeOffset
@@ -429,8 +429,8 @@ func (d *Display) DrawDown(bins [][]float64, count int, scale float64) {
 					termbox.SetCell(xCol, xRow, BarRune, d.styleBuffer[xRow], d.styles.Background)
 				}
 
-				if cap < BarRune {
-					termbox.SetCell(xCol, stop, cap, StyleReverse, d.styles.Foreground)
+				if bCap < BarRune {
+					termbox.SetCell(xCol, stop, bCap, StyleReverse, d.styles.Foreground)
 				}
 			}
 		}
