@@ -57,7 +57,7 @@ func Catnip(cfg *Config) error {
 			Data:     floatData[slowMax : slowMax+fastMax],
 		},
 
-		fftBuf:    make([]complex128, cfg.fftSize),
+		fftBuf:    make([]complex128, cfg.SampleSize/2+1),
 		inputBufs: make([][]float64, cfg.ChannelCount),
 		barBufs:   make([][]float64, cfg.ChannelCount),
 
