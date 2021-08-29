@@ -22,12 +22,12 @@ type Config struct {
 	SmoothFactor float64
 	// WinVar factor of distribution
 	WinVar float64
-	// BaseThick number of cells wide/high the base is
-	BaseThick int
-	// BarWidth is the width of bars, in columns
-	BarWidth int
-	// SpaceWidth is the width of spaces, in columns
-	SpaceWidth int
+	// BaseSize number of cells wide/high the base is
+	BaseSize int
+	// BarSize is the size of bars, in columns/rows
+	BarSize int
+	// SpaceSize is the size of spaces, in columns/rows
+	SpaceSize int
 	// SampleSiz is how much we draw. Play with it
 	SampleSize int
 	// ChannelCount is the number of channels we want to look at. DO NOT TOUCH
@@ -58,9 +58,9 @@ func NewZeroConfig() Config {
 		SampleRate:   44100,
 		SmoothFactor: 80.15,
 		WinVar:       0.50, // Deprecated
-		BaseThick:    1,
-		BarWidth:     2,
-		SpaceWidth:   1,
+		BaseSize:     1,
+		BarSize:      2,
+		SpaceSize:    1,
 		SampleSize:   1024,
 		ChannelCount: 2,
 		Combine:      false,

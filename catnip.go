@@ -113,15 +113,15 @@ func Catnip(cfg *Config) error {
 	vis.spectrum.SetSmoothing(cfg.SmoothFactor)
 	vis.spectrum.SetWinVar(cfg.WinVar)
 
-	vis.display.SetWidths(cfg.BarWidth, cfg.SpaceWidth)
-	vis.display.SetBase(cfg.BaseThick)
-	vis.display.SetDrawType(graphic.DrawType(cfg.DrawType))
-	vis.display.SetStyles(cfg.Styles)
-
 	if err = vis.display.Init(); err != nil {
 		return err
 	}
 	defer vis.display.Close()
+
+	vis.display.SetSizes(cfg.BarSize, cfg.SpaceSize)
+	vis.display.SetBase(cfg.BaseSize)
+	vis.display.SetDrawType(graphic.DrawType(cfg.DrawType))
+	vis.display.SetStyles(cfg.Styles)
 
 	// Root Context
 	ctx, cancel := context.WithCancel(context.Background())
