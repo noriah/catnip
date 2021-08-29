@@ -38,10 +38,6 @@ type Config struct {
 	DrawType int
 	// Styles is the configuration for bar color styles
 	Styles graphic.Styles
-	// FFTSize is the size
-	fftSize int
-	// didFlag is a temp value for main
-	didFlag bool
 }
 
 // NewZeroConfig returns a zero config
@@ -78,8 +74,6 @@ func (cfg *Config) Sanitize() error {
 	if cfg.SampleSize < 4 {
 		return errors.New("sample size too small (4+ required)")
 	}
-
-	cfg.fftSize = cfg.SampleSize/2 + 1
 
 	switch {
 

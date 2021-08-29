@@ -29,9 +29,8 @@ func main() {
 	log.SetFlags(0)
 
 	var cfg = NewZeroConfig()
-	doFlags(&cfg)
 
-	if cfg.didFlag {
+	if doFlags(&cfg) {
 		return
 	}
 
@@ -40,7 +39,7 @@ func main() {
 	chk(Catnip(&cfg), "failed to run catnip")
 }
 
-func doFlags(cfg *Config) {
+func doFlags(cfg *Config) bool {
 
 	var parser = flaggy.NewParser(AppName)
 	parser.Description = AppDesc
@@ -92,15 +91,13 @@ func doFlags(cfg *Config) {
 
 	switch {
 	case listBackendsCmd.Used:
-		cfg.didFlag = true
-
 		for _, backend := range input.Backends {
 			fmt.Printf("- %s\n", backend.Name)
 		}
 
-	case listDevicesCmd.Used:
-		cfg.didFlag = true
+		return true
 
+	case listDevicesCmd.Used:
 		backend, err := initBackend(cfg)
 		chk(err, "failed to init backend")
 
@@ -120,7 +117,11 @@ func doFlags(cfg *Config) {
 
 			fmt.Printf("- %v %c\n", devices[idx], star)
 		}
+
+		return true
 	}
+
+	return false
 }
 
 func chk(err error, wrap string) {
