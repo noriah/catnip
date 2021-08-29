@@ -72,9 +72,9 @@ func doFlags(cfg *Config) {
 	parser.Int(&cfg.ChannelCount, "ch", "channels", "channel count (1 or 2)")
 	parser.Float64(&cfg.SmoothFactor, "sf", "smoothing", "smooth factor (0-100)")
 	parser.Float64(&cfg.WinVar, "wv", "win", "a0 applied to the window function")
-	parser.Int(&cfg.BaseThick, "bt", "base", "base thickness [0, +Inf)")
-	parser.Int(&cfg.BarWidth, "bw", "bar", "bar width [1, +Inf)")
-	parser.Int(&cfg.SpaceWidth, "sw", "space", "space width [0, +Inf)")
+	parser.Int(&cfg.BaseSize, "bt", "base", "base thickness [0, +Inf)")
+	parser.Int(&cfg.BarSize, "bw", "bar", "bar width [1, +Inf)")
+	parser.Int(&cfg.SpaceSize, "sw", "space", "space width [0, +Inf)")
 	parser.Int(&cfg.DrawType, "dt", "draw", "draw type (1, 2, 3)")
 
 	fg, bg, center := graphic.DefaultStyles().AsUInt16s()
