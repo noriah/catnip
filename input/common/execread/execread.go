@@ -2,17 +2,14 @@
 package execread
 
 import (
-	"bufio"
 	"context"
 	"encoding/binary"
 	"io"
 	"math"
 	"os"
 	"os/exec"
-	"sync"
 
 	"github.com/noriah/catnip/input"
-	"github.com/noriah/catnip/input/common/timer"
 	"github.com/pkg/errors"
 )
 
@@ -55,99 +52,65 @@ func (s *Session) Start(ctx context.Context, dst [][]input.Sample, proc input.Pr
 	if err != nil {
 		return errors.Wrap(err, "failed to get stdout pipe")
 	}
-
-	if err := cmd.Start(); err != nil {
-		o.Close()
-		return errors.Wrap(err, "failed to start ffmpeg")
-	}
-
-	// Close the stdout pipe first, then send SIGINT, then wait for a graceful
-	// death.
-	defer cmd.Wait()
-	defer cmd.Process.Signal(os.Interrupt)
 	defer o.Close()
 
-	bufsz := s.samples
+	bufsz := s.samples * 4
 	if !s.f32mode {
 		bufsz *= 2
 	}
 
-	// Make a read buffer that's quadruple the size.
-	outbuf := bufio.NewReaderSize(o, bufsz*4)
-	flread := NewFrameReader(outbuf, binary.LittleEndian, s.f32mode)
-	cursor := 0
-
 	framesz := s.cfg.FrameSize
-	flushsz := s.samples * framesz
+	fread := fread{
+		order: binary.LittleEndian,
+		f64:   !s.f32mode,
+	}
 
-	// Allocate a buffer specifically for the process routine to reduce lock
-	// contention. The lengths of these buffers are guaranteed above.
-	buf := input.MakeBuffers(s.cfg)
+	// Allocate 4 times the buffer. We should ensure that we can read some of
+	// the overflow.
+	raw := make([]byte, bufsz*4)
 
-	return timer.Process(s.cfg, proc, func(mu *sync.Mutex) error {
-		// Discard all but the last buffer so we get the latest data.
-		if discard := outbuf.Buffered() - flushsz; discard > 0 {
-			outbuf.Discard(discard)
-		}
+	if err := cmd.Start(); err != nil {
+		return errors.Wrap(err, "failed to start ffmpeg")
+	}
 
-		for cursor = 0; cursor < s.samples; cursor++ {
-			f, err := flread.ReadFloat64()
-			if err != nil {
-				return err
+	for {
+		n, err := io.ReadAtLeast(o, raw, bufsz)
+		if err != nil {
+			if errors.Is(err, io.EOF) {
+				return nil
 			}
-
-			// Write to an intermediary buffer.
-			buf[cursor%framesz][cursor/framesz] = f
+			return err
 		}
 
-		mu.Lock()
-		defer mu.Unlock()
+		fread.reset(raw[n-bufsz:])
+		for n := 0; n < s.samples; n++ {
+			dst[n%framesz][n/framesz] = fread.next()
+		}
 
-		input.CopyBuffers(dst, buf)
-
-		return nil
-	})
-}
-
-// FrameReader is an io.Reader abstraction that allows using a shared bytes
-// buffer.
-type FrameReader struct {
-	order   binary.ByteOrder
-	reader  io.Reader
-	buffer  []byte
-	f64mode bool
-}
-
-// NewFrameReader creates a new FrameReader that concurrently reads a frame.
-func NewFrameReader(r io.Reader, order binary.ByteOrder, f32mode bool) *FrameReader {
-	var buf []byte
-	if f32mode {
-		buf = make([]byte, 4)
-	} else {
-		buf = make([]byte, 8)
-	}
-
-	return &FrameReader{
-		order:   order,
-		reader:  r,
-		buffer:  buf,
-		f64mode: !f32mode,
+		proc.Process()
 	}
 }
 
-// ReadFloat64 reads maximum 4 or 8 bytes and returns a float64.
-func (f *FrameReader) ReadFloat64() (float64, error) {
-	n, err := f.reader.Read(f.buffer)
-	if err != nil {
-		return 0, err
-	}
-	if n != len(f.buffer) {
-		return 0, io.ErrUnexpectedEOF
+type fread struct {
+	order binary.ByteOrder
+	buf   []byte
+	n     int64
+	f64   bool
+}
+
+func (f *fread) reset(b []byte) {
+	f.n = 0
+	f.buf = b
+}
+
+func (f *fread) next() float64 {
+	n := f.n
+
+	if f.f64 {
+		f.n += 8
+		return math.Float64frombits(f.order.Uint64(f.buf[n:]))
 	}
 
-	if f.f64mode {
-		return math.Float64frombits(f.order.Uint64(f.buffer)), nil
-	}
-
-	return float64(math.Float32frombits(f.order.Uint32(f.buffer))), nil
+	f.n += 4
+	return float64(math.Float32frombits(f.order.Uint32(f.buf[n:])))
 }
