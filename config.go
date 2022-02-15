@@ -14,6 +14,9 @@ type Config struct {
 	Device string
 	// SampleRate is the rate at which samples are read
 	SampleRate float64
+	// FrameRate is the number of frames to draw every second (0 draws it every
+	// perfect sample)
+	FrameRate int
 	//LoCutFrqq is the low end of our audio spectrum
 	LoCutFreq float64
 	// HiCutFreq is the high end of our audio spectrum
@@ -52,6 +55,7 @@ func NewZeroConfig() Config {
 	return Config{
 		Backend:      "portaudio",
 		SampleRate:   44100,
+		FrameRate:    0,
 		SmoothFactor: 80.15,
 		WinVar:       0.50, // Deprecated
 		BaseSize:     1,

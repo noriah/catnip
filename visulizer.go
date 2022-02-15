@@ -2,6 +2,7 @@ package main
 
 import (
 	"math"
+	"sync"
 
 	"github.com/noriah/catnip/dsp"
 	"github.com/noriah/catnip/dsp/window"
@@ -17,9 +18,14 @@ type visualizer struct {
 	slowWindow util.MovingWindow
 	fastWindow util.MovingWindow
 
-	fftBuf    []complex128
-	inputBufs [][]input.Sample
-	barBufs   [][]float64
+	fftBuf  []complex128
+	barBufs [][]float64
+
+	inputMut sync.Mutex
+	// Double-buffer the audio samples so we can read on it again while the code
+	// is processing it.
+	scratchBufs [][]input.Sample
+	inputBufs   [][]input.Sample
 
 	plans    []*fft.Plan
 	spectrum dsp.Spectrum
@@ -30,6 +36,21 @@ type visualizer struct {
 
 // Process runs one draw refresh with the visualizer on the termbox screen.
 func (vis *visualizer) Process() {
+	vis.inputMut.Lock()
+	defer vis.inputMut.Unlock()
+
+	input.CopyBuffers(vis.inputBufs, vis.scratchBufs)
+	if vis.cfg.FrameRate <= 0 {
+		vis.draw(false)
+	}
+}
+
+func (vis *visualizer) draw(lock bool) {
+	if lock {
+		vis.inputMut.Lock()
+		defer vis.inputMut.Unlock()
+	}
+
 	if n := vis.display.Bars(vis.cfg.ChannelCount); n != vis.bars {
 		vis.bars = vis.spectrum.Recalculate(n)
 	}
