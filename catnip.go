@@ -3,6 +3,7 @@ package main
 import (
 	"context"
 	"fmt"
+	"time"
 
 	"github.com/noriah/catnip/dsp"
 	"github.com/noriah/catnip/fft"
@@ -57,9 +58,10 @@ func Catnip(cfg *Config) error {
 			Data:     floatData[slowMax : slowMax+fastMax],
 		},
 
-		fftBuf:    make([]complex128, cfg.SampleSize/2+1),
-		inputBufs: make([][]float64, cfg.ChannelCount),
-		barBufs:   make([][]float64, cfg.ChannelCount),
+		fftBuf:      make([]complex128, cfg.SampleSize/2+1),
+		inputBufs:   input.MakeBuffers(sessConfig),
+		scratchBufs: input.MakeBuffers(sessConfig),
+		barBufs:     make([][]float64, cfg.ChannelCount),
 
 		plans: make([]*fft.Plan, cfg.ChannelCount),
 		spectrum: dsp.Spectrum{
@@ -132,8 +134,26 @@ func Catnip(cfg *Config) error {
 	ctx = vis.display.Start(ctx)
 	defer vis.display.Stop()
 
-	if err := audio.Start(ctx, vis.inputBufs, &vis); err != nil {
-		return errors.Wrap(err, "failed to start input session")
+	if vis.cfg.FrameRate > 0 {
+		go func() {
+			ticker := time.NewTicker(time.Second / time.Duration(vis.cfg.FrameRate))
+			defer ticker.Stop()
+
+			for {
+				select {
+				case <-ctx.Done():
+					return
+				case <-ticker.C:
+					vis.draw(true)
+				}
+			}
+		}()
+	}
+
+	if err := audio.Start(ctx, vis.scratchBufs, &vis); err != nil {
+		if !errors.Is(ctx.Err(), context.Canceled) {
+			return errors.Wrap(err, "failed to start input session")
+		}
 	}
 
 	return nil
