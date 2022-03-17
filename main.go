@@ -68,6 +68,7 @@ func doFlags(cfg *Config) bool {
 	parser.String(&cfg.Device, "d", "device", "device name")
 	parser.Float64(&cfg.SampleRate, "r", "rate", "sample rate")
 	parser.Int(&cfg.SampleSize, "n", "samples", "sample size")
+	parser.Int(&cfg.FrameRate, "f", "fps", "frame rate (0 to draw on every sample)")
 	parser.Int(&cfg.ChannelCount, "ch", "channels", "channel count (1 or 2)")
 	parser.Float64(&cfg.SmoothFactor, "sf", "smoothing", "smooth factor (0-100)")
 	parser.Float64(&cfg.WinVar, "wv", "win", "a0 applied to the window function")

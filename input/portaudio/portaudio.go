@@ -3,10 +3,8 @@ package portaudio
 import (
 	"context"
 	"fmt"
-	"sync"
 
 	"github.com/noriah/catnip/input"
-	"github.com/noriah/catnip/input/common/timer"
 	"github.com/noriah/catnip/input/portaudio/portaudio"
 	"github.com/pkg/errors"
 )
@@ -139,7 +137,7 @@ func (s *Session) Start(ctx context.Context, dst [][]input.Sample, proc input.Pr
 	}
 	defer stream.Stop()
 
-	return timer.Process(s.config, proc, func(mu *sync.Mutex) error {
+	for {
 		select {
 		case <-ctx.Done():
 			return ctx.Err()
@@ -151,15 +149,12 @@ func (s *Session) Start(ctx context.Context, dst [][]input.Sample, proc input.Pr
 			return errors.Wrap(err, "failed to read stream")
 		}
 
-		mu.Lock()
-		defer mu.Unlock()
-
 		for xBuf := range dst {
 			for xSmpl := range dst[xBuf] {
 				dst[xBuf][xSmpl] = input.Sample(src[(xSmpl*s.config.FrameSize)+xBuf])
 			}
 		}
 
-		return nil
-	})
+		proc.Process()
+	}
 }
