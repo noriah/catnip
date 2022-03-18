@@ -4,6 +4,8 @@ import (
 	"fmt"
 	"log"
 
+	"github.com/noriah/catnip"
+	"github.com/noriah/catnip/config"
 	"github.com/noriah/catnip/graphic"
 	"github.com/noriah/catnip/input"
 
@@ -28,7 +30,7 @@ func main() {
 
 	log.SetFlags(0)
 
-	var cfg = NewZeroConfig()
+	var cfg = config.NewZeroConfig()
 
 	if doFlags(&cfg) {
 		return
@@ -36,10 +38,10 @@ func main() {
 
 	chk(cfg.Sanitize(), "invalid config")
 
-	chk(Catnip(&cfg), "failed to run catnip")
+	chk(catnip.Catnip(&cfg), "failed to run catnip")
 }
 
-func doFlags(cfg *Config) bool {
+func doFlags(cfg *config.Config) bool {
 
 	var parser = flaggy.NewParser(AppName)
 	parser.Description = AppDesc
@@ -99,7 +101,7 @@ func doFlags(cfg *Config) bool {
 		return true
 
 	case listDevicesCmd.Used:
-		backend, err := initBackend(cfg)
+		backend, err := catnip.InitBackend(cfg)
 		chk(err, "failed to init backend")
 
 		devices, err := backend.Devices()

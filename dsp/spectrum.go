@@ -13,23 +13,23 @@ package dsp
 
 import (
 	"math"
+
+	"github.com/noriah/catnip/config"
 )
 
 // Spectrum is an audio spectrum in a buffer
 type Spectrum struct {
-	Bins         []Bin       // bins for processing
-	SampleSize   int         // number of samples per slice
+	bins         []bin       // bins for processing
+	sampleSize   int         // number of samples per slice
 	binCount     int         // number of bins we look at
 	fftSize      int         // number of fft bins
-	OldValues    [][]float64 // old values used for smoothing
-	SampleRate   float64     // audio sample rate
-	winVar       float64     // window variable
+	oldValues    [][]float64 // old values used for smoothing
+	sampleRate   float64     // audio sample rate
 	smoothFactor float64     // smothing factor
-	smoothScale  float64     // smoothing pow
 }
 
 // Bin is a helper struct for spectrum
-type Bin struct {
+type bin struct {
 	powVal   float64 // powpow
 	eqVal    float64 // equalizer value
 	floorFFT int     // floor fft index
@@ -54,6 +54,23 @@ var Frequencies = []float64{
 	// everything else
 }
 
+func NewSpectrum(cfg *config.Config) *Spectrum {
+	sp := &Spectrum{
+		sampleSize: cfg.SampleSize,
+		sampleRate: cfg.SampleRate,
+		bins:       make([]bin, cfg.SampleSize),
+		oldValues:  make([][]float64, cfg.ChannelCount),
+	}
+
+	for idx := range sp.oldValues {
+		sp.oldValues[idx] = make([]float64, cfg.SampleSize)
+	}
+
+	sp.setSmoothing(cfg.SmoothFactor)
+
+	return sp
+}
+
 // BinCount returns the number of bins each stream has
 func (sp *Spectrum) BinCount() int {
 	return sp.binCount
@@ -61,7 +78,7 @@ func (sp *Spectrum) BinCount() int {
 
 func (sp *Spectrum) ProcessBin(ch, idx int, src []complex128) float64 {
 	mag := 0.0
-	bin := sp.Bins[idx]
+	bin := sp.bins[idx]
 
 	fftFloor, fftCeil := bin.floorFFT, bin.ceilFFT
 	if fftCeil > sp.fftSize {
@@ -76,11 +93,18 @@ func (sp *Spectrum) ProcessBin(ch, idx int, src []complex128) float64 {
 		}
 	}
 
-	// time smoothing
-	mag = math.Pow(mag, bin.powVal) * (1.0 - sp.smoothScale)
+	if f := sp.freqToIdx(600.0, math.Floor); fftFloor < f {
+		mag *= 0.25
+	}
 
-	value := (sp.OldValues[ch][idx] * sp.smoothScale) + mag
-	sp.OldValues[ch][idx] = value
+	// time smoothing
+	mag = math.Log(mag) * (1.0 - sp.smoothFactor)
+	if mag < 0.0 {
+		mag = 0.0
+	}
+
+	value := (sp.oldValues[ch][idx] * sp.smoothFactor) + mag
+	sp.oldValues[ch][idx] = value
 
 	return value * bin.eqVal
 }
@@ -88,7 +112,7 @@ func (sp *Spectrum) ProcessBin(ch, idx int, src []complex128) float64 {
 // Recalculate rebuilds our frequency bins
 func (sp *Spectrum) Recalculate(binCount int) int {
 	if sp.fftSize == 0 {
-		sp.fftSize = sp.SampleSize/2 + 1
+		sp.fftSize = sp.sampleSize/2 + 1
 	}
 
 	switch {
@@ -101,11 +125,9 @@ func (sp *Spectrum) Recalculate(binCount int) int {
 	sp.binCount = binCount
 
 	// clean the binCount
-	for idx := range sp.Bins[:binCount] {
-		sp.Bins[idx] = Bin{
-			powVal: 0.65,
-			eqVal:  1.0,
-		}
+	for idx := range sp.bins[:binCount] {
+		sp.bins[idx].powVal = 0.65
+		sp.bins[idx].eqVal = 1.0
 	}
 
 	sp.distribute(binCount)
@@ -114,15 +136,15 @@ func (sp *Spectrum) Recalculate(binCount int) int {
 	var fBassCut = float64(bassCut)
 
 	// set widths
-	for idx, b := range sp.Bins[:binCount] {
+	for idx, b := range sp.bins[:binCount] {
 		if b.ceilFFT >= sp.fftSize {
-			sp.Bins[idx].ceilFFT = sp.fftSize - 1
+			sp.bins[idx].ceilFFT = sp.fftSize - 1
 		}
 
-		// sp.Bins[idx].widthFFT = b.ceilFFT - b.floorFFT
+		// sp.bins[idx].widthFFT = b.ceilFFT - b.floorFFT
 
 		if b.ceilFFT <= bassCut {
-			sp.Bins[idx].powVal *= math.Max(0.5, float64(b.ceilFFT)/fBassCut)
+			sp.bins[idx].powVal *= math.Max(0.5, float64(b.ceilFFT)/fBassCut)
 		}
 
 	}
@@ -132,7 +154,7 @@ func (sp *Spectrum) Recalculate(binCount int) int {
 
 func (sp *Spectrum) distribute(bins int) {
 	var lo = Frequencies[1]
-	var hi = math.Min(sp.SampleRate/2, Frequencies[4])
+	var hi = math.Min(sp.sampleRate/2, Frequencies[4])
 
 	var loLog = math.Log10(lo)
 	var hiLog = math.Log10(hi)
@@ -141,21 +163,21 @@ func (sp *Spectrum) distribute(bins int) {
 
 	var cCoef = 100.0 / float64(bins+1)
 
-	for idx := range sp.Bins[:bins+1] {
+	for idx := range sp.bins[:bins+1] {
 
 		frequency := ((float64(idx) * cF) + loLog)
 		frequency = math.Pow(10.0, frequency)
 		fftIdx := sp.freqToIdx(frequency, math.Floor)
-		sp.Bins[idx].floorFFT = fftIdx
-		sp.Bins[idx].eqVal = math.Log2(float64(fftIdx)+14) * cCoef
-		// sp.Bins[idx].eqVal = 1.0
+		sp.bins[idx].floorFFT = fftIdx
+		sp.bins[idx].eqVal = math.Log2(float64(fftIdx)+14) * cCoef
+		// sp.bins[idx].eqVal = 1.0
 
 		if idx > 0 {
-			if sp.Bins[idx-1].floorFFT >= sp.Bins[idx].floorFFT {
-				sp.Bins[idx].floorFFT = sp.Bins[idx-1].floorFFT + 1
+			if sp.bins[idx-1].floorFFT >= sp.bins[idx].floorFFT {
+				sp.bins[idx].floorFFT = sp.bins[idx-1].floorFFT + 1
 			}
 
-			sp.Bins[idx-1].ceilFFT = sp.Bins[idx].floorFFT
+			sp.bins[idx-1].ceilFFT = sp.bins[idx].floorFFT
 		}
 	}
 }
@@ -163,7 +185,7 @@ func (sp *Spectrum) distribute(bins int) {
 type mathFunc func(float64) float64
 
 func (sp *Spectrum) freqToIdx(freq float64, round mathFunc) int {
-	var b = int(round(freq / (sp.SampleRate / float64(sp.SampleSize))))
+	var b = int(round(freq / (sp.sampleRate / float64(sp.sampleSize))))
 
 	if b < sp.fftSize {
 		return b
@@ -172,25 +194,13 @@ func (sp *Spectrum) freqToIdx(freq float64, round mathFunc) int {
 	return sp.fftSize - 1
 }
 
-// SetWinVar sets the winVar used for distribution spread
-func (sp *Spectrum) SetWinVar(g float64) {
-	if g <= 0.0 {
-		sp.winVar = 1.0
-		return
-	}
-
-	sp.winVar = g
-}
-
 // SetSmoothing sets the smoothing parameters
-func (sp *Spectrum) SetSmoothing(factor float64) {
+func (sp *Spectrum) setSmoothing(factor float64) {
 	if factor <= 0.0 {
 		factor = math.SmallestNonzeroFloat64
 	}
 
-	sp.smoothFactor = factor
-
 	var sf = math.Pow(10.0, (1.0-factor)*(-25.0))
 
-	sp.smoothScale = math.Pow(sf, float64(sp.SampleSize)/sp.SampleRate)
+	sp.smoothFactor = math.Pow(sf, float64(sp.sampleSize)/sp.sampleRate)
 }

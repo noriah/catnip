@@ -6,8 +6,9 @@ import (
 
 // MovingWindow is a moving window
 type MovingWindow struct {
-	index  int
-	length int
+	index    int
+	length   int
+	capacity int
 
 	variance float64
 	stddev   float64
@@ -15,9 +16,14 @@ type MovingWindow struct {
 	sum     float64
 	average float64
 
-	Capacity int
+	data []float64
+}
 
-	Data []float64
+func NewMovingWindow(size int) *MovingWindow {
+	return &MovingWindow{
+		data:     make([]float64, size),
+		capacity: size,
+	}
 }
 
 func (mw *MovingWindow) calcFinal() (float64, float64) {
@@ -44,7 +50,7 @@ func (mw *MovingWindow) calcFinal() (float64, float64) {
 
 // Update updates the moving window
 func (mw *MovingWindow) Update(value float64) (float64, float64) {
-	if mw.length < mw.Capacity {
+	if mw.length < mw.capacity {
 
 		mw.length++
 
@@ -52,14 +58,14 @@ func (mw *MovingWindow) Update(value float64) (float64, float64) {
 		mw.variance += (value * value)
 
 	} else {
-		var old = mw.Data[mw.index]
+		var old = mw.data[mw.index]
 		mw.sum += value - old
 		mw.variance += (value * value) - (old * old)
 	}
 
-	mw.Data[mw.index] = value
+	mw.data[mw.index] = value
 
-	if mw.index++; mw.index >= mw.Capacity {
+	if mw.index++; mw.index >= mw.capacity {
 		mw.index = 0
 	}
 
@@ -77,10 +83,10 @@ func (mw *MovingWindow) Drop(count int) (float64, float64) {
 
 		var idx = (mw.index - mw.length)
 		if idx < 0 {
-			idx = mw.Capacity + idx
+			idx = mw.capacity + idx
 		}
 
-		var old = mw.Data[idx]
+		var old = mw.data[idx]
 
 		mw.sum -= old
 		mw.variance -= old * old
@@ -111,7 +117,7 @@ func (mw *MovingWindow) Len() int {
 
 // Cap returns max size of window
 func (mw *MovingWindow) Cap() int {
-	return mw.Capacity
+	return mw.capacity
 }
 
 // Mean is the moving window average

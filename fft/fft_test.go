@@ -12,8 +12,8 @@ func Benchmark(b *testing.B) {
 	reals := generateReals()
 	cmplx := make([]complex128, len(reals)/2+1)
 	fftpl := Plan{
-		Input:  reals,
-		Output: cmplx,
+		input:  reals,
+		output: cmplx,
 	}
 
 	b.ResetTimer()

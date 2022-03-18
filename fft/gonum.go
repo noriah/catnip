@@ -1,3 +1,4 @@
+//go:build !cgo
 // +build !cgo
 
 package fft
@@ -11,19 +12,19 @@ const FFTW = false
 
 // Plan holds a gonum FFT plan.
 type Plan struct {
-	Input  []float64
-	Output []complex128
+	input  []float64
+	output []complex128
 	fft    *fourier.FFT
 }
 
 // Init sets up the plan so we dont run checks during execute
-func (p *Plan) Init() {
+func (p *Plan) init() {
 	if p.fft == nil {
-		p.fft = fourier.NewFFT(len(p.Input))
+		p.fft = fourier.NewFFT(len(p.input))
 	}
 }
 
 // Execute executes the gonum plan.
 func (p *Plan) Execute() {
-	p.fft.Coefficients(p.Output, p.Input)
+	p.fft.Coefficients(p.output, p.input)
 }

@@ -71,10 +71,10 @@ type Processor interface {
 type Sample = float64
 
 // MakeBuffer allocates a slice of sample buffers.
-func MakeBuffers(cfg SessionConfig) [][]Sample {
-	var buf = make([][]Sample, cfg.FrameSize)
+func MakeBuffers(channels, samples int) [][]Sample {
+	var buf = make([][]Sample, channels)
 	for i := range buf {
-		buf[i] = make([]Sample, cfg.SampleSize)
+		buf[i] = make([]Sample, samples)
 	}
 	return buf
 }
