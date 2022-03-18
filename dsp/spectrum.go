@@ -98,15 +98,14 @@ func (sp *Spectrum) ProcessBin(ch, idx int, src []complex128) float64 {
 	}
 
 	// time smoothing
-	mag = math.Log(mag) * (1.0 - sp.smoothFactor)
-	if mag < 0.0 {
+	if mag = math.Log(mag) * (1.0 - sp.smoothFactor); mag < 0.0 {
 		mag = 0.0
 	}
 
 	value := (sp.oldValues[ch][idx] * sp.smoothFactor) + mag
 	sp.oldValues[ch][idx] = value
 
-	return value * bin.eqVal
+	return value
 }
 
 // Recalculate rebuilds our frequency bins
