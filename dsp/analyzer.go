@@ -103,7 +103,7 @@ func (az *analyzer) ProcessBin(ch, idx int, src []complex128) float64 {
 	}
 
 	if f := az.freqToIdx(400.0, math.Floor); fftFloor < f {
-		mag *= 0.10
+		mag *= (0.55 * (float64(fftFloor) / float64(f)))
 	}
 
 	// time smoothing
