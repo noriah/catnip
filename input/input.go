@@ -1,47 +1,13 @@
 package input
 
-import "context"
-
-type NamedBackend struct {
-	Name string
-	Backend
-}
-
-var Backends []NamedBackend
-
-// RegisterBackend registers a backend globally. This function is not
-// thread-safe, and most packages should call it on init().
-func RegisterBackend(name string, b Backend) {
-	Backends = append(Backends, NamedBackend{
-		Name:    name,
-		Backend: b,
-	})
-}
-
-// FindBackend is a helper function that finds a backend. It returns nil if the
-// backend is not found.
-func FindBackend(name string) Backend {
-	for _, backend := range Backends {
-		if backend.Name == name {
-			return backend
-		}
-	}
-	return nil
-}
+import (
+	"context"
+	"sync"
+)
 
 type Device interface {
 	// String returns the device name.
 	String() string
-}
-
-type Backend interface {
-	// Init should do nothing if called more than once.
-	Init() error
-	Close() error
-
-	Devices() ([]Device, error)
-	DefaultDevice() (Device, error)
-	Start(SessionConfig) (Session, error)
 }
 
 type SessionConfig struct {
@@ -57,7 +23,7 @@ type SessionConfig struct {
 type Session interface {
 	// Start blocks until either the context is canceled or an error is
 	// encountered.
-	Start(context.Context, [][]Sample, Processor) error
+	Start(context.Context, [][]Sample, chan bool, *sync.Mutex) error
 }
 
 // Processor is called by Session everytime the buffer is full. Session may call
@@ -95,7 +61,9 @@ func EnsureBufferLen(cfg SessionConfig, buf [][]Sample) bool {
 
 // CopyBuffers deep copies src to dst. It does NOT do length check.
 func CopyBuffers(dst, src [][]Sample) {
-	for i := range src {
-		copy(dst[i], src[i])
+	frames := len(dst)
+	size := len(dst[frames-1]) * frames
+	for i := 0; i < size; i++ {
+		dst[i%frames][i/frames] = src[i%frames][i/frames]
 	}
 }

@@ -1,3 +1,4 @@
+//go:build cgo && !noportaudio
 // +build cgo,!noportaudio
 
 package main

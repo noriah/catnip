@@ -1,10 +1,11 @@
 package visualizer
 
 import (
+	"context"
 	"math"
 	"sync"
+	"time"
 
-	"github.com/noriah/catnip/config"
 	"github.com/noriah/catnip/dsp/window"
 	"github.com/noriah/catnip/fft"
 	"github.com/noriah/catnip/input"
@@ -24,128 +25,159 @@ const (
 	PeakThreshold = 0.01
 )
 
-type spectrum interface {
+type Analyzer interface {
 	BinCount() int
 	ProcessBin(int, int, []complex128) float64
 	Recalculate(int) int
 }
 
-type graphicDisplay interface {
+type Display interface {
 	Bars(...int) int
 	Draw([][]float64, int, int, float64) error
 }
 
-type Visualizer struct {
+type Visualizer interface {
+	Start(ctx context.Context) context.Context
+	Stop()
+	Process(context.Context, chan bool, *sync.Mutex)
+}
+
+type Config struct {
+	SampleRate   float64          // rate at which samples are read
+	SampleSize   int              // number of samples per buffer
+	ChannelCount int              // number of channels
+	FrameRate    int              // target framerate
+	Buffers      [][]input.Sample // sample buffers
+	Analyzer     Analyzer         // audio analyzer
+	Display      Display          // display
+}
+
+type visualizer struct {
 	channelCount int
 	frameRate    int
 
 	bars int
 
-	inputMut sync.Mutex
-
 	slowWindow *util.MovingWindow
 	fastWindow *util.MovingWindow
 
-	fftBuf  []complex128
+	fftBufs [][]complex128
 	barBufs [][]float64
 
 	// Double-buffer the audio samples so we can read on it again while the code
 	// is processing it.
-	inputBufs   [][]input.Sample
-	scratchBufs [][]input.Sample
+	inputBufs [][]input.Sample
 
 	plans []*fft.Plan
 
-	Spectrum spectrum
-	Display  graphicDisplay
+	anlz Analyzer
+	disp Display
 }
 
-func New(cfg *config.Config, inputBuffers [][]input.Sample) *Visualizer {
+func New(cfg Config) *visualizer {
 	slowSize := ((int(ScalingSlowWindow * cfg.SampleRate)) / cfg.SampleSize) * 2
 
 	fastSize := ((int(ScalingFastWindow * cfg.SampleRate)) / cfg.SampleSize) * 2
 
-	vis := &Visualizer{
+	vis := &visualizer{
 		channelCount: cfg.ChannelCount,
 		frameRate:    cfg.FrameRate,
 		slowWindow:   util.NewMovingWindow(slowSize),
 		fastWindow:   util.NewMovingWindow(fastSize),
-		fftBuf:       make([]complex128, cfg.SampleSize/2+1),
+		fftBufs:      make([][]complex128, cfg.ChannelCount),
 		barBufs:      make([][]float64, cfg.ChannelCount),
-		inputBufs:    inputBuffers,
-		scratchBufs:  input.MakeBuffers(cfg.ChannelCount, cfg.SampleSize),
+		inputBufs:    cfg.Buffers,
 		plans:        make([]*fft.Plan, cfg.ChannelCount),
+		anlz:         cfg.Analyzer,
+		disp:         cfg.Display,
 	}
 
 	for idx := range vis.barBufs {
 		vis.barBufs[idx] = make([]float64, cfg.SampleSize)
+		vis.fftBufs[idx] = make([]complex128, cfg.SampleSize/2+1)
 
-		fft.InitPlan(&vis.plans[idx], vis.inputBufs[idx], vis.fftBuf)
+		fft.InitPlan(&vis.plans[idx], vis.inputBufs[idx], vis.fftBufs[idx])
 	}
 
 	return vis
 }
 
-// Process runs one draw refresh with the visualizer on the termbox screen.
-func (vis *Visualizer) Process() {
-	vis.inputMut.Lock()
-	defer vis.inputMut.Unlock()
+func (vis *visualizer) Start(ctx context.Context) context.Context {
 
-	input.CopyBuffers(vis.scratchBufs, vis.inputBufs)
-	if vis.frameRate <= 0 {
-		vis.Draw(false)
-	}
+	return ctx
 }
 
-func (vis *Visualizer) Draw(lock bool) {
-	if lock {
-		vis.inputMut.Lock()
-		defer vis.inputMut.Unlock()
+func (vis *visualizer) Stop() {}
+
+// Process runs one draw refresh with the visualizer on the termbox screen.
+func (vis *visualizer) Process(ctx context.Context, kickChan chan bool, mu *sync.Mutex) {
+	if vis.frameRate <= 0 {
+		// if we do not have a framerate set, allow at most 1 second per sampling
+		vis.frameRate = 1
 	}
 
-	if n := vis.Display.Bars(vis.channelCount); n != vis.bars {
-		vis.bars = vis.Spectrum.Recalculate(n)
-	}
+	dur := time.Second / time.Duration(vis.frameRate)
+	ticker := time.NewTicker(dur)
+	defer ticker.Stop()
 
-	var peak float64
-
-	for idx := range vis.barBufs {
-		window.Lanczos(vis.inputBufs[idx])
-		vis.plans[idx].Execute()
-
-		buf := vis.barBufs[idx]
-
-		for bIdx := range buf[:vis.bars] {
-			v := vis.Spectrum.ProcessBin(idx, bIdx, vis.fftBuf)
-
-			if peak < v {
-				peak = v
-			}
-
-			buf[bIdx] = v
+	for {
+		mu.Lock()
+		for idx := range vis.barBufs {
+			window.Lanczos(vis.inputBufs[idx])
+			vis.plans[idx].Execute()
 		}
-	}
+		mu.Unlock()
 
-	var scale = 1.0
+		if n := vis.disp.Bars(vis.channelCount); n != vis.bars {
+			vis.bars = vis.anlz.Recalculate(n)
+		}
 
-	// do some scaling if we are above the PeakThreshold
-	if peak >= PeakThreshold {
-		vis.fastWindow.Update(peak)
-		vMean, vSD := vis.slowWindow.Update(peak)
+		var peak float64
+		for idx := range vis.fftBufs {
 
-		// if our slow window finally has more values than our fast window
-		if length := vis.slowWindow.Len(); length >= vis.fastWindow.Cap() {
-			// no idea what this is doing
-			if math.Abs(vis.fastWindow.Mean()-vMean) > (ScalingResetDeviation * vSD) {
-				// drop some values and continue
-				vMean, vSD = vis.slowWindow.Drop(int(float64(length) * ScalingDumpPercent))
+			buf := vis.barBufs[idx]
+
+			for bIdx := range buf[:vis.bars] {
+				v := vis.anlz.ProcessBin(idx, bIdx, vis.fftBufs[idx])
+
+				if peak < v {
+					peak = v
+				}
+
+				buf[bIdx] = v
 			}
 		}
 
-		if t := vMean + (1.5 * vSD); t > 1.0 {
-			scale = t
-		}
-	}
+		var scale = 1.0
 
-	vis.Display.Draw(vis.barBufs, vis.channelCount, vis.bars, scale)
+		// do some scaling if we are above the PeakThreshold
+		if peak >= PeakThreshold {
+			vis.fastWindow.Update(peak)
+			vMean, vSD := vis.slowWindow.Update(peak)
+
+			// if our slow window finally has more values than our fast window
+			if length := vis.slowWindow.Len(); length >= vis.fastWindow.Cap() {
+				// no idea what this is doing
+				if math.Abs(vis.fastWindow.Mean()-vMean) > (ScalingResetDeviation * vSD) {
+					// drop some values and continue
+					vMean, vSD = vis.slowWindow.Drop(int(float64(length) * ScalingDumpPercent))
+				}
+			}
+
+			if t := vMean + (1.5 * vSD); t > 1.0 {
+				scale = t
+			}
+		}
+
+		vis.disp.Draw(vis.barBufs, vis.channelCount, vis.bars, scale)
+
+		select {
+		case <-ctx.Done():
+			return
+		case <-kickChan:
+		case <-ticker.C:
+			// default:
+		}
+		ticker.Reset(dur)
+	}
 }

@@ -3,6 +3,7 @@ package portaudio
 import (
 	"context"
 	"fmt"
+	"sync"
 
 	"github.com/noriah/catnip/input"
 	"github.com/noriah/catnip/input/portaudio/portaudio"
@@ -106,7 +107,7 @@ func NewSession(config input.SessionConfig) (*Session, error) {
 	}, nil
 }
 
-func (s *Session) Start(ctx context.Context, dst [][]input.Sample, proc input.Processor) error {
+func (s *Session) Start(ctx context.Context, dst [][]input.Sample, kickChan chan bool, mu *sync.Mutex) error {
 	if !input.EnsureBufferLen(s.config, dst) {
 		return errors.New("invalid dst length given")
 	}
@@ -122,8 +123,11 @@ func (s *Session) Start(ctx context.Context, dst [][]input.Sample, proc input.Pr
 		Flags:           portaudio.ClipOff | portaudio.DitherOff,
 	}
 
+	frameSize := s.config.FrameSize
+	samples := s.config.SampleSize * frameSize
+
 	// Source buffer in a different format than what we want (dst).
-	src := make([]SampleType, s.config.SampleSize*s.config.FrameSize)
+	src := make([]SampleType, samples)
 
 	stream, err := portaudio.OpenStream(param, src)
 	if err != nil {
@@ -138,23 +142,49 @@ func (s *Session) Start(ctx context.Context, dst [][]input.Sample, proc input.Pr
 	defer stream.Stop()
 
 	for {
-		select {
-		case <-ctx.Done():
-			return ctx.Err()
-		default:
-		}
 
 		// Ignore overflow in case the processing is too slow.
 		if err := stream.Read(); err != nil && err != portaudio.InputOverflowed {
 			return errors.Wrap(err, "failed to read stream")
 		}
 
-		for xBuf := range dst {
-			for xSmpl := range dst[xBuf] {
-				dst[xBuf][xSmpl] = input.Sample(src[(xSmpl*s.config.FrameSize)+xBuf])
+		mu.Lock()
+		for x := 0; x < samples; x++ {
+			dst[x%frameSize][x/frameSize] = input.Sample(src[x])
+		}
+		mu.Unlock()
+
+	loop:
+		for {
+			select {
+			case <-ctx.Done():
+				return ctx.Err()
+			case kickChan <- true:
+				break loop
+			default:
+				fmt.Println("waiting")
+			}
+
+			if ready, _ := stream.AvailableToRead(); ready >= samples {
+				if ready > samples {
+					fmt.Println("OVER", ready)
+				}
+				break
 			}
 		}
 
-		proc.Process()
+		// select {
+		// case <-ctx.Done():
+		// 	return ctx.Err()
+
+		// default:
+		// 	fmt.Println("waiting")
+		// }
+
+		// select {
+		// case <-ctx.Done():
+		// 	return ctx.Err()
+		// case <-kickChan:
+		// }
 	}
 }

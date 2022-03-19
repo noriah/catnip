@@ -8,6 +8,7 @@ import (
 	"math"
 	"os"
 	"os/exec"
+	"sync"
 
 	"github.com/noriah/catnip/input"
 	"github.com/pkg/errors"
@@ -38,7 +39,7 @@ func NewSession(argv []string, f32mode bool, cfg input.SessionConfig) (*Session,
 	}, nil
 }
 
-func (s *Session) Start(ctx context.Context, dst [][]input.Sample, proc input.Processor) error {
+func (s *Session) Start(ctx context.Context, dst [][]input.Sample, kickChan chan bool, mu *sync.Mutex) error {
 	if !input.EnsureBufferLen(s.cfg, dst) {
 		return errors.New("invalid dst length given")
 	}
@@ -60,50 +61,58 @@ func (s *Session) Start(ctx context.Context, dst [][]input.Sample, proc input.Pr
 	}
 
 	framesz := s.cfg.FrameSize
-	fread := fread{
+	reader := floatReader{
 		order: binary.LittleEndian,
 		f64:   !s.f32mode,
 	}
 
 	// Allocate 4 times the buffer. We should ensure that we can read some of
 	// the overflow.
-	raw := make([]byte, bufsz*4)
+	raw := make([]byte, bufsz)
 
 	if err := cmd.Start(); err != nil {
 		return errors.Wrap(err, "failed to start ffmpeg")
 	}
 
 	for {
-		n, err := io.ReadAtLeast(o, raw, bufsz)
+		reader.reset(raw)
+
+		mu.Lock()
+		for n := 0; n < s.samples; n++ {
+			dst[n%framesz][n/framesz] = reader.next()
+		}
+		mu.Unlock()
+
+		select {
+		case <-ctx.Done():
+			return ctx.Err()
+			// default:
+		case kickChan <- true:
+		}
+
+		_, err := io.ReadFull(o, raw)
 		if err != nil {
 			if errors.Is(err, io.EOF) {
 				return nil
 			}
 			return err
 		}
-
-		fread.reset(raw[n-bufsz:])
-		for n := 0; n < s.samples; n++ {
-			dst[n%framesz][n/framesz] = fread.next()
-		}
-
-		proc.Process()
 	}
 }
 
-type fread struct {
+type floatReader struct {
 	order binary.ByteOrder
 	buf   []byte
 	n     int64
 	f64   bool
 }
 
-func (f *fread) reset(b []byte) {
+func (f *floatReader) reset(b []byte) {
 	f.n = 0
 	f.buf = b
 }
 
-func (f *fread) next() float64 {
+func (f *floatReader) next() float64 {
 	n := f.n
 
 	if f.f64 {

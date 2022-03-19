@@ -2,6 +2,7 @@ package graphic
 
 import (
 	"context"
+	"sync"
 	"sync/atomic"
 
 	"github.com/nsf/termbox-go"
@@ -85,6 +86,9 @@ type Display struct {
 	drawType    DrawType
 	styles      Styles
 	styleBuffer []termbox.Attribute
+	wg          sync.WaitGroup
+	ctx         context.Context
+	cancel      context.CancelFunc
 }
 
 // Init initializes the display.
@@ -114,82 +118,87 @@ func (d *Display) Close() error {
 
 // Start display is bad.
 func (d *Display) Start(ctx context.Context) context.Context {
-	var dispCtx, dispCancel = context.WithCancel(ctx)
+	d.ctx, d.cancel = context.WithCancel(ctx)
 
-	go func(ctx context.Context, fn context.CancelFunc, d *Display) {
+	go d.inputProcessor()
 
-		defer fn()
+	return d.ctx
+}
 
-		atomic.StoreUint32(&d.running, 1)
-		defer atomic.StoreUint32(&d.running, 0)
+// Stop display not work.
+func (d *Display) Stop() error {
+	if atomic.CompareAndSwapUint32(&d.running, 1, 0) {
+		termbox.Interrupt()
+	}
 
-		for {
+	return nil
+}
 
-			var ev = termbox.PollEvent()
+func (d *Display) inputProcessor() {
+	if d.cancel != nil {
+		defer d.cancel()
+	}
 
-			switch ev.Type {
-			case termbox.EventKey:
-				switch ev.Key {
+	atomic.StoreUint32(&d.running, 1)
+	defer atomic.StoreUint32(&d.running, 0)
 
-				case termbox.KeyArrowUp:
-					d.AdjustSizes(1, 0)
+	for {
+		var ev = termbox.PollEvent()
 
-				case termbox.KeyArrowRight:
-					d.AdjustSizes(0, 1)
+		switch ev.Type {
+		case termbox.EventKey:
+			switch ev.Key {
+			case termbox.KeyArrowUp:
+				d.AdjustSizes(1, 0)
 
-				case termbox.KeyArrowDown:
-					d.AdjustSizes(-1, 0)
+			case termbox.KeyArrowRight:
+				d.AdjustSizes(0, 1)
 
-				case termbox.KeyArrowLeft:
-					d.AdjustSizes(0, -1)
+			case termbox.KeyArrowDown:
+				d.AdjustSizes(-1, 0)
 
-				case termbox.KeySpace:
-					d.SetDrawType(d.drawType + 1)
+			case termbox.KeyArrowLeft:
+				d.AdjustSizes(0, -1)
 
-				case termbox.KeyCtrlC:
+			case termbox.KeySpace:
+				d.SetDrawType(d.drawType + 1)
+
+			case termbox.KeyCtrlC:
+				return
+
+			default:
+				switch ev.Ch {
+				case '+', '=':
+					d.AdjustBase(1)
+
+				case '-', '_':
+					d.AdjustBase(-1)
+
+				case 'q', 'Q':
 					return
+
 				default:
+				} // switch ev.Ch
+			} // switch ev.Key
 
-					switch ev.Ch {
-					case '+', '=':
-						d.AdjustBase(1)
+		case termbox.EventResize:
+			d.termWidth = ev.Width
+			d.termHeight = ev.Height
+			d.updateStyleBuffer()
 
-					case '-', '_':
-						d.AdjustBase(-1)
+		case termbox.EventInterrupt:
+			return
 
-					case 'q', 'Q':
-						return
+		default:
+		} // switch ev.Type
 
-					default:
-
-					} // switch ev.Ch
-
-				} // switch ev.Key
-
-			case termbox.EventResize:
-				d.termWidth = ev.Width
-				d.termHeight = ev.Height
-				d.updateStyleBuffer()
-
-			case termbox.EventInterrupt:
-				return
-
-			default:
-
-			} // switch ev.Type
-
-			// check if we need to exit
-			select {
-			case <-ctx.Done():
-				return
-			default:
-			}
-
-		} // for
-
-	}(dispCtx, dispCancel, d)
-
-	return dispCtx
+		// check if we need to exit
+		select {
+		case <-d.ctx.Done():
+			return
+		default:
+		}
+	} // for
 }
 
 func intMax(x1, x2 int) int {
@@ -241,17 +250,10 @@ func (d *Display) fillStyleBuffer(left, center, right int) {
 	}
 }
 
-// Stop display not work.
-func (d *Display) Stop() error {
-	if atomic.CompareAndSwapUint32(&d.running, 1, 0) {
-		termbox.Interrupt()
-	}
-
-	return nil
-}
-
 // Draw takes data and draws.
 func (d *Display) Draw(bufs [][]float64, channels, count int, scale float64) error {
+
+	d.wg.Add(channels)
 
 	switch d.drawType {
 	case DrawUp:

@@ -1,45 +1,95 @@
-package catnip
+package main
 
 import (
 	"context"
 	"fmt"
-	"time"
+	"log"
+	"sync"
 
-	"github.com/noriah/catnip/config"
 	"github.com/noriah/catnip/dsp"
 	"github.com/noriah/catnip/graphic"
 	"github.com/noriah/catnip/input"
 	"github.com/noriah/catnip/visualizer"
 
+	_ "github.com/noriah/catnip/input/ffmpeg"
+	_ "github.com/noriah/catnip/input/parec"
+
+	"github.com/integrii/flaggy"
 	"github.com/pkg/errors"
 )
 
-// Catnip starts to draw the visualizer on the termbox screen.
-func Catnip(cfg *config.Config) error {
-	// allocate as much as possible as soon as possible
+// AppName is the app name
+const AppName = "catnip"
 
-	var sessConfig = input.SessionConfig{
-		FrameSize:  cfg.ChannelCount,
-		SampleSize: cfg.SampleSize,
-		SampleRate: cfg.SampleRate,
+// AppDesc is the app description
+const AppDesc = "Continuous Automatic Terminal Number Interpretation Printer"
+
+// AppSite is the app website
+const AppSite = "https://github.com/noriah/catnip"
+
+var version = "unknown"
+
+func main() {
+	log.SetFlags(0)
+
+	var cfg = newZeroConfig()
+
+	if doFlags(&cfg) {
+		return
 	}
+
+	chk(cfg.Sanitize(), "invalid config")
+
+	chk(catnip(&cfg), "failed to run catnip")
+}
+
+// Catnip starts to draw the visualizer on the termbox screen.
+func catnip(cfg *config) error {
 
 	display := &graphic.Display{}
 
-	inputBuffers := input.MakeBuffers(cfg.ChannelCount, cfg.SampleSize)
-	vis := visualizer.New(cfg, inputBuffers)
+	anlzConfig := dsp.Config{
+		SampleRate:      cfg.sampleRate,
+		SampleSize:      cfg.sampleSize,
+		ChannelCount:    cfg.channelCount,
+		SmoothingFactor: cfg.smoothFactor,
+	}
 
-	vis.Spectrum = dsp.NewSpectrum(cfg)
-	vis.Display = display
+	inputBuffers := input.MakeBuffers(cfg.channelCount, cfg.sampleSize)
+	// visBuffers := input.MakeBuffers(cfg.channelCount, cfg.sampleSize)
+
+	procConfig := visualizer.Config{
+		SampleRate:   cfg.sampleRate,
+		SampleSize:   cfg.sampleSize,
+		ChannelCount: cfg.channelCount,
+		FrameRate:    cfg.frameRate,
+		Buffers:      inputBuffers,
+		Analyzer:     dsp.NewAnalyzer(anlzConfig),
+		Display:      display,
+	}
+
+	var vis visualizer.Visualizer
+
+	if cfg.useThreaded {
+		vis = visualizer.NewThreaded(procConfig)
+	} else {
+		vis = visualizer.New(procConfig)
+	}
 
 	// INPUT SETUP
 
-	var backend, err = InitBackend(cfg)
+	var backend, err = input.InitBackend(cfg.backend)
 	if err != nil {
 		return err
 	}
 
-	if sessConfig.Device, err = getDevice(backend, cfg); err != nil {
+	sessConfig := input.SessionConfig{
+		FrameSize:  cfg.channelCount,
+		SampleSize: cfg.sampleSize,
+		SampleRate: cfg.sampleRate,
+	}
+
+	if sessConfig.Device, err = input.GetDevice(backend, cfg.device); err != nil {
 		return err
 	}
 
@@ -55,10 +105,10 @@ func Catnip(cfg *config.Config) error {
 	}
 	defer display.Close()
 
-	display.SetSizes(cfg.BarSize, cfg.SpaceSize)
-	display.SetBase(cfg.BaseSize)
-	display.SetDrawType(graphic.DrawType(cfg.DrawType))
-	display.SetStyles(cfg.Styles)
+	display.SetSizes(cfg.barSize, cfg.spaceSize)
+	display.SetBase(cfg.baseSize)
+	display.SetDrawType(graphic.DrawType(cfg.drawType))
+	display.SetStyles(cfg.styles)
 
 	// Root Context
 	ctx, cancel := context.WithCancel(context.Background())
@@ -69,23 +119,50 @@ func Catnip(cfg *config.Config) error {
 	ctx = display.Start(ctx)
 	defer display.Stop()
 
-	if cfg.FrameRate > 0 {
-		go func() {
-			ticker := time.NewTicker(time.Second / time.Duration(cfg.FrameRate))
-			defer ticker.Stop()
+	ctx = vis.Start(ctx)
+	defer vis.Stop()
 
-			for {
-				select {
-				case <-ctx.Done():
-					return
-				case <-ticker.C:
-					vis.Draw(true)
-				}
-			}
-		}()
-	}
+	kickChan := make(chan bool, 1)
+	// visChan := make(chan bool, 1)
 
-	if err := audio.Start(ctx, inputBuffers, vis); err != nil {
+	mu := &sync.Mutex{}
+
+	// if cfg.frameRate <= 0 {
+	// 	// if we do not have a framerate set, allow at most 1 second per sampling
+	// 	cfg.frameRate = 1
+	// }
+
+	// go func() {
+	// 	dur := time.Second / time.Duration(cfg.frameRate)
+	// 	ticker := time.NewTicker(dur)
+	// 	defer ticker.Stop()
+
+	// 	for {
+
+	// 		// select {
+	// 		// case <-ctx.Done():
+	// 		// 	return
+	// 		// case <-kickChan:
+	// 		// 	// default:
+	// 		// }
+	// 		// // input.CopyBuffers(visBuffers, inputBuffers)
+
+	// 		select {
+	// 		case <-ctx.Done():
+	// 			return
+	// 		case <-kickChan:
+	// 			// case <-ticker.C:
+	// 			// default:
+	// 		}
+	// 		vis.Process(visChan, mu)
+
+	// 		ticker.Reset(dur)
+	// 	}
+	// }()
+
+	go vis.Process(ctx, kickChan, mu)
+
+	if err := audio.Start(ctx, inputBuffers, kickChan, mu); err != nil {
 		if !errors.Is(ctx.Err(), context.Canceled) {
 			return errors.Wrap(err, "failed to start input session")
 		}
@@ -94,38 +171,119 @@ func Catnip(cfg *config.Config) error {
 	return nil
 }
 
-func InitBackend(cfg *config.Config) (input.Backend, error) {
-	var backend = input.FindBackend(cfg.Backend)
-	if backend == nil {
-		return nil, fmt.Errorf("backend not found: %q; check list-backends", cfg.Backend)
+// NewZeroConfig returns a zero config
+// it is the "default"
+//
+// nora's defaults:
+//  - sampleRate: 122880
+//  - sampleSize: 2048
+//  - smoothFactor: 80.15
+//  - super smooth detail view
+func newZeroConfig() config {
+	return config{
+		backend:      "portaudio",
+		sampleRate:   44100,
+		sampleSize:   1024,
+		smoothFactor: 80.15,
+		frameRate:    0,
+		baseSize:     1,
+		barSize:      2,
+		spaceSize:    1,
+		channelCount: 2,
+		drawType:     int(graphic.DrawDefault),
+		combine:      false,
+		useThreaded:  false,
 	}
-
-	if err := backend.Init(); err != nil {
-		return nil, errors.Wrap(err, "failed to initialize input backend")
-	}
-
-	return backend, nil
 }
 
-func getDevice(backend input.Backend, cfg *config.Config) (input.Device, error) {
-	if cfg.Device == "" {
-		var def, err = backend.DefaultDevice()
-		if err != nil {
-			return nil, errors.Wrap(err, "failed to get default device")
-		}
-		return def, nil
+func doFlags(cfg *config) bool {
+
+	var parser = flaggy.NewParser(AppName)
+	parser.Description = AppDesc
+	parser.AdditionalHelpPrepend = AppSite
+	parser.Version = version
+
+	var listBackendsCmd = flaggy.Subcommand{
+		Name:                 "list-backends",
+		ShortName:            "lb",
+		Description:          "list all supported backends",
+		AdditionalHelpAppend: "\nuse the full name after the '-'",
 	}
 
-	var devices, err = backend.Devices()
+	parser.AttachSubcommand(&listBackendsCmd, 1)
+
+	var listDevicesCmd = flaggy.Subcommand{
+		Name:                 "list-devices",
+		ShortName:            "ld",
+		Description:          "list all devices for a backend",
+		AdditionalHelpAppend: "\nuse the full name after the '-'",
+	}
+
+	parser.AttachSubcommand(&listDevicesCmd, 1)
+
+	parser.String(&cfg.backend, "b", "backend", "backend name")
+	parser.String(&cfg.device, "d", "device", "device name")
+	parser.Float64(&cfg.sampleRate, "r", "rate", "sample rate")
+	parser.Int(&cfg.sampleSize, "n", "samples", "sample size")
+	parser.Int(&cfg.frameRate, "f", "fps", "frame rate (0 to draw on every sample)")
+	parser.Int(&cfg.channelCount, "ch", "channels", "channel count (1 or 2)")
+	parser.Float64(&cfg.smoothFactor, "sf", "smoothing", "smooth factor (0-100)")
+	parser.Int(&cfg.baseSize, "bt", "base", "base thickness [0, +Inf)")
+	parser.Int(&cfg.barSize, "bw", "bar", "bar width [1, +Inf)")
+	parser.Int(&cfg.spaceSize, "sw", "space", "space width [0, +Inf)")
+	parser.Int(&cfg.drawType, "dt", "draw", "draw type (1, 2, 3)")
+	parser.Bool(&cfg.useThreaded, "t", "threaded", "use the threaded visualizer")
+
+	fg, bg, center := graphic.DefaultStyles().AsUInt16s()
+	parser.UInt16(&fg, "fg", "foreground",
+		"foreground color within the 256-color range [0, 255] with attributes")
+	parser.UInt16(&bg, "bg", "background",
+		"background color within the 256-color range [0, 255] with attributes")
+	parser.UInt16(&center, "ct", "center",
+		"center line color within the 256-color range [0, 255] with attributes")
+
+	chk(parser.Parse(), "failed to parse arguments")
+
+	// Manually set the styles.
+	cfg.styles = graphic.StylesFromUInt16(fg, bg, center)
+
+	switch {
+	case listBackendsCmd.Used:
+		for _, backend := range input.Backends {
+			fmt.Printf("- %s\n", backend.Name)
+		}
+
+		return true
+
+	case listDevicesCmd.Used:
+		backend, err := input.InitBackend(cfg.backend)
+		chk(err, "failed to init backend")
+
+		devices, err := backend.Devices()
+		chk(err, "failed to get devices")
+
+		// We don't really need the default device to be indicated.
+		defaultDevice, _ := backend.DefaultDevice()
+
+		fmt.Printf("all devices for %q backend. '*' marks default\n", cfg.backend)
+
+		for idx := range devices {
+			var star = ' '
+			if defaultDevice != nil && devices[idx].String() == defaultDevice.String() {
+				star = '*'
+			}
+
+			fmt.Printf("- %v %c\n", devices[idx], star)
+		}
+
+		return true
+	}
+
+	return false
+}
+
+func chk(err error, wrap string) {
 	if err != nil {
-		return nil, errors.Wrap(err, "failed to get devices")
+		log.Fatalln(wrap+": ", err)
 	}
-
-	for idx := range devices {
-		if devices[idx].String() == cfg.Device {
-			return devices[idx], nil
-		}
-	}
-
-	return nil, errors.Errorf("device %q not found; check list-devices", cfg.Device)
 }
