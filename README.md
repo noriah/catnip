@@ -17,8 +17,9 @@
 ## it supports audio backends
 - PortAudio (linux/macOS/*windblows**)
 - PulseAudio (parec/FFmpeg)
-- AVFoundation (FFmpeg)
-- ALSA (FFmpeg)
+- AVFoundation (macOS FFmpeg)
+- DirectShow (windblows FFmpeg)
+- ALSA (linux/FFmpeg)
 
 ## it depends on
 

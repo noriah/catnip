@@ -1,5 +1,4 @@
-//go:build cgo && !noportaudio
-// +build cgo,!noportaudio
+//go:build (cgo && !windows && !noportaudio) || (cgo && windows && enablePortaudio)
 
 package main
 
