@@ -1,10 +1,8 @@
-//go:build !cgo || windows
+//go:build !cgo || nofftw || windows
 
 package fft
 
-import (
-	"gonum.org/v1/gonum/dsp/fourier"
-)
+import "gonum.org/v1/gonum/dsp/fourier"
 
 // FFTW is false if Catnip is not built with cgo. It will use gonum instead.
 const FFTW = false

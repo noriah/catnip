@@ -1,8 +1,6 @@
 package util
 
-import (
-	"math"
-)
+import "math"
 
 // MovingWindow is a moving window
 type MovingWindow struct {

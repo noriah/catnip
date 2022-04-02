@@ -12,14 +12,14 @@
 	</a>
 </p>
 
-*windows needs work
-
 ## it supports audio backends
 - PortAudio (linux/macOS/*windblows**)
 - PulseAudio (parec/FFmpeg)
 - AVFoundation (macOS FFmpeg)
+- ALSA (linux FFmpeg)
 - DirectShow (windblows FFmpeg)
-- ALSA (linux/FFmpeg)
+
+*portaudio is difficult on windows, so by default it is disabled on windows.
 
 ## it depends on
 
@@ -30,8 +30,8 @@
 	- github.com/lawl/pulseaudio
 	- gonum.org/v1/gonum
 
-- c libraries (optional, disable with `CGO_ENABLED=0`)
-	- fftw (fftw3)
+- c libraries (optional, disable all with `CGO_ENABLED=0`)
+	- fftw (fftw3) (disable with `-tags nofftw`)
 	- portaudio (portaudio-2.0) (disable with `-tags noportaudio`)
 
 - binaries
@@ -44,7 +44,7 @@
 # get source
 git clone https://github.com/noriah/catnip.git
 
-# cd to source
+# cd to dir
 cd catnip
 
 # build and install catnip
@@ -53,8 +53,11 @@ go install
 # without cgo
 CGO_ENABLED=0 go install
 
-# without portaudio
+# without portaudio on linux/unix/macOS
 go install -tags noportaudio
+
+# with portaudio on windows
+go install -tags portonwin
 ```
 
 ## run it
