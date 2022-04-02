@@ -162,13 +162,13 @@ func (s *Session) Start(ctx context.Context, dst [][]input.Sample, kickChan chan
 			case kickChan <- true:
 				break loop
 			default:
-				fmt.Println("waiting")
+				// fmt.Println("waiting")
 			}
 
 			if ready, _ := stream.AvailableToRead(); ready >= samples {
-				if ready > samples {
-					fmt.Println("OVER", ready)
-				}
+				// if ready > samples {
+				// 	fmt.Println("OVER", ready)
+				// }
 				break
 			}
 		}
