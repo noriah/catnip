@@ -1,4 +1,4 @@
-//go:build !cgo || nofftw || windows
+//go:build !cgo || nofftw || (windows && !fftwonwin)
 
 package fft
 

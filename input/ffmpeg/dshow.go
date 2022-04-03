@@ -53,9 +53,9 @@ func (p DShow) Devices() ([]input.Device, error) {
 	o, _ := cmd.CombinedOutput()
 
 	audio := true
-	var devices []input.Device
+	scanner := bufio.NewScanner(bytes.NewReader(o))
 
-	var scanner = bufio.NewScanner(bytes.NewReader(o))
+	var devices []input.Device
 
 	for scanner.Scan() {
 		text := scanner.Text()
@@ -97,11 +97,11 @@ func (p DShow) Devices() ([]input.Device, error) {
 
 	if len(devices) == 0 {
 		// This is completely for visual.
-		var lines = strings.Split(string(o), "\n")
+		lines := strings.Split(string(o), "\n")
 		for i, line := range lines {
 			lines[i] = "\t" + line
 		}
-		var output = strings.Join(lines, "\n")
+		output := strings.Join(lines, "\n")
 
 		return nil, fmt.Errorf("no devices found; ffmpeg output:\n%s", output)
 	}

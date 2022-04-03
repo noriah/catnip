@@ -1,4 +1,4 @@
-package visualizer
+package processor
 
 import (
 	"context"
@@ -11,7 +11,7 @@ import (
 	"github.com/noriah/catnip/util"
 )
 
-type threadedVisualizer struct {
+type threadedProcessor struct {
 	channelCount int
 
 	bars int
@@ -39,11 +39,11 @@ type threadedVisualizer struct {
 	disp Display
 }
 
-func NewThreaded(cfg Config) *threadedVisualizer {
+func NewThreaded(cfg Config) *threadedProcessor {
 	slowSize := ((int(ScalingSlowWindow * cfg.SampleRate)) / cfg.SampleSize) * 2
 	fastSize := ((int(ScalingFastWindow * cfg.SampleRate)) / cfg.SampleSize) * 2
 
-	vis := &threadedVisualizer{
+	vis := &threadedProcessor{
 		channelCount: cfg.ChannelCount,
 		slowWindow:   util.NewMovingWindow(slowSize),
 		fastWindow:   util.NewMovingWindow(fastSize),
@@ -68,7 +68,7 @@ func NewThreaded(cfg Config) *threadedVisualizer {
 	return vis
 }
 
-func (vis *threadedVisualizer) channelProcessor(ch int, kick <-chan bool) {
+func (vis *threadedProcessor) channelProcessor(ch int, kick <-chan bool) {
 	buffer := vis.inputBufs[ch]
 	plan := vis.plans[ch]
 	barBuf := vis.barBufs[ch]
@@ -102,7 +102,7 @@ func (vis *threadedVisualizer) channelProcessor(ch int, kick <-chan bool) {
 	}
 }
 
-func (vis *threadedVisualizer) Start(ctx context.Context) context.Context {
+func (vis *threadedProcessor) Start(ctx context.Context) context.Context {
 	vis.ctx, vis.cancel = context.WithCancel(ctx)
 
 	for i, kick := range vis.kicks {
@@ -112,14 +112,14 @@ func (vis *threadedVisualizer) Start(ctx context.Context) context.Context {
 	return vis.ctx
 }
 
-func (vis *threadedVisualizer) Stop() {
+func (vis *threadedProcessor) Stop() {
 	if vis.cancel != nil {
 		vis.cancel()
 	}
 }
 
 // Process runs one draw refresh with the visualizer on the termbox screen.
-func (vis *threadedVisualizer) Process(ctx context.Context, kickChan chan bool, mu *sync.Mutex) {
+func (vis *threadedProcessor) Process(ctx context.Context, kickChan chan bool, mu *sync.Mutex) {
 	if n := vis.disp.Bars(vis.channelCount); n != vis.bars {
 		vis.bars = vis.anlz.Recalculate(n)
 	}
@@ -140,7 +140,7 @@ func (vis *threadedVisualizer) Process(ctx context.Context, kickChan chan bool, 
 		}
 	}
 
-	var scale = 1.0
+	scale := 1.0
 
 	// do some scaling if we are above the PeakThreshold
 	if peak >= PeakThreshold {

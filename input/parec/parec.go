@@ -35,7 +35,7 @@ func (p Backend) Devices() ([]input.Device, error) {
 		return nil, errors.Wrap(err, "failed to get sources")
 	}
 
-	var devices = make([]input.Device, len(s))
+	devices := make([]input.Device, len(s))
 	for i, source := range s {
 		devices[i] = PulseDevice(source.Name)
 	}
@@ -72,7 +72,7 @@ func NewSession(cfg input.SessionConfig) (*execread.Session, error) {
 		return nil, errors.New("channel count not supported, mono/stereo only")
 	}
 
-	var args = []string{
+	args := []string{
 		"parec",
 		"--format=float32le",
 		fmt.Sprintf("--rate=%.0f", cfg.SampleRate),

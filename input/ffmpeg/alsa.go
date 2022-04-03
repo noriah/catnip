@@ -35,7 +35,7 @@ func (p ALSA) Devices() ([]input.Device, error) {
 
 	var devices []input.Device
 
-	var scanner = bufio.NewScanner(f)
+	scanner := bufio.NewScanner(f)
 	for scanner.Scan() {
 		prefix := strings.Split(scanner.Text(), ":")[0]
 

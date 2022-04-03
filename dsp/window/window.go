@@ -15,9 +15,9 @@ func Rectangle(buf []float64) {
 
 // CosSum modifies the buffer to conform to a cosine sum window following a0
 func CosSum(buf []float64, a0 float64) {
-	var size = len(buf)
-	var a1 = 1.0 - a0
-	var coef = 2.0 * math.Pi / float64(size)
+	size := len(buf)
+	a1 := 1.0 - a0
+	coef := 2.0 * math.Pi / float64(size)
 	for n := 0; n < size; n++ {
 		buf[n] *= (a0 - (a1 * math.Cos(coef*float64(n))))
 	}
@@ -65,7 +65,7 @@ func Hann(buf []float64) {
 
 // Bartlett modifies the buffer to a Bartlett window
 func Bartlett(buf []float64) {
-	var N = float64(len(buf))
+	N := float64(len(buf))
 	for n := range buf {
 		buf[n] *= (1.0 - (math.Abs(((2.0 * float64(n)) - N) / N)))
 	}
@@ -94,8 +94,8 @@ func Blackman(buf []float64) {
 //
 // not sure how i got this
 func PlanckTaper(buf []float64, e float64) {
-	var size = len(buf)
-	var eN = e * float64(size)
+	size := len(buf)
+	eN := e * float64(size)
 
 	buf[0] *= 0
 	for n := 1; n < int(eN); n++ {

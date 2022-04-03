@@ -56,7 +56,7 @@ func (mw *MovingWindow) Update(value float64) (float64, float64) {
 		mw.variance += (value * value)
 
 	} else {
-		var old = mw.data[mw.index]
+		old := mw.data[mw.index]
 		mw.sum += value - old
 		mw.variance += (value * value) - (old * old)
 	}
@@ -71,7 +71,6 @@ func (mw *MovingWindow) Update(value float64) (float64, float64) {
 }
 
 // Drop removes count items from the window
-// TODO(winter): look into a better index calculation
 func (mw *MovingWindow) Drop(count int) (float64, float64) {
 	if mw.length <= 0 {
 		return mw.calcFinal()
@@ -79,12 +78,12 @@ func (mw *MovingWindow) Drop(count int) (float64, float64) {
 
 	for count > 0 && mw.length > 0 {
 
-		var idx = (mw.index - mw.length)
+		idx := (mw.index - mw.length)
 		if idx < 0 {
 			idx = mw.capacity + idx
 		}
 
-		var old = mw.data[idx]
+		old := mw.data[idx]
 
 		mw.sum -= old
 		mw.variance -= old * old

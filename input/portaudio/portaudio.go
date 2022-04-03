@@ -10,10 +10,8 @@ import (
 	"github.com/pkg/errors"
 )
 
-var GlobalBackend = &Backend{}
-
 func init() {
-	input.RegisterBackend("portaudio", GlobalBackend)
+	input.RegisterBackend("portaudio", &PortBackend{})
 }
 
 // errors
@@ -22,21 +20,21 @@ var (
 	ErrReadTimedOut error = errors.New("read timed out")
 )
 
-// Backend represents the Portaudio backend. A zero-value instance is a
+// PortBackend represents the Portaudio backend. A zero-value instance is a
 // valid instance.
-type Backend struct {
+type PortBackend struct {
 	devices []*portaudio.DeviceInfo
 }
 
-func (b *Backend) Init() error {
+func (b *PortBackend) Init() error {
 	return portaudio.Initialize()
 }
 
-func (b *Backend) Close() error {
+func (b *PortBackend) Close() error {
 	return portaudio.Terminate()
 }
 
-func (b *Backend) Devices() ([]input.Device, error) {
+func (b *PortBackend) Devices() ([]input.Device, error) {
 	if b.devices == nil {
 		devices, err := portaudio.Devices()
 		if err != nil {
@@ -45,7 +43,7 @@ func (b *Backend) Devices() ([]input.Device, error) {
 		b.devices = devices
 	}
 
-	var gDevices = make([]input.Device, len(b.devices))
+	gDevices := make([]input.Device, len(b.devices))
 	for i, device := range b.devices {
 		gDevices[i] = Device{device}
 	}
@@ -53,7 +51,7 @@ func (b *Backend) Devices() ([]input.Device, error) {
 	return gDevices, nil
 }
 
-func (b *Backend) DefaultDevice() (input.Device, error) {
+func (b *PortBackend) DefaultDevice() (input.Device, error) {
 	defaultHost, err := portaudio.DefaultHostApi()
 	if err != nil {
 		return nil, errors.Wrap(err, "failed to get default host API")
@@ -66,7 +64,7 @@ func (b *Backend) DefaultDevice() (input.Device, error) {
 	return Device{defaultHost.DefaultInputDevice}, nil
 }
 
-func (b *Backend) Start(cfg input.SessionConfig) (input.Session, error) {
+func (b *PortBackend) Start(cfg input.SessionConfig) (input.Session, error) {
 	return NewSession(cfg)
 }
 
@@ -154,37 +152,19 @@ func (s *Session) Start(ctx context.Context, dst [][]input.Sample, kickChan chan
 		}
 		mu.Unlock()
 
-	loop:
+		loop := true
 		for {
 			select {
 			case <-ctx.Done():
 				return ctx.Err()
 			case kickChan <- true:
-				break loop
+				loop = false
 			default:
-				// fmt.Println("waiting")
 			}
 
-			if ready, _ := stream.AvailableToRead(); ready >= samples {
-				// if ready > samples {
-				// 	fmt.Println("OVER", ready)
-				// }
+			if ready, _ := stream.AvailableToRead(); !loop || ready >= samples {
 				break
 			}
 		}
-
-		// select {
-		// case <-ctx.Done():
-		// 	return ctx.Err()
-
-		// default:
-		// 	fmt.Println("waiting")
-		// }
-
-		// select {
-		// case <-ctx.Done():
-		// 	return ctx.Err()
-		// case <-kickChan:
-		// }
 	}
 }

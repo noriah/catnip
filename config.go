@@ -22,6 +22,8 @@ type config struct {
 	// hiCutFreq float64
 	// SmoothFactor factor of smooth
 	smoothFactor float64
+	// SampleSize is how much we draw. Play with it
+	sampleSize int
 	// FrameRate is the number of frames to draw every second (0 draws it every
 	// perfect sample)
 	frameRate int
@@ -31,8 +33,6 @@ type config struct {
 	barSize int
 	// SpaceSize is the size of spaces, in columns/rows
 	spaceSize int
-	// SampleSiz is how much we draw. Play with it
-	sampleSize int
 	// ChannelCount is the number of channels we want to look at. DO NOT TOUCH
 	channelCount int
 	// Combine determines if we merge streams (stereo -> mono)

@@ -44,7 +44,7 @@ func FindBackend(name string) Backend {
 }
 
 func InitBackend(bknd string) (Backend, error) {
-	var backend = FindBackend(bknd)
+	backend := FindBackend(bknd)
 	if backend == nil {
 		return nil, fmt.Errorf("backend not found: %q; check list-backends", bknd)
 	}
@@ -58,14 +58,14 @@ func InitBackend(bknd string) (Backend, error) {
 
 func GetDevice(backend Backend, device string) (Device, error) {
 	if device == "" {
-		var def, err = backend.DefaultDevice()
+		def, err := backend.DefaultDevice()
 		if err != nil {
 			return nil, errors.Wrap(err, "failed to get default device")
 		}
 		return def, nil
 	}
 
-	var devices, err = backend.Devices()
+	devices, err := backend.Devices()
 	if err != nil {
 		return nil, errors.Wrap(err, "failed to get devices")
 	}

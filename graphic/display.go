@@ -143,7 +143,7 @@ func (d *Display) inputProcessor() {
 	defer atomic.StoreUint32(&d.running, 0)
 
 	for {
-		var ev = termbox.PollEvent()
+		ev := termbox.PollEvent()
 
 		switch ev.Type {
 		case termbox.EventKey:
@@ -326,7 +326,7 @@ func (d *Display) SetDrawType(dt DrawType) {
 
 // Bars returns the number of bars we will draw.
 func (d *Display) Bars(sets ...int) int {
-	var x = 1
+	x := 1
 	if len(sets) > 0 {
 		x = sets[0]
 	}
@@ -344,7 +344,7 @@ func (d *Display) Bars(sets ...int) int {
 }
 
 func sizeAndCap(value float64, space int, zeroBase bool, baseRune rune) (int, rune) {
-	var steps, stop = int(value * NumRunes), space * NumRunes
+	steps, stop := int(value*NumRunes), space*NumRunes
 
 	if zeroBase {
 		if steps < stop {

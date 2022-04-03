@@ -1,4 +1,4 @@
-package visualizer
+package processor
 
 import (
 	"context"
@@ -36,7 +36,7 @@ type Display interface {
 	Draw([][]float64, int, int, float64) error
 }
 
-type Visualizer interface {
+type Processor interface {
 	Start(ctx context.Context) context.Context
 	Stop()
 	Process(context.Context, chan bool, *sync.Mutex)
@@ -52,7 +52,7 @@ type Config struct {
 	Display      Display          // display
 }
 
-type visualizer struct {
+type processor struct {
 	channelCount int
 	frameRate    int
 
@@ -74,12 +74,12 @@ type visualizer struct {
 	disp Display
 }
 
-func New(cfg Config) *visualizer {
+func New(cfg Config) *processor {
 	slowSize := ((int(ScalingSlowWindow * cfg.SampleRate)) / cfg.SampleSize) * 2
 
 	fastSize := ((int(ScalingFastWindow * cfg.SampleRate)) / cfg.SampleSize) * 2
 
-	vis := &visualizer{
+	vis := &processor{
 		channelCount: cfg.ChannelCount,
 		frameRate:    cfg.FrameRate,
 		slowWindow:   util.NewMovingWindow(slowSize),
@@ -102,15 +102,15 @@ func New(cfg Config) *visualizer {
 	return vis
 }
 
-func (vis *visualizer) Start(ctx context.Context) context.Context {
+func (vis *processor) Start(ctx context.Context) context.Context {
 
 	return ctx
 }
 
-func (vis *visualizer) Stop() {}
+func (vis *processor) Stop() {}
 
-// Process runs one draw refresh with the visualizer on the termbox screen.
-func (vis *visualizer) Process(ctx context.Context, kickChan chan bool, mu *sync.Mutex) {
+// Process runs one draw refresh with the processor on the termbox screen.
+func (vis *processor) Process(ctx context.Context, kickChan chan bool, mu *sync.Mutex) {
 	if vis.frameRate <= 0 {
 		// if we do not have a framerate set, allow at most 1 second per sampling
 		vis.frameRate = 1
@@ -148,7 +148,7 @@ func (vis *visualizer) Process(ctx context.Context, kickChan chan bool, mu *sync
 			}
 		}
 
-		var scale = 1.0
+		scale := 1.0
 
 		// do some scaling if we are above the PeakThreshold
 		if peak >= PeakThreshold {

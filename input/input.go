@@ -38,7 +38,7 @@ type Sample = float64
 
 // MakeBuffer allocates a slice of sample buffers.
 func MakeBuffers(channels, samples int) [][]Sample {
-	var buf = make([][]Sample, channels)
+	buf := make([][]Sample, channels)
 	for i := range buf {
 		buf[i] = make([]Sample, samples)
 	}

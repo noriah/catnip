@@ -1,4 +1,4 @@
-//go:build (cgo && !windows && !noportaudio) || (cgo && windows && portonwin)
+//go:build cgo && ((!windows && !noportaudio) || (windows && portonwin))
 
 package main
 

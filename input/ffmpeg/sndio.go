@@ -31,7 +31,7 @@ func (p Sndio) Devices() ([]input.Device, error) {
 		return nil, errors.Wrap(err, "failed to glob /dev/audio")
 	}
 
-	var devices = make([]input.Device, len(n))
+	devices := make([]input.Device, len(n))
 	for i, path := range n {
 		devices[i] = SndioDevice(path)
 	}

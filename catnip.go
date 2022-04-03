@@ -9,7 +9,7 @@ import (
 	"github.com/noriah/catnip/dsp"
 	"github.com/noriah/catnip/graphic"
 	"github.com/noriah/catnip/input"
-	"github.com/noriah/catnip/visualizer"
+	"github.com/noriah/catnip/processor"
 
 	_ "github.com/noriah/catnip/input/ffmpeg"
 	_ "github.com/noriah/catnip/input/parec"
@@ -32,7 +32,7 @@ var version = "unknown"
 func main() {
 	log.SetFlags(0)
 
-	var cfg = newZeroConfig()
+	cfg := newZeroConfig()
 
 	if doFlags(&cfg) {
 		return
@@ -43,7 +43,7 @@ func main() {
 	chk(catnip(&cfg), "failed to run catnip")
 }
 
-// Catnip starts to draw the visualizer on the termbox screen.
+// Catnip starts to draw the processor on the termbox screen.
 func catnip(cfg *config) error {
 
 	display := &graphic.Display{}
@@ -58,7 +58,7 @@ func catnip(cfg *config) error {
 	inputBuffers := input.MakeBuffers(cfg.channelCount, cfg.sampleSize)
 	// visBuffers := input.MakeBuffers(cfg.channelCount, cfg.sampleSize)
 
-	procConfig := visualizer.Config{
+	procConfig := processor.Config{
 		SampleRate:   cfg.sampleRate,
 		SampleSize:   cfg.sampleSize,
 		ChannelCount: cfg.channelCount,
@@ -68,17 +68,17 @@ func catnip(cfg *config) error {
 		Display:      display,
 	}
 
-	var vis visualizer.Visualizer
+	var vis processor.Processor
 
 	if cfg.useThreaded {
-		vis = visualizer.NewThreaded(procConfig)
+		vis = processor.NewThreaded(procConfig)
 	} else {
-		vis = visualizer.New(procConfig)
+		vis = processor.New(procConfig)
 	}
 
 	// INPUT SETUP
 
-	var backend, err = input.InitBackend(cfg.backend)
+	backend, err := input.InitBackend(cfg.backend)
 	if err != nil {
 		return err
 	}
@@ -174,7 +174,7 @@ func catnip(cfg *config) error {
 // NewZeroConfig returns a zero config
 // it is the "default"
 //
-// nora's defaults:
+// nori's defaults:
 //  - sampleRate: 122880
 //  - sampleSize: 2048
 //  - smoothFactor: 80.15
@@ -198,12 +198,12 @@ func newZeroConfig() config {
 
 func doFlags(cfg *config) bool {
 
-	var parser = flaggy.NewParser(AppName)
+	parser := flaggy.NewParser(AppName)
 	parser.Description = AppDesc
 	parser.AdditionalHelpPrepend = AppSite
 	parser.Version = version
 
-	var listBackendsCmd = flaggy.Subcommand{
+	listBackendsCmd := flaggy.Subcommand{
 		Name:                 "list-backends",
 		ShortName:            "lb",
 		Description:          "list all supported backends",
@@ -212,7 +212,7 @@ func doFlags(cfg *config) bool {
 
 	parser.AttachSubcommand(&listBackendsCmd, 1)
 
-	var listDevicesCmd = flaggy.Subcommand{
+	listDevicesCmd := flaggy.Subcommand{
 		Name:                 "list-devices",
 		ShortName:            "ld",
 		Description:          "list all devices for a backend",
@@ -232,7 +232,7 @@ func doFlags(cfg *config) bool {
 	parser.Int(&cfg.barSize, "bw", "bar", "bar width [1, +Inf)")
 	parser.Int(&cfg.spaceSize, "sw", "space", "space width [0, +Inf)")
 	parser.Int(&cfg.drawType, "dt", "draw", "draw type (1, 2, 3)")
-	parser.Bool(&cfg.useThreaded, "t", "threaded", "use the threaded visualizer")
+	parser.Bool(&cfg.useThreaded, "t", "threaded", "use the threaded processor")
 
 	fg, bg, center := graphic.DefaultStyles().AsUInt16s()
 	parser.UInt16(&fg, "fg", "foreground",
@@ -268,7 +268,7 @@ func doFlags(cfg *config) bool {
 		fmt.Printf("all devices for %q backend. '*' marks default\n", cfg.backend)
 
 		for idx := range devices {
-			var star = ' '
+			star := ' '
 			if defaultDevice != nil && devices[idx].String() == defaultDevice.String() {
 				star = '*'
 			}

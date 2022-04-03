@@ -28,9 +28,9 @@ func Benchmark(b *testing.B) {
 const numReals = 44100
 
 func generateReals() []float64 {
-	var input = make([]float64, numReals)
+	input := make([]float64, numReals)
 
-	var c = 3.1
+	c := 3.1
 	for i := range input {
 		c += 0.3
 		input[i] = 2*c - c*c

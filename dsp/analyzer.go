@@ -11,9 +11,7 @@
 //
 package dsp
 
-import (
-	"math"
-)
+import "math"
 
 type Config struct {
 	SampleRate      float64 // audio sample rate
@@ -47,8 +45,8 @@ type bin struct {
 	// widthFFT int     // fft floor-ceiling index delta
 }
 
-// Frequencies are the dividing frequencies
-var Frequencies = []float64{
+// frequencies are the dividing frequencies
+var frequencies = []float64{
 	// sub sub bass
 	20.0, // 0
 	// sub bass
@@ -140,8 +138,8 @@ func (az *analyzer) Recalculate(binCount int) int {
 
 	az.distribute(binCount)
 
-	var bassCut = az.freqToIdx(Frequencies[2], math.Floor)
-	var fBassCut = float64(bassCut)
+	bassCut := az.freqToIdx(frequencies[2], math.Floor)
+	fBassCut := float64(bassCut)
 
 	// set widths
 	for idx, b := range az.bins[:binCount] {
@@ -160,16 +158,19 @@ func (az *analyzer) Recalculate(binCount int) int {
 	return binCount
 }
 
+// This is some hot garbage.
+// It essentially is a lot of work to just increment from 0 for each next bin.
+// Working on replacing this with a real distribution.
 func (az *analyzer) distribute(bins int) {
-	var lo = Frequencies[1]
-	var hi = math.Min(az.cfg.SampleRate/2, Frequencies[4])
+	lo := frequencies[1]
+	hi := math.Min(az.cfg.SampleRate/2, frequencies[4])
 
-	var loLog = math.Log10(lo)
-	var hiLog = math.Log10(hi)
+	loLog := math.Log10(lo)
+	hiLog := math.Log10(hi)
 
-	var cF = (hiLog - loLog) / float64(bins)
+	cF := (hiLog - loLog) / float64(bins)
 
-	var cCoef = 100.0 / float64(bins+1)
+	cCoef := 100.0 / float64(bins+1)
 
 	for idx := range az.bins[:bins+1] {
 
@@ -193,7 +194,7 @@ func (az *analyzer) distribute(bins int) {
 type mathFunc func(float64) float64
 
 func (az *analyzer) freqToIdx(freq float64, round mathFunc) int {
-	var b = int(round(freq / (az.cfg.SampleRate / float64(az.cfg.SampleSize))))
+	b := int(round(freq / (az.cfg.SampleRate / float64(az.cfg.SampleSize))))
 
 	if b < az.fftSize {
 		return b
@@ -208,7 +209,7 @@ func (az *analyzer) setSmoothing(factor float64) {
 		factor = math.SmallestNonzeroFloat64
 	}
 
-	var sf = math.Pow(10.0, (1.0-factor)*(-25.0))
+	sf := math.Pow(10.0, (1.0-factor)*(-25.0))
 
 	az.smoothFactor = math.Pow(sf, float64(az.cfg.SampleSize)/az.cfg.SampleRate)
 }

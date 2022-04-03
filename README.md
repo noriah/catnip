@@ -19,7 +19,7 @@
 - ALSA (linux FFmpeg)
 - DirectShow (windblows FFmpeg)
 
-*portaudio is difficult on windows, so by default it is disabled on windows.
+*portaudio is difficult on windows. by default it is disabled on windows.
 
 ## it depends on
 
@@ -58,6 +58,9 @@ go install -tags noportaudio
 
 # with portaudio on windows
 go install -tags portonwin
+
+# with fftw3 on windows
+go install -tags fftwonwin
 ```
 
 ## run it
