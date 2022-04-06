@@ -181,7 +181,6 @@ func catnip(cfg *config) error {
 //  - super smooth detail view
 func newZeroConfig() config {
 	return config{
-		backend:      "portaudio",
 		sampleRate:   44100,
 		sampleSize:   1024,
 		smoothFactor: 80.15,
