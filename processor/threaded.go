@@ -38,6 +38,7 @@ type threadedProcessor struct {
 	plans []*fft.Plan
 
 	anlz Analyzer
+	smth Smoother
 	disp Display
 }
 
@@ -57,6 +58,7 @@ func NewThreaded(cfg Config) *threadedProcessor {
 		inputBufs:    cfg.Buffers,
 		plans:        make([]*fft.Plan, cfg.ChannelCount),
 		anlz:         cfg.Analyzer,
+		smth:         cfg.Smoother,
 		disp:         cfg.Display,
 	}
 
@@ -90,7 +92,8 @@ func (vis *threadedProcessor) channelProcessor(ch int, kick <-chan bool) {
 		peak := 0.0
 
 		for i := range barBuf[:vis.bars] {
-			v := vis.anlz.ProcessBin(ch, i, fftBuf)
+			v := vis.anlz.ProcessBin(i, fftBuf)
+			v = vis.smth.SmoothBin(ch, i, v)
 
 			if peak < v {
 				peak = v

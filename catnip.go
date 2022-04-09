@@ -48,13 +48,6 @@ func catnip(cfg *config) error {
 
 	display := &graphic.Display{}
 
-	anlzConfig := dsp.Config{
-		SampleRate:      cfg.sampleRate,
-		SampleSize:      cfg.sampleSize,
-		ChannelCount:    cfg.channelCount,
-		SmoothingFactor: cfg.smoothFactor,
-	}
-
 	inputBuffers := input.MakeBuffers(cfg.channelCount, cfg.sampleSize)
 	// visBuffers := input.MakeBuffers(cfg.channelCount, cfg.sampleSize)
 
@@ -65,9 +58,15 @@ func catnip(cfg *config) error {
 		FrameRate:    cfg.frameRate,
 		InvertDraw:   cfg.invertDraw,
 		Buffers:      inputBuffers,
-		Analyzer:     dsp.NewAnalyzer(anlzConfig),
-		Smoother:     dsp.NewSmoother(anlzConfig),
-		Display:      display,
+		Analyzer: dsp.NewAnalyzer(dsp.AnalyzerConfig{
+			SampleRate: cfg.sampleRate,
+			SampleSize: cfg.sampleSize,
+		}),
+		Smoother: dsp.NewSmoother(dsp.SmootherConfig{
+			SampleSize:      cfg.sampleSize,
+			ChannelCount:    cfg.channelCount,
+			SmoothingFactor: cfg.smoothFactor}),
+		Display: display,
 	}
 
 	var vis processor.Processor

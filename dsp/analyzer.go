@@ -13,11 +13,9 @@ package dsp
 
 import "math"
 
-type Config struct {
-	SampleRate      float64 // audio sample rate
-	SampleSize      int     // number of samples per slice
-	ChannelCount    int     // number of channels
-	SmoothingFactor float64 // smoothing factor
+type AnalyzerConfig struct {
+	SampleRate float64 // audio sample rate
+	SampleSize int     // number of samples per slice
 }
 
 type Analyzer interface {
@@ -28,10 +26,10 @@ type Analyzer interface {
 
 // analyzer is an audio spectrum in a buffer
 type analyzer struct {
-	cfg      Config // the analyzer config
-	bins     []bin  // bins for processing
-	binCount int    // number of bins we look at
-	fftSize  int    // number of fft bins
+	cfg      AnalyzerConfig // the analyzer config
+	bins     []bin          // bins for processing
+	binCount int            // number of bins we look at
+	fftSize  int            // number of fft bins
 }
 
 // Bin is a helper struct for spectrum
@@ -60,7 +58,7 @@ var frequencies = []float64{
 	// everything else
 }
 
-func NewAnalyzer(cfg Config) Analyzer {
+func NewAnalyzer(cfg AnalyzerConfig) Analyzer {
 	return &analyzer{
 		cfg:     cfg,
 		bins:    make([]bin, cfg.SampleSize),

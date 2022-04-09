@@ -2,19 +2,23 @@ package dsp
 
 import "math"
 
+type SmootherConfig struct {
+	SampleSize      int     // number of samples per slice
+	ChannelCount    int     // number of channels
+	SmoothingFactor float64 // smoothing factor
+}
+
 type Smoother interface {
 	SmoothBin(int, int, float64) float64
 }
 
 type smoother struct {
-	cfg          Config      // the analyzer config
 	values       [][]float64 // old values used for smoothing
 	smoothFactor float64     // smothing factor
 }
 
-func NewSmoother(cfg Config) Smoother {
+func NewSmoother(cfg SmootherConfig) Smoother {
 	sm := &smoother{
-		cfg: cfg,
 		values: make([][]float64, cfg.ChannelCount),
 	}
 
@@ -36,7 +40,6 @@ func (sm *smoother) SmoothBin(ch, idx int, value float64) float64 {
 	return value
 }
 
-
 // SetSmoothing sets the smoothing parameters
 func (sm *smoother) setSmoothing(factor float64) {
 	if factor <= 0.0 {
@@ -45,5 +48,6 @@ func (sm *smoother) setSmoothing(factor float64) {
 
 	sf := math.Pow(10.0, (1.0-factor)*(-25.0))
 
-	sm.smoothFactor = math.Pow(sf, float64(sm.cfg.SampleSize)/sm.cfg.SampleRate)
+	// roughly 2048/122800
+	sm.smoothFactor = math.Pow(sf, 0.0167)
 }
