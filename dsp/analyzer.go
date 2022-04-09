@@ -22,7 +22,7 @@ type Config struct {
 
 type Analyzer interface {
 	BinCount() int
-	ProcessBin(int, int, []complex128) float64
+	ProcessBin(int, []complex128) float64
 	Recalculate(int) int
 }
 
@@ -73,7 +73,7 @@ func (az *analyzer) BinCount() int {
 	return az.binCount
 }
 
-func (az *analyzer) ProcessBin(ch, idx int, src []complex128) float64 {
+func (az *analyzer) ProcessBin(idx int, src []complex128) float64 {
 	mag := 0.0
 	bin := az.bins[idx]
 

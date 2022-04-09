@@ -27,7 +27,7 @@ const (
 
 type Analyzer interface {
 	BinCount() int
-	ProcessBin(int, int, []complex128) float64
+	ProcessBin(int, []complex128) float64
 	Recalculate(int) int
 }
 
@@ -149,7 +149,7 @@ func (vis *processor) Process(ctx context.Context, kickChan chan bool, mu *sync.
 			buf := vis.barBufs[idx]
 
 			for bIdx := range buf[:vis.bars] {
-				v := vis.anlz.ProcessBin(idx, bIdx, vis.fftBufs[idx])
+				v := vis.anlz.ProcessBin(bIdx, vis.fftBufs[idx])
 				v = vis.smth.SmoothBin(idx, bIdx, v)
 
 				if peak < v {
