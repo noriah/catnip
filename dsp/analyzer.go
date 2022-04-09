@@ -28,10 +28,10 @@ type Analyzer interface {
 
 // analyzer is an audio spectrum in a buffer
 type analyzer struct {
-	cfg          Config      // the analyzer config
-	bins         []bin       // bins for processing
-	binCount     int         // number of bins we look at
-	fftSize      int         // number of fft bins
+	cfg      Config // the analyzer config
+	bins     []bin  // bins for processing
+	binCount int    // number of bins we look at
+	fftSize  int    // number of fft bins
 }
 
 // Bin is a helper struct for spectrum
@@ -62,9 +62,9 @@ var frequencies = []float64{
 
 func NewAnalyzer(cfg Config) Analyzer {
 	return &analyzer{
-		cfg:    cfg,
-		bins:   make([]bin, cfg.SampleSize),
-		fftSize: cfg.SampleSize/2+1,
+		cfg:     cfg,
+		bins:    make([]bin, cfg.SampleSize),
+		fftSize: cfg.SampleSize/2 + 1,
 	}
 }
 
@@ -90,11 +90,11 @@ func (az *analyzer) ProcessBin(ch, idx int, src []complex128) float64 {
 		}
 	}
 
+	// squash the low low end a bit.
 	if f := az.freqToIdx(400.0, math.Floor); fftFloor < f {
 		mag *= (0.55 * (float64(fftFloor+1) / float64(f)))
 	}
 
-	// time smoothing
 	if mag = math.Log(mag); mag < 0.0 {
 		mag = 0.0
 	}
