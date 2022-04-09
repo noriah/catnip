@@ -231,7 +231,7 @@ func doFlags(cfg *config) bool {
 	parser.Int(&cfg.baseSize, "bt", "base", "base thickness [0, +Inf)")
 	parser.Int(&cfg.barSize, "bw", "bar", "bar width [1, +Inf)")
 	parser.Int(&cfg.spaceSize, "sw", "space", "space width [0, +Inf)")
-	parser.Int(&cfg.drawType, "dt", "draw", "draw type (1, 2, 3)")
+	parser.Int(&cfg.drawType, "dt", "draw", "draw type (1, 2, 3, 4, 5, 6)")
 	parser.Bool(&cfg.useThreaded, "t", "threaded", "use the threaded processor")
 
 	fg, bg, center := graphic.DefaultStyles().AsUInt16s()
