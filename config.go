@@ -41,6 +41,8 @@ type config struct {
 	combine bool
 	// Use threaded processor
 	useThreaded bool
+	// Invert the order of bin drawing
+	invertDraw bool
 	// DrawType is the draw type
 	styles graphic.Styles
 }

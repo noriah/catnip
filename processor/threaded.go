@@ -16,6 +16,8 @@ type threadedProcessor struct {
 
 	bars int
 
+	invertDraw bool
+
 	slowWindow *util.MovingWindow
 	fastWindow *util.MovingWindow
 
@@ -45,6 +47,7 @@ func NewThreaded(cfg Config) *threadedProcessor {
 
 	vis := &threadedProcessor{
 		channelCount: cfg.ChannelCount,
+		invertDraw:   cfg.InvertDraw,
 		slowWindow:   util.NewMovingWindow(slowSize),
 		fastWindow:   util.NewMovingWindow(fastSize),
 		fftBufs:      make([][]complex128, cfg.ChannelCount),
@@ -161,5 +164,5 @@ func (vis *threadedProcessor) Process(ctx context.Context, kickChan chan bool, m
 		}
 	}
 
-	vis.disp.Draw(vis.barBufs, vis.channelCount, vis.bars, scale)
+	vis.disp.Draw(vis.barBufs, vis.channelCount, vis.bars, scale, vis.invertDraw)
 }

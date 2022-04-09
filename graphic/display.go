@@ -259,28 +259,28 @@ func (d *Display) fillStyleBuffer(left, center, right int) {
 }
 
 // Draw takes data and draws.
-func (d *Display) Draw(bufs [][]float64, channels, count int, scale float64) error {
+func (d *Display) Draw(bufs [][]float64, channels, count int, scale float64, invert bool) error {
 
 	d.wg.Add(channels)
 
 	switch d.drawType {
 	case DrawUp:
-		d.DrawUp(bufs, count, scale)
+		d.DrawUp(bufs, count, scale, invert)
 
 	case DrawUpDown:
-		d.DrawUpDown(bufs, count, scale)
+		d.DrawUpDown(bufs, count, scale, invert)
 
 	case DrawDown:
-		d.DrawDown(bufs, count, scale)
+		d.DrawDown(bufs, count, scale, invert)
 
 	case DrawLeft:
-		d.DrawLeft(bufs, count, scale)
+		d.DrawLeft(bufs, count, scale, invert)
 
 	case DrawLeftRight:
-		d.DrawLeftRight(bufs, count, scale)
+		d.DrawLeftRight(bufs, count, scale, invert)
 
 	case DrawRight:
-		d.DrawRight(bufs, count, scale)
+		d.DrawRight(bufs, count, scale, invert)
 
 	default:
 		return nil
@@ -384,7 +384,7 @@ func sizeAndCap(value float64, space int, zeroBase bool, baseRune rune) (int, ru
 // DRAWING METHODS
 
 // DrawUp will draw up.
-func (d *Display) DrawUp(bins [][]float64, count int, scale float64) {
+func (d *Display) DrawUp(bins [][]float64, count int, scale float64, invert bool) {
 
 	barSpace := intMax(d.termHeight-d.baseSize, 0)
 	scale = float64(barSpace) / scale
@@ -400,6 +400,11 @@ func (d *Display) DrawUp(bins [][]float64, count int, scale float64) {
 		for xBar := 0; xBar < count; xBar++ {
 
 			xBin := (xBar * (1 - xSet)) + (((count - 1) - xBar) * xSet)
+
+			if invert {
+				xBin = count - 1 - xBin
+			}
+
 			start, bCap := sizeAndCap(chBins[xBin]*scale, barSpace, true, BarRuneV)
 
 			xCol := (xBar * d.binSize) + (channelWidth * xSet) + edgeOffset
@@ -420,7 +425,7 @@ func (d *Display) DrawUp(bins [][]float64, count int, scale float64) {
 }
 
 // DrawUpDown will draw up and down.
-func (d *Display) DrawUpDown(bins [][]float64, count int, scale float64) {
+func (d *Display) DrawUpDown(bins [][]float64, count int, scale float64, invert bool) {
 
 	centerStart := intMax((d.termHeight-d.baseSize)/2, 0)
 	centerStop := centerStart + d.baseSize
@@ -440,7 +445,12 @@ func (d *Display) DrawUpDown(bins [][]float64, count int, scale float64) {
 			rCap = BarRune
 		}
 
-		xCol := xBar*d.binSize + edgeOffset
+		xCol := xBar
+		if invert {
+			xCol = count - 1 - xCol
+		}
+
+		xCol = xCol*d.binSize + edgeOffset
 		lCol := intMin(xCol+d.barSize, d.termWidth)
 
 		for ; xCol < lCol; xCol++ {
@@ -462,7 +472,7 @@ func (d *Display) DrawUpDown(bins [][]float64, count int, scale float64) {
 }
 
 // DrawDown will draw down.
-func (d *Display) DrawDown(bins [][]float64, count int, scale float64) {
+func (d *Display) DrawDown(bins [][]float64, count int, scale float64, invert bool) {
 
 	barSpace := intMax(d.termHeight-d.baseSize, 0)
 	scale = float64(barSpace) / scale
@@ -478,6 +488,11 @@ func (d *Display) DrawDown(bins [][]float64, count int, scale float64) {
 		for xBar := 0; xBar < count; xBar++ {
 
 			xBin := (xBar * (1 - xSet)) + (((count - 1) - xBar) * xSet)
+
+			if invert {
+				xBin = count - 1 - xBin
+			}
+
 			stop, bCap := sizeAndCap(chBins[xBin]*scale, barSpace, false, BarRune)
 			if stop += d.baseSize; stop >= d.termHeight {
 				stop = d.termHeight
@@ -501,7 +516,7 @@ func (d *Display) DrawDown(bins [][]float64, count int, scale float64) {
 	}
 }
 
-func (d *Display) DrawLeft(bins [][]float64, count int, scale float64) {
+func (d *Display) DrawLeft(bins [][]float64, count int, scale float64, invert bool) {
 	barSpace := intMax(d.termWidth-d.baseSize, 0)
 	scale = float64(barSpace) / scale
 
@@ -516,6 +531,11 @@ func (d *Display) DrawLeft(bins [][]float64, count int, scale float64) {
 		for xBar := 0; xBar < count; xBar++ {
 
 			xBin := (xBar * (1 - xSet)) + (((count - 1) - xBar) * xSet)
+
+			if invert {
+				xBin = count - 1 - xBin
+			}
+
 			start, bCap := sizeAndCap(chBins[xBin]*scale, barSpace, true, BarRune)
 
 			xRow := (xBar * d.binSize) + (channelWidth * xSet) + edgeOffset
@@ -536,7 +556,7 @@ func (d *Display) DrawLeft(bins [][]float64, count int, scale float64) {
 }
 
 // DrawLeftRight will draw left and right.
-func (d *Display) DrawLeftRight(bins [][]float64, count int, scale float64) {
+func (d *Display) DrawLeftRight(bins [][]float64, count int, scale float64, invert bool) {
 	centerStart := intMax((d.termWidth-d.baseSize)/2, 0)
 	centerStop := centerStart + d.baseSize
 
@@ -558,7 +578,13 @@ func (d *Display) DrawLeftRight(bins [][]float64, count int, scale float64) {
 			rCap = BarRuneH
 		}
 
-		xRow := xBar*d.binSize + edgeOffset
+		xRow := xBar
+		if invert {
+			xRow = count - 1 - xRow
+		}
+
+		xRow = xRow*d.binSize + edgeOffset
+
 		lRow := intMin(xRow+d.barSize, d.termHeight)
 
 		for ; xRow < lRow; xRow++ {
@@ -578,7 +604,7 @@ func (d *Display) DrawLeftRight(bins [][]float64, count int, scale float64) {
 	}
 }
 
-func (d *Display) DrawRight(bins [][]float64, count int, scale float64) {
+func (d *Display) DrawRight(bins [][]float64, count int, scale float64, invert bool) {
 	barSpace := intMax(d.termWidth-d.baseSize, 0)
 	scale = float64(barSpace) / scale
 
@@ -593,6 +619,11 @@ func (d *Display) DrawRight(bins [][]float64, count int, scale float64) {
 		for xBar := 0; xBar < count; xBar++ {
 
 			xBin := (xBar * (1 - xSet)) + (((count - 1) - xBar) * xSet)
+
+			if invert {
+				xBin = count - 1 - xBin
+			}
+
 			stop, bCap := sizeAndCap(chBins[xBin]*scale, barSpace, false, BarRuneH)
 			if stop += d.baseSize; stop >= d.termWidth {
 				stop = d.termWidth

@@ -63,6 +63,7 @@ func catnip(cfg *config) error {
 		SampleSize:   cfg.sampleSize,
 		ChannelCount: cfg.channelCount,
 		FrameRate:    cfg.frameRate,
+		InvertDraw:   cfg.invertDraw,
 		Buffers:      inputBuffers,
 		Analyzer:     dsp.NewAnalyzer(anlzConfig),
 		Smoother:     dsp.NewSmoother(anlzConfig),
@@ -233,6 +234,7 @@ func doFlags(cfg *config) bool {
 	parser.Int(&cfg.spaceSize, "sw", "space", "space width [0, +Inf)")
 	parser.Int(&cfg.drawType, "dt", "draw", "draw type (1, 2, 3, 4, 5, 6)")
 	parser.Bool(&cfg.useThreaded, "t", "threaded", "use the threaded processor")
+	parser.Bool(&cfg.invertDraw, "i", "invert", "invert the direction of bin drawing")
 
 	fg, bg, center := graphic.DefaultStyles().AsUInt16s()
 	parser.UInt16(&fg, "fg", "foreground",

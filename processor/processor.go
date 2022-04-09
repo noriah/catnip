@@ -37,7 +37,7 @@ type Smoother interface {
 
 type Display interface {
 	Bars(...int) int
-	Draw([][]float64, int, int, float64) error
+	Draw([][]float64, int, int, float64, bool) error
 }
 
 type Processor interface {
@@ -51,6 +51,7 @@ type Config struct {
 	SampleSize   int              // number of samples per buffer
 	ChannelCount int              // number of channels
 	FrameRate    int              // target framerate
+	InvertDraw   bool             // invert the direction of bin drawing
 	Buffers      [][]input.Sample // sample buffers
 	Analyzer     Analyzer         // audio analyzer
 	Smoother     Smoother         // time smoother
@@ -62,6 +63,8 @@ type processor struct {
 	frameRate    int
 
 	bars int
+
+	invertDraw bool
 
 	slowWindow *util.MovingWindow
 	fastWindow *util.MovingWindow
@@ -88,6 +91,7 @@ func New(cfg Config) *processor {
 	vis := &processor{
 		channelCount: cfg.ChannelCount,
 		frameRate:    cfg.FrameRate,
+		invertDraw:   cfg.InvertDraw,
 		slowWindow:   util.NewMovingWindow(slowSize),
 		fastWindow:   util.NewMovingWindow(fastSize),
 		fftBufs:      make([][]complex128, cfg.ChannelCount),
@@ -177,7 +181,7 @@ func (vis *processor) Process(ctx context.Context, kickChan chan bool, mu *sync.
 			}
 		}
 
-		vis.disp.Draw(vis.barBufs, vis.channelCount, vis.bars, scale)
+		vis.disp.Draw(vis.barBufs, vis.channelCount, vis.bars, scale, vis.invertDraw)
 
 		select {
 		case <-ctx.Done():
