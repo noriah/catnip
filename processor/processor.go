@@ -31,6 +31,10 @@ type Analyzer interface {
 	Recalculate(int) int
 }
 
+type Smoother interface {
+	SmoothBin(int, int, float64) float64
+}
+
 type Display interface {
 	Bars(...int) int
 	Draw([][]float64, int, int, float64) error
@@ -49,6 +53,7 @@ type Config struct {
 	FrameRate    int              // target framerate
 	Buffers      [][]input.Sample // sample buffers
 	Analyzer     Analyzer         // audio analyzer
+	Smoother     Smoother         // time smoother
 	Display      Display          // display
 }
 
@@ -71,6 +76,7 @@ type processor struct {
 	plans []*fft.Plan
 
 	anlz Analyzer
+	smth Smoother
 	disp Display
 }
 
@@ -89,6 +95,7 @@ func New(cfg Config) *processor {
 		inputBufs:    cfg.Buffers,
 		plans:        make([]*fft.Plan, cfg.ChannelCount),
 		anlz:         cfg.Analyzer,
+		smth:         cfg.Smoother,
 		disp:         cfg.Display,
 	}
 
@@ -139,6 +146,7 @@ func (vis *processor) Process(ctx context.Context, kickChan chan bool, mu *sync.
 
 			for bIdx := range buf[:vis.bars] {
 				v := vis.anlz.ProcessBin(idx, bIdx, vis.fftBufs[idx])
+				v = vis.smth.SmoothBin(idx, bIdx, v)
 
 				if peak < v {
 					peak = v

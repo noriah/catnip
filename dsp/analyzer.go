@@ -32,8 +32,6 @@ type analyzer struct {
 	bins         []bin       // bins for processing
 	binCount     int         // number of bins we look at
 	fftSize      int         // number of fft bins
-	values       [][]float64 // old values used for smoothing
-	smoothFactor float64     // smothing factor
 }
 
 // Bin is a helper struct for spectrum
@@ -63,19 +61,11 @@ var frequencies = []float64{
 }
 
 func NewAnalyzer(cfg Config) Analyzer {
-	az := &analyzer{
+	return &analyzer{
 		cfg:    cfg,
 		bins:   make([]bin, cfg.SampleSize),
-		values: make([][]float64, cfg.ChannelCount),
+		fftSize: cfg.SampleSize/2+1,
 	}
-
-	for idx := range az.values {
-		az.values[idx] = make([]float64, cfg.SampleSize)
-	}
-
-	az.setSmoothing(cfg.SmoothingFactor)
-
-	return az
 }
 
 // BinCount returns the number of bins each stream has
@@ -105,14 +95,11 @@ func (az *analyzer) ProcessBin(ch, idx int, src []complex128) float64 {
 	}
 
 	// time smoothing
-	if mag = math.Log(mag) * (1.0 - az.smoothFactor); mag < 0.0 {
+	if mag = math.Log(mag); mag < 0.0 {
 		mag = 0.0
 	}
 
-	value := (az.values[ch][idx] * az.smoothFactor) + mag
-	az.values[ch][idx] = value
-
-	return value
+	return mag
 }
 
 // Recalculate rebuilds our frequency bins
@@ -201,15 +188,4 @@ func (az *analyzer) freqToIdx(freq float64, round mathFunc) int {
 	}
 
 	return az.fftSize - 1
-}
-
-// SetSmoothing sets the smoothing parameters
-func (az *analyzer) setSmoothing(factor float64) {
-	if factor <= 0.0 {
-		factor = math.SmallestNonzeroFloat64
-	}
-
-	sf := math.Pow(10.0, (1.0-factor)*(-25.0))
-
-	az.smoothFactor = math.Pow(sf, float64(az.cfg.SampleSize)/az.cfg.SampleRate)
 }

@@ -65,6 +65,7 @@ func catnip(cfg *config) error {
 		FrameRate:    cfg.frameRate,
 		Buffers:      inputBuffers,
 		Analyzer:     dsp.NewAnalyzer(anlzConfig),
+		Smoother:     dsp.NewSmoother(anlzConfig),
 		Display:      display,
 	}
 
