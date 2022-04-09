@@ -48,6 +48,8 @@ func catnip(cfg *config) error {
 
 	display := &graphic.Display{}
 
+	// PROCESSOR SETUP
+
 	inputBuffers := input.MakeBuffers(cfg.channelCount, cfg.sampleSize)
 	// visBuffers := input.MakeBuffers(cfg.channelCount, cfg.sampleSize)
 
@@ -101,6 +103,8 @@ func catnip(cfg *config) error {
 		return errors.Wrap(err, "failed to start the input backend")
 	}
 
+	// DISPLAY SETUP
+
 	if err = display.Init(); err != nil {
 		return err
 	}
@@ -115,8 +119,6 @@ func catnip(cfg *config) error {
 	ctx, cancel := context.WithCancel(context.Background())
 	defer cancel()
 
-	// Start the display
-	// replace our context so display can signal quit
 	ctx = display.Start(ctx)
 	defer display.Stop()
 
@@ -124,43 +126,10 @@ func catnip(cfg *config) error {
 	defer vis.Stop()
 
 	kickChan := make(chan bool, 1)
-	// visChan := make(chan bool, 1)
 
 	mu := &sync.Mutex{}
 
-	// if cfg.frameRate <= 0 {
-	// 	// if we do not have a framerate set, allow at most 1 second per sampling
-	// 	cfg.frameRate = 1
-	// }
-
-	// go func() {
-	// 	dur := time.Second / time.Duration(cfg.frameRate)
-	// 	ticker := time.NewTicker(dur)
-	// 	defer ticker.Stop()
-
-	// 	for {
-
-	// 		// select {
-	// 		// case <-ctx.Done():
-	// 		// 	return
-	// 		// case <-kickChan:
-	// 		// 	// default:
-	// 		// }
-	// 		// // input.CopyBuffers(visBuffers, inputBuffers)
-
-	// 		select {
-	// 		case <-ctx.Done():
-	// 			return
-	// 		case <-kickChan:
-	// 			// case <-ticker.C:
-	// 			// default:
-	// 		}
-	// 		vis.Process(visChan, mu)
-
-	// 		ticker.Reset(dur)
-	// 	}
-	// }()
-
+	// Start the processor
 	go vis.Process(ctx, kickChan, mu)
 
 	if err := audio.Start(ctx, inputBuffers, kickChan, mu); err != nil {
