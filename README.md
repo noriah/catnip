@@ -53,6 +53,9 @@ go install -tags withportaudio
 
 # with fftw3
 go install -tags withfftw
+
+# with both portaudio and fftw3
+go install -tags withportaudio,withfftw
 ```
 
 ## run it
