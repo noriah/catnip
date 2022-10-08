@@ -3,7 +3,7 @@ package parec
 import (
 	"fmt"
 
-	"github.com/lawl/pulseaudio"
+	"github.com/noisetorch/pulseaudio"
 	"github.com/noriah/catnip/input"
 	"github.com/noriah/catnip/input/common/execread"
 	"github.com/pkg/errors"
