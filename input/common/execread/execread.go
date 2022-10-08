@@ -16,6 +16,9 @@ import (
 
 // Session is a session that reads floating-point audio values from a Cmd.
 type Session struct {
+	// OnStart is called when the session starts. Nil by default.
+	OnStart func(ctx context.Context, cmd *exec.Cmd) error
+
 	argv []string
 	cfg  input.SessionConfig
 
@@ -26,9 +29,9 @@ type Session struct {
 }
 
 // NewSession creates a new execread session. It never returns an error.
-func NewSession(argv []string, f32mode bool, cfg input.SessionConfig) (*Session, error) {
+func NewSession(argv []string, f32mode bool, cfg input.SessionConfig) *Session {
 	if len(argv) < 1 {
-		return nil, errors.New("argv has no arg0")
+		panic("argv has no arg0")
 	}
 
 	return &Session{
@@ -36,7 +39,7 @@ func NewSession(argv []string, f32mode bool, cfg input.SessionConfig) (*Session,
 		cfg:     cfg,
 		f32mode: f32mode,
 		samples: cfg.SampleSize * cfg.FrameSize,
-	}, nil
+	}
 }
 
 func (s *Session) Start(ctx context.Context, dst [][]input.Sample, kickChan chan bool, mu *sync.Mutex) error {
@@ -72,6 +75,13 @@ func (s *Session) Start(ctx context.Context, dst [][]input.Sample, kickChan chan
 
 	if err := cmd.Start(); err != nil {
 		return errors.Wrap(err, "failed to start ffmpeg")
+	}
+	defer cmd.Process.Signal(os.Interrupt)
+
+	if s.OnStart != nil {
+		if err := s.OnStart(ctx, cmd); err != nil {
+			return err
+		}
 	}
 
 	for {

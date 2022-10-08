@@ -83,5 +83,5 @@ func NewSession(cfg input.SessionConfig) (*execread.Session, error) {
 		args = append(args, "-d", dv.String())
 	}
 
-	return execread.NewSession(args, true, cfg)
+	return execread.NewSession(args, true, cfg), nil
 }
