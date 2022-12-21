@@ -58,7 +58,6 @@ func catnip(cfg *config) error {
 		SampleSize:   cfg.sampleSize,
 		ChannelCount: cfg.channelCount,
 		FrameRate:    cfg.frameRate,
-		InvertDraw:   cfg.invertDraw,
 		Buffers:      inputBuffers,
 		Analyzer: dsp.NewAnalyzer(dsp.AnalyzerConfig{
 			SampleRate: cfg.sampleRate,

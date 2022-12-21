@@ -36,7 +36,6 @@ type Config struct {
 	SampleSize   int              // number of samples per buffer
 	ChannelCount int              // number of channels
 	FrameRate    int              // target framerate
-	InvertDraw   bool             // invert the direction of bin drawing
 	Buffers      [][]input.Sample // sample buffers
 	Analyzer     Analyzer         // audio analyzer
 	Smoother     Smoother         // time smoother
