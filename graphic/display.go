@@ -193,6 +193,9 @@ func (d *Display) inputProcessor() {
 
 			default:
 				switch ev.Ch {
+				case 'i', 'I':
+					d.SetInvertDraw(!d.invertDraw)
+
 				case '+', '=':
 					d.AdjustBase(1)
 
@@ -282,7 +285,7 @@ func (d *Display) fillStyleBuffer(left, center, right int) {
 }
 
 // Draw takes data and draws.
-func (d *Display) Write(bufs [][]float64, channels int, peak float64) error {
+func (d *Display) Write(buffers [][]float64, channels int, peak float64) error {
 
 	scale := 1.0
 	// do some scaling if we are above the PeakThreshold
@@ -308,22 +311,22 @@ func (d *Display) Write(bufs [][]float64, channels int, peak float64) error {
 
 	switch d.drawType {
 	case DrawUp:
-		d.DrawUp(bufs, channels, scale)
+		d.DrawUp(buffers, channels, scale)
 
 	case DrawUpDown:
-		d.DrawUpDown(bufs, channels, scale)
+		d.DrawUpDown(buffers, channels, scale)
 
 	case DrawDown:
-		d.DrawDown(bufs, channels, scale)
+		d.DrawDown(buffers, channels, scale)
 
 	case DrawLeft:
-		d.DrawLeft(bufs, channels, scale)
+		d.DrawLeft(buffers, channels, scale)
 
 	case DrawLeftRight:
-		d.DrawLeftRight(bufs, channels, scale)
+		d.DrawLeftRight(buffers, channels, scale)
 
 	case DrawRight:
-		d.DrawRight(bufs, channels, scale)
+		d.DrawRight(buffers, channels, scale)
 
 	default:
 		return nil

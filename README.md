@@ -46,16 +46,16 @@ git clone https://github.com/noriah/catnip.git
 cd catnip
 
 # build and install catnip
-go install
+go install ./cmd/catnip
 
 # with portaudio
-go install -tags withportaudio
+go install ./cmd/catnip -tags withportaudio
 
 # with fftw3
-go install -tags withfftw
+go install ./cmd/catnip -tags withfftw
 
 # with both portaudio and fftw3
-go install -tags withportaudio,withfftw
+go install ./cmd/catnip -tags withportaudio,withfftw
 ```
 
 ## run it

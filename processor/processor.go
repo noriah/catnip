@@ -93,7 +93,7 @@ func (vis *processor) Start(ctx context.Context) context.Context {
 
 func (vis *processor) Stop() {}
 
-// Process runs one draw refresh with the processor on the termbox screen.
+// Process runs processing on sample sets and calls Write on the output once per sample set.
 func (vis *processor) Process(ctx context.Context, kickChan chan bool, mu *sync.Mutex) {
 
 	if vis.frameRate <= 0 {

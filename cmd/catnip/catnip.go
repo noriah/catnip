@@ -51,7 +51,6 @@ func catnip(cfg *config) error {
 	// PROCESSOR SETUP
 
 	inputBuffers := input.MakeBuffers(cfg.channelCount, cfg.sampleSize)
-	// visBuffers := input.MakeBuffers(cfg.channelCount, cfg.sampleSize)
 
 	procConfig := processor.Config{
 		SampleRate:   cfg.sampleRate,
