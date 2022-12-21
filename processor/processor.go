@@ -2,27 +2,12 @@ package processor
 
 import (
 	"context"
-	"math"
 	"sync"
 	"time"
 
 	"github.com/noriah/catnip/dsp/window"
 	"github.com/noriah/catnip/fft"
 	"github.com/noriah/catnip/input"
-	"github.com/noriah/catnip/util"
-)
-
-const (
-	// ScalingSlowWindow in seconds
-	ScalingSlowWindow = 5
-	// ScalingFastWindow in seconds
-	ScalingFastWindow = ScalingSlowWindow * 0.2
-	// ScalingDumpPercent is how much we erase on rescale
-	ScalingDumpPercent = 0.60
-	// ScalingResetDeviation standard deviations from the mean before reset
-	ScalingResetDeviation = 1.0
-	// PeakThreshold is the threshold to not draw if the peak is less.
-	PeakThreshold = 0.01
 )
 
 type Analyzer interface {
@@ -35,9 +20,9 @@ type Smoother interface {
 	SmoothBin(int, int, float64) float64
 }
 
-type Display interface {
-	Bars(...int) int
-	Draw([][]float64, int, int, float64, bool) error
+type Output interface {
+	Bins(...int) int
+	Write([][]float64, int, float64) error
 }
 
 type Processor interface {
@@ -55,7 +40,7 @@ type Config struct {
 	Buffers      [][]input.Sample // sample buffers
 	Analyzer     Analyzer         // audio analyzer
 	Smoother     Smoother         // time smoother
-	Display      Display          // display
+	Output       Output           // data output
 }
 
 type processor struct {
@@ -63,11 +48,6 @@ type processor struct {
 	frameRate    int
 
 	bars int
-
-	invertDraw bool
-
-	slowWindow *util.MovingWindow
-	fastWindow *util.MovingWindow
 
 	fftBufs [][]complex128
 	barBufs [][]float64
@@ -80,27 +60,21 @@ type processor struct {
 
 	anlz Analyzer
 	smth Smoother
-	disp Display
+	out  Output
 }
 
 func New(cfg Config) *processor {
-	slowSize := ((int(ScalingSlowWindow * cfg.SampleRate)) / cfg.SampleSize) * 2
-
-	fastSize := ((int(ScalingFastWindow * cfg.SampleRate)) / cfg.SampleSize) * 2
 
 	vis := &processor{
 		channelCount: cfg.ChannelCount,
 		frameRate:    cfg.FrameRate,
-		invertDraw:   cfg.InvertDraw,
-		slowWindow:   util.NewMovingWindow(slowSize),
-		fastWindow:   util.NewMovingWindow(fastSize),
 		fftBufs:      make([][]complex128, cfg.ChannelCount),
 		barBufs:      make([][]float64, cfg.ChannelCount),
 		inputBufs:    cfg.Buffers,
 		plans:        make([]*fft.Plan, cfg.ChannelCount),
 		anlz:         cfg.Analyzer,
 		smth:         cfg.Smoother,
-		disp:         cfg.Display,
+		out:          cfg.Output,
 	}
 
 	for idx := range vis.barBufs {
@@ -122,6 +96,7 @@ func (vis *processor) Stop() {}
 
 // Process runs one draw refresh with the processor on the termbox screen.
 func (vis *processor) Process(ctx context.Context, kickChan chan bool, mu *sync.Mutex) {
+
 	if vis.frameRate <= 0 {
 		// if we do not have a framerate set, allow at most 1 second per sampling
 		vis.frameRate = 1
@@ -139,18 +114,20 @@ func (vis *processor) Process(ctx context.Context, kickChan chan bool, mu *sync.
 		}
 		mu.Unlock()
 
-		if n := vis.disp.Bars(vis.channelCount); n != vis.bars {
+		if n := vis.out.Bins(vis.channelCount); n != vis.bars {
 			vis.bars = vis.anlz.Recalculate(n)
 		}
 
-		var peak float64
+		peak := 0.0
 		for idx := range vis.fftBufs {
 
 			buf := vis.barBufs[idx]
 
 			for bIdx := range buf[:vis.bars] {
 				v := vis.anlz.ProcessBin(bIdx, vis.fftBufs[idx])
-				v = vis.smth.SmoothBin(idx, bIdx, v)
+				if vis.smth != nil {
+					v = vis.smth.SmoothBin(idx, bIdx, v)
+				}
 
 				if peak < v {
 					peak = v
@@ -160,28 +137,7 @@ func (vis *processor) Process(ctx context.Context, kickChan chan bool, mu *sync.
 			}
 		}
 
-		scale := 1.0
-
-		// do some scaling if we are above the PeakThreshold
-		if peak >= PeakThreshold {
-			vis.fastWindow.Update(peak)
-			vMean, vSD := vis.slowWindow.Update(peak)
-
-			// if our slow window finally has more values than our fast window
-			if length := vis.slowWindow.Len(); length >= vis.fastWindow.Cap() {
-				// no idea what this is doing
-				if math.Abs(vis.fastWindow.Mean()-vMean) > (ScalingResetDeviation * vSD) {
-					// drop some values and continue
-					vMean, vSD = vis.slowWindow.Drop(int(float64(length) * ScalingDumpPercent))
-				}
-			}
-
-			if t := vMean + (1.5 * vSD); t > 1.0 {
-				scale = t
-			}
-		}
-
-		vis.disp.Draw(vis.barBufs, vis.channelCount, vis.bars, scale, vis.invertDraw)
+		vis.out.Write(vis.barBufs, vis.channelCount, peak)
 
 		select {
 		case <-ctx.Done():

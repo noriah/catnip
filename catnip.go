@@ -68,7 +68,7 @@ func catnip(cfg *config) error {
 			SampleSize:      cfg.sampleSize,
 			ChannelCount:    cfg.channelCount,
 			SmoothingFactor: cfg.smoothFactor}),
-		Display: display,
+		Output: display,
 	}
 
 	var vis processor.Processor
@@ -105,7 +105,7 @@ func catnip(cfg *config) error {
 
 	// DISPLAY SETUP
 
-	if err = display.Init(); err != nil {
+	if err = display.Init(cfg.sampleRate, cfg.sampleSize); err != nil {
 		return err
 	}
 	defer display.Close()
@@ -114,6 +114,7 @@ func catnip(cfg *config) error {
 	display.SetBase(cfg.baseSize)
 	display.SetDrawType(graphic.DrawType(cfg.drawType))
 	display.SetStyles(cfg.styles)
+	display.SetInvertDraw(cfg.invertDraw)
 
 	// Root Context
 	ctx, cancel := context.WithCancel(context.Background())
@@ -145,10 +146,10 @@ func catnip(cfg *config) error {
 // it is the "default"
 //
 // nori's defaults:
-//  - sampleRate: 122880
-//  - sampleSize: 2048
-//  - smoothFactor: 80.15
-//  - super smooth detail view
+//   - sampleRate: 122880
+//   - sampleSize: 2048
+//   - smoothFactor: 80.15
+//   - super smooth detail view
 func newZeroConfig() config {
 	return config{
 		sampleRate:   44100,

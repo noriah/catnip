@@ -2,9 +2,11 @@ package graphic
 
 import (
 	"context"
+	"math"
 	"sync"
 	"sync/atomic"
 
+	"github.com/noriah/catnip/util"
 	"github.com/nsf/termbox-go"
 )
 
@@ -23,6 +25,17 @@ const (
 
 	// NumRunes number of runes for sub step bars
 	NumRunes = 8
+
+	// ScalingSlowWindow in seconds
+	ScalingSlowWindow = 5
+	// ScalingFastWindow in seconds
+	ScalingFastWindow = ScalingSlowWindow * 0.2
+	// ScalingDumpPercent is how much we erase on rescale
+	ScalingDumpPercent = 0.60
+	// ScalingResetDeviation standard deviations from the mean before reset
+	ScalingResetDeviation = 1.0
+	// PeakThreshold is the threshold to not draw if the peak is less.
+	PeakThreshold = 0.01
 )
 
 // DrawType is the type.
@@ -85,6 +98,9 @@ type Display struct {
 	baseSize    int
 	termWidth   int
 	termHeight  int
+	invertDraw  bool
+	slowWindow  *util.MovingWindow
+	fastWindow  *util.MovingWindow
 	drawType    DrawType
 	styles      Styles
 	styleBuffer []termbox.Attribute
@@ -95,8 +111,15 @@ type Display struct {
 
 // Init initializes the display.
 // Should be called before any other display method.
-func (d *Display) Init() error {
+func (d *Display) Init(sampleRate float64, sampleSize int) error {
 	// make a large buffer as this could be as big as the screen width/height.
+
+	slowSize := ((int(ScalingSlowWindow * sampleRate)) / sampleSize) * 2
+	d.slowWindow = util.NewMovingWindow(slowSize)
+
+	fastSize := ((int(ScalingFastWindow * sampleRate)) / sampleSize) * 2
+	d.fastWindow = util.NewMovingWindow(fastSize)
+
 	d.styleBuffer = make([]termbox.Attribute, 4096)
 
 	if err := termbox.Init(); err != nil {
@@ -259,28 +282,48 @@ func (d *Display) fillStyleBuffer(left, center, right int) {
 }
 
 // Draw takes data and draws.
-func (d *Display) Draw(bufs [][]float64, channels, count int, scale float64, invert bool) error {
+func (d *Display) Write(bufs [][]float64, channels int, peak float64) error {
+
+	scale := 1.0
+	// do some scaling if we are above the PeakThreshold
+	if peak >= PeakThreshold {
+		d.fastWindow.Update(peak)
+		vMean, vSD := d.slowWindow.Update(peak)
+
+		// if our slow window finally has more values than our fast window
+		if length := d.slowWindow.Len(); length >= d.fastWindow.Cap() {
+			// no idea what this is doing
+			if math.Abs(d.fastWindow.Mean()-vMean) > (ScalingResetDeviation * vSD) {
+				// drop some values and continue
+				vMean, vSD = d.slowWindow.Drop(int(float64(length) * ScalingDumpPercent))
+			}
+		}
+
+		if t := vMean + (1.5 * vSD); t > 1.0 {
+			scale = t
+		}
+	}
 
 	d.wg.Add(channels)
 
 	switch d.drawType {
 	case DrawUp:
-		d.DrawUp(bufs, count, scale, invert)
+		d.DrawUp(bufs, channels, scale)
 
 	case DrawUpDown:
-		d.DrawUpDown(bufs, count, scale, invert)
+		d.DrawUpDown(bufs, channels, scale)
 
 	case DrawDown:
-		d.DrawDown(bufs, count, scale, invert)
+		d.DrawDown(bufs, channels, scale)
 
 	case DrawLeft:
-		d.DrawLeft(bufs, count, scale, invert)
+		d.DrawLeft(bufs, channels, scale)
 
 	case DrawLeftRight:
-		d.DrawLeftRight(bufs, count, scale, invert)
+		d.DrawLeftRight(bufs, channels, scale)
 
 	case DrawRight:
-		d.DrawRight(bufs, count, scale, invert)
+		d.DrawRight(bufs, channels, scale)
 
 	default:
 		return nil
@@ -342,8 +385,12 @@ func (d *Display) SetDrawType(dt DrawType) {
 	d.updateStyleBuffer()
 }
 
-// Bars returns the number of bars we will draw.
-func (d *Display) Bars(sets ...int) int {
+func (d *Display) SetInvertDraw(invert bool) {
+	d.invertDraw = invert
+}
+
+// Bins returns the number of bars we will draw.
+func (d *Display) Bins(sets ...int) int {
 	x := 1
 	if len(sets) > 0 {
 		x = sets[0]
@@ -384,25 +431,25 @@ func sizeAndCap(value float64, space int, zeroBase bool, baseRune rune) (int, ru
 // DRAWING METHODS
 
 // DrawUp will draw up.
-func (d *Display) DrawUp(bins [][]float64, count int, scale float64, invert bool) {
-
+func (d *Display) DrawUp(bins [][]float64, channelCount int, scale float64) {
+	binCount := d.Bins(channelCount)
 	barSpace := intMax(d.termHeight-d.baseSize, 0)
 	scale = float64(barSpace) / scale
 
-	paddedWidth := (d.binSize * count * len(bins)) - d.spaceSize
+	paddedWidth := (d.binSize * binCount * channelCount) - d.spaceSize
 	paddedWidth = intMax(intMin(paddedWidth, d.termWidth), 0)
 
-	channelWidth := d.binSize * count
+	channelWidth := d.binSize * binCount
 	edgeOffset := (d.termWidth - paddedWidth) / 2
 
 	for xSet, chBins := range bins {
 
-		for xBar := 0; xBar < count; xBar++ {
+		for xBar := 0; xBar < binCount; xBar++ {
 
-			xBin := (xBar * (1 - xSet)) + (((count - 1) - xBar) * xSet)
+			xBin := (xBar * (1 - xSet)) + (((binCount - 1) - xBar) * xSet)
 
-			if invert {
-				xBin = count - 1 - xBin
+			if d.invertDraw {
+				xBin = binCount - 1 - xBin
 			}
 
 			start, bCap := sizeAndCap(chBins[xBin]*scale, barSpace, true, BarRuneV)
@@ -425,18 +472,18 @@ func (d *Display) DrawUp(bins [][]float64, count int, scale float64, invert bool
 }
 
 // DrawUpDown will draw up and down.
-func (d *Display) DrawUpDown(bins [][]float64, count int, scale float64, invert bool) {
-
+func (d *Display) DrawUpDown(bins [][]float64, channelCount int, scale float64) {
+	binCount := d.Bins(channelCount)
 	centerStart := intMax((d.termHeight-d.baseSize)/2, 0)
 	centerStop := centerStart + d.baseSize
 
 	scale = float64(intMin(centerStart, d.termHeight-centerStop)) / scale
 
-	edgeOffset := intMax((d.termWidth-((d.binSize*count)-d.spaceSize))/2, 0)
+	edgeOffset := intMax((d.termWidth-((d.binSize*binCount)-d.spaceSize))/2, 0)
 
-	setCount := len(bins)
+	setCount := channelCount
 
-	for xBar := 0; xBar < count; xBar++ {
+	for xBar := 0; xBar < binCount; xBar++ {
 
 		lStart, lCap := sizeAndCap(bins[0][xBar]*scale, centerStart, true, BarRuneV)
 		rStop, rCap := sizeAndCap(bins[1%setCount][xBar]*scale, centerStart, false, BarRune)
@@ -446,8 +493,8 @@ func (d *Display) DrawUpDown(bins [][]float64, count int, scale float64, invert 
 		}
 
 		xCol := xBar
-		if invert {
-			xCol = count - 1 - xCol
+		if d.invertDraw {
+			xCol = binCount - 1 - xCol
 		}
 
 		xCol = xCol*d.binSize + edgeOffset
@@ -472,25 +519,25 @@ func (d *Display) DrawUpDown(bins [][]float64, count int, scale float64, invert 
 }
 
 // DrawDown will draw down.
-func (d *Display) DrawDown(bins [][]float64, count int, scale float64, invert bool) {
-
+func (d *Display) DrawDown(bins [][]float64, channelCount int, scale float64) {
+	binCount := d.Bins(channelCount)
 	barSpace := intMax(d.termHeight-d.baseSize, 0)
 	scale = float64(barSpace) / scale
 
-	paddedWidth := (d.binSize * count * len(bins)) - d.spaceSize
+	paddedWidth := (d.binSize * binCount * channelCount) - d.spaceSize
 	paddedWidth = intMax(intMin(paddedWidth, d.termWidth), 0)
 
-	channelWidth := d.binSize * count
+	channelWidth := d.binSize * binCount
 	edgeOffset := (d.termWidth - paddedWidth) / 2
 
 	for xSet, chBins := range bins {
 
-		for xBar := 0; xBar < count; xBar++ {
+		for xBar := 0; xBar < binCount; xBar++ {
 
-			xBin := (xBar * (1 - xSet)) + (((count - 1) - xBar) * xSet)
+			xBin := (xBar * (1 - xSet)) + (((binCount - 1) - xBar) * xSet)
 
-			if invert {
-				xBin = count - 1 - xBin
+			if d.invertDraw {
+				xBin = binCount - 1 - xBin
 			}
 
 			stop, bCap := sizeAndCap(chBins[xBin]*scale, barSpace, false, BarRune)
@@ -516,24 +563,25 @@ func (d *Display) DrawDown(bins [][]float64, count int, scale float64, invert bo
 	}
 }
 
-func (d *Display) DrawLeft(bins [][]float64, count int, scale float64, invert bool) {
+func (d *Display) DrawLeft(bins [][]float64, channelCount int, scale float64) {
+	binCount := d.Bins(channelCount)
 	barSpace := intMax(d.termWidth-d.baseSize, 0)
 	scale = float64(barSpace) / scale
 
-	paddedWidth := (d.binSize * count * len(bins)) - d.spaceSize
+	paddedWidth := (d.binSize * binCount * channelCount) - d.spaceSize
 	paddedWidth = intMax(intMin(paddedWidth, d.termHeight), 0)
 
-	channelWidth := d.binSize * count
+	channelWidth := d.binSize * binCount
 	edgeOffset := (d.termHeight - paddedWidth) / 2
 
 	for xSet, chBins := range bins {
 
-		for xBar := 0; xBar < count; xBar++ {
+		for xBar := 0; xBar < binCount; xBar++ {
 
-			xBin := (xBar * (1 - xSet)) + (((count - 1) - xBar) * xSet)
+			xBin := (xBar * (1 - xSet)) + (((binCount - 1) - xBar) * xSet)
 
-			if invert {
-				xBin = count - 1 - xBin
+			if d.invertDraw {
+				xBin = binCount - 1 - xBin
 			}
 
 			start, bCap := sizeAndCap(chBins[xBin]*scale, barSpace, true, BarRune)
@@ -556,20 +604,21 @@ func (d *Display) DrawLeft(bins [][]float64, count int, scale float64, invert bo
 }
 
 // DrawLeftRight will draw left and right.
-func (d *Display) DrawLeftRight(bins [][]float64, count int, scale float64, invert bool) {
+func (d *Display) DrawLeftRight(bins [][]float64, channelCount int, scale float64) {
+	binCount := d.Bins(channelCount)
 	centerStart := intMax((d.termWidth-d.baseSize)/2, 0)
 	centerStop := centerStart + d.baseSize
 
 	scale = float64(intMin(centerStart, d.termWidth-centerStop)) / scale
 
-	edgeOffset := intMax((d.termHeight-((d.binSize*count)-d.spaceSize))/2, 0)
+	edgeOffset := intMax((d.termHeight-((d.binSize*binCount)-d.spaceSize))/2, 0)
 
-	setCount := len(bins)
+	setCount := channelCount
 
-	for xBar := 0; xBar < count; xBar++ {
+	for xBar := 0; xBar < binCount; xBar++ {
 
 		// draw higher frequencies at the top
-		xBin := count - 1 - xBar
+		xBin := binCount - 1 - xBar
 
 		lStart, lCap := sizeAndCap(bins[0][xBin]*scale, centerStart, true, BarRune)
 		rStop, rCap := sizeAndCap(bins[1%setCount][xBin]*scale, centerStart, false, BarRuneH)
@@ -579,8 +628,8 @@ func (d *Display) DrawLeftRight(bins [][]float64, count int, scale float64, inve
 		}
 
 		xRow := xBar
-		if invert {
-			xRow = count - 1 - xRow
+		if d.invertDraw {
+			xRow = binCount - 1 - xRow
 		}
 
 		xRow = xRow*d.binSize + edgeOffset
@@ -604,24 +653,25 @@ func (d *Display) DrawLeftRight(bins [][]float64, count int, scale float64, inve
 	}
 }
 
-func (d *Display) DrawRight(bins [][]float64, count int, scale float64, invert bool) {
+func (d *Display) DrawRight(bins [][]float64, channelCount int, scale float64) {
+	binCount := d.Bins(channelCount)
 	barSpace := intMax(d.termWidth-d.baseSize, 0)
 	scale = float64(barSpace) / scale
 
-	paddedWidth := (d.binSize * count * len(bins)) - d.spaceSize
+	paddedWidth := (d.binSize * binCount * channelCount) - d.spaceSize
 	paddedWidth = intMax(intMin(paddedWidth, d.termHeight), 0)
 
-	channelWidth := d.binSize * count
+	channelWidth := d.binSize * binCount
 	edgeOffset := (d.termHeight - paddedWidth) / 2
 
 	for xSet, chBins := range bins {
 
-		for xBar := 0; xBar < count; xBar++ {
+		for xBar := 0; xBar < binCount; xBar++ {
 
-			xBin := (xBar * (1 - xSet)) + (((count - 1) - xBar) * xSet)
+			xBin := (xBar * (1 - xSet)) + (((binCount - 1) - xBar) * xSet)
 
-			if invert {
-				xBin = count - 1 - xBin
+			if d.invertDraw {
+				xBin = binCount - 1 - xBin
 			}
 
 			stop, bCap := sizeAndCap(chBins[xBin]*scale, barSpace, false, BarRuneH)

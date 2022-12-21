@@ -2,24 +2,17 @@ package processor
 
 import (
 	"context"
-	"math"
 	"sync"
 
 	"github.com/noriah/catnip/dsp/window"
 	"github.com/noriah/catnip/fft"
 	"github.com/noriah/catnip/input"
-	"github.com/noriah/catnip/util"
 )
 
 type threadedProcessor struct {
 	channelCount int
 
 	bars int
-
-	invertDraw bool
-
-	slowWindow *util.MovingWindow
-	fastWindow *util.MovingWindow
 
 	fftBufs [][]complex128
 	barBufs [][]float64
@@ -39,18 +32,12 @@ type threadedProcessor struct {
 
 	anlz Analyzer
 	smth Smoother
-	disp Display
+	out  Output
 }
 
 func NewThreaded(cfg Config) *threadedProcessor {
-	slowSize := ((int(ScalingSlowWindow * cfg.SampleRate)) / cfg.SampleSize) * 2
-	fastSize := ((int(ScalingFastWindow * cfg.SampleRate)) / cfg.SampleSize) * 2
-
 	vis := &threadedProcessor{
 		channelCount: cfg.ChannelCount,
-		invertDraw:   cfg.InvertDraw,
-		slowWindow:   util.NewMovingWindow(slowSize),
-		fastWindow:   util.NewMovingWindow(fastSize),
 		fftBufs:      make([][]complex128, cfg.ChannelCount),
 		barBufs:      make([][]float64, cfg.ChannelCount),
 		peaks:        make([]float64, cfg.ChannelCount),
@@ -59,7 +46,7 @@ func NewThreaded(cfg Config) *threadedProcessor {
 		plans:        make([]*fft.Plan, cfg.ChannelCount),
 		anlz:         cfg.Analyzer,
 		smth:         cfg.Smoother,
-		disp:         cfg.Display,
+		out:          cfg.Output,
 	}
 
 	for idx := range vis.barBufs {
@@ -126,7 +113,7 @@ func (vis *threadedProcessor) Stop() {
 
 // Process runs one draw refresh with the visualizer on the termbox screen.
 func (vis *threadedProcessor) Process(ctx context.Context, kickChan chan bool, mu *sync.Mutex) {
-	if n := vis.disp.Bars(vis.channelCount); n != vis.bars {
+	if n := vis.out.Bins(vis.channelCount); n != vis.bars {
 		vis.bars = vis.anlz.Recalculate(n)
 	}
 
@@ -146,26 +133,5 @@ func (vis *threadedProcessor) Process(ctx context.Context, kickChan chan bool, m
 		}
 	}
 
-	scale := 1.0
-
-	// do some scaling if we are above the PeakThreshold
-	if peak >= PeakThreshold {
-		vis.fastWindow.Update(peak)
-		vMean, vSD := vis.slowWindow.Update(peak)
-
-		// if our slow window finally has more values than our fast window
-		if length := vis.slowWindow.Len(); length >= vis.fastWindow.Cap() {
-			// no idea what this is doing
-			if math.Abs(vis.fastWindow.Mean()-vMean) > (ScalingResetDeviation * vSD) {
-				// drop some values and continue
-				vMean, vSD = vis.slowWindow.Drop(int(float64(length) * ScalingDumpPercent))
-			}
-		}
-
-		if t := vMean + (1.5 * vSD); t > 1.0 {
-			scale = t
-		}
-	}
-
-	vis.disp.Draw(vis.barBufs, vis.channelCount, vis.bars, scale, vis.invertDraw)
+	vis.out.Write(vis.barBufs, vis.channelCount, peak)
 }
