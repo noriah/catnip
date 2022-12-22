@@ -7,6 +7,7 @@ import (
 	"sync"
 
 	"github.com/noriah/catnip/dsp"
+	"github.com/noriah/catnip/dsp/window"
 	"github.com/noriah/catnip/graphic"
 	"github.com/noriah/catnip/input"
 	"github.com/noriah/catnip/processor"
@@ -62,11 +63,12 @@ func catnip(cfg *config) error {
 			SampleRate: cfg.sampleRate,
 			SampleSize: cfg.sampleSize,
 		}),
+		Output: display,
 		Smoother: dsp.NewSmoother(dsp.SmootherConfig{
 			SampleSize:      cfg.sampleSize,
 			ChannelCount:    cfg.channelCount,
 			SmoothingFactor: cfg.smoothFactor}),
-		Output: display,
+		Windower: window.Lanczos,
 	}
 
 	var vis processor.Processor

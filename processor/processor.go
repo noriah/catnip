@@ -38,8 +38,9 @@ type Config struct {
 	FrameRate    int              // target framerate
 	Buffers      [][]input.Sample // sample buffers
 	Analyzer     Analyzer         // audio analyzer
-	Smoother     Smoother         // time smoother
 	Output       Output           // data output
+	Smoother     Smoother         // time smoother
+	Windower     window.Function  // data windower
 }
 
 type processor struct {
@@ -57,9 +58,10 @@ type processor struct {
 
 	plans []*fft.Plan
 
-	anlz Analyzer
-	smth Smoother
-	out  Output
+	anlz  Analyzer
+	out   Output
+	smth  Smoother
+	wndwr window.Function
 }
 
 func New(cfg Config) *processor {
@@ -72,8 +74,9 @@ func New(cfg Config) *processor {
 		inputBufs:    cfg.Buffers,
 		plans:        make([]*fft.Plan, cfg.ChannelCount),
 		anlz:         cfg.Analyzer,
-		smth:         cfg.Smoother,
 		out:          cfg.Output,
+		smth:         cfg.Smoother,
+		wndwr:        cfg.Windower,
 	}
 
 	for idx := range vis.barBufs {
@@ -108,7 +111,9 @@ func (vis *processor) Process(ctx context.Context, kickChan chan bool, mu *sync.
 	for {
 		mu.Lock()
 		for idx := range vis.barBufs {
-			window.Lanczos(vis.inputBufs[idx])
+			if vis.wndwr != nil {
+				vis.wndwr(vis.inputBufs[idx])
+			}
 			vis.plans[idx].Execute()
 		}
 		mu.Unlock()
