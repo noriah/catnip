@@ -140,30 +140,6 @@ func catnip(cfg *config) error {
 	return nil
 }
 
-// NewZeroConfig returns a zero config
-// it is the "default"
-//
-// nori's defaults:
-//   - sampleRate: 122880
-//   - sampleSize: 2048
-//   - smoothFactor: 80.15
-//   - super smooth detail view
-func newZeroConfig() config {
-	return config{
-		sampleRate:   44100,
-		sampleSize:   1024,
-		smoothFactor: 80.15,
-		frameRate:    0,
-		baseSize:     1,
-		barSize:      2,
-		spaceSize:    1,
-		channelCount: 2,
-		drawType:     int(graphic.DrawDefault),
-		combine:      false,
-		useThreaded:  false,
-	}
-}
-
 func doFlags(cfg *config) bool {
 
 	parser := flaggy.NewParser(AppName)
