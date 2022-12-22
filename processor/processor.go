@@ -5,20 +5,11 @@ import (
 	"sync"
 	"time"
 
+	"github.com/noriah/catnip/dsp"
 	"github.com/noriah/catnip/dsp/window"
 	"github.com/noriah/catnip/fft"
 	"github.com/noriah/catnip/input"
 )
-
-type Analyzer interface {
-	BinCount() int
-	ProcessBin(int, []complex128) float64
-	Recalculate(int) int
-}
-
-type Smoother interface {
-	SmoothBin(int, int, float64) float64
-}
 
 type Output interface {
 	Bins(...int) int
@@ -35,17 +26,17 @@ type Config struct {
 	SampleRate   float64          // rate at which samples are read
 	SampleSize   int              // number of samples per buffer
 	ChannelCount int              // number of channels
-	FrameRate    int              // target framerate
+	ProcessRate  int              // target framerate
 	Buffers      [][]input.Sample // sample buffers
-	Analyzer     Analyzer         // audio analyzer
+	Analyzer     dsp.Analyzer     // audio analyzer
 	Output       Output           // data output
-	Smoother     Smoother         // time smoother
+	Smoother     dsp.Smoother     // time smoother
 	Windower     window.Function  // data windower
 }
 
 type processor struct {
 	channelCount int
-	frameRate    int
+	processRate  int
 
 	bars int
 
@@ -58,9 +49,9 @@ type processor struct {
 
 	plans []*fft.Plan
 
-	anlz  Analyzer
+	anlz  dsp.Analyzer
 	out   Output
-	smth  Smoother
+	smth  dsp.Smoother
 	wndwr window.Function
 }
 
@@ -68,7 +59,7 @@ func New(cfg Config) *processor {
 
 	vis := &processor{
 		channelCount: cfg.ChannelCount,
-		frameRate:    cfg.FrameRate,
+		processRate:  cfg.ProcessRate,
 		fftBufs:      make([][]complex128, cfg.ChannelCount),
 		barBufs:      make([][]float64, cfg.ChannelCount),
 		inputBufs:    cfg.Buffers,
@@ -99,12 +90,12 @@ func (vis *processor) Stop() {}
 // Process runs processing on sample sets and calls Write on the output once per sample set.
 func (vis *processor) Process(ctx context.Context, kickChan chan bool, mu *sync.Mutex) {
 
-	if vis.frameRate <= 0 {
+	if vis.processRate <= 0 {
 		// if we do not have a framerate set, allow at most 1 second per sampling
-		vis.frameRate = 1
+		vis.processRate = 1
 	}
 
-	dur := time.Second / time.Duration(vis.frameRate)
+	dur := time.Second / time.Duration(vis.processRate)
 	ticker := time.NewTicker(dur)
 	defer ticker.Stop()
 

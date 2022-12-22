@@ -4,6 +4,7 @@ import (
 	"context"
 	"sync"
 
+	"github.com/noriah/catnip/dsp"
 	"github.com/noriah/catnip/dsp/window"
 	"github.com/noriah/catnip/fft"
 	"github.com/noriah/catnip/input"
@@ -30,8 +31,8 @@ type threadedProcessor struct {
 
 	plans []*fft.Plan
 
-	anlz Analyzer
-	smth Smoother
+	anlz dsp.Analyzer
+	smth dsp.Smoother
 	out  Output
 }
 

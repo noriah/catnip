@@ -109,6 +109,10 @@ type Display struct {
 	cancel      context.CancelFunc
 }
 
+func NewDisplay() *Display {
+	return &Display{}
+}
+
 // Init initializes the display.
 // Should be called before any other display method.
 func (d *Display) Init(sampleRate float64, sampleSize int) error {

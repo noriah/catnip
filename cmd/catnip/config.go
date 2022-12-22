@@ -35,15 +35,15 @@ type config struct {
 	spaceSize int
 	// ChannelCount is the number of channels we want to look at. DO NOT TOUCH
 	channelCount int
-	// Combine determines if we merge streams (stereo -> mono)
+	// DrawType is the draw type
 	drawType int
-	// Styles is the configuration for bar color styles
+	// Combine determines if we merge streams (stereo -> mono)
 	combine bool
 	// Use threaded processor
 	useThreaded bool
 	// Invert the order of bin drawing
 	invertDraw bool
-	// DrawType is the draw type
+	// Styles is the configuration for bar color styles
 	styles graphic.Styles
 }
 
@@ -72,7 +72,7 @@ func newZeroConfig() config {
 }
 
 // Sanitize cleans things up
-func (cfg *config) Sanitize() error {
+func (cfg *config) validate() error {
 
 	if cfg.sampleRate < float64(cfg.sampleSize) {
 		return errors.New("sample rate lower than sample size")

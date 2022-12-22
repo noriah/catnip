@@ -4,18 +4,16 @@ import (
 	"context"
 	"fmt"
 	"log"
-	"sync"
 
+	"github.com/noriah/catnip"
 	"github.com/noriah/catnip/dsp"
 	"github.com/noriah/catnip/dsp/window"
 	"github.com/noriah/catnip/graphic"
 	"github.com/noriah/catnip/input"
-	"github.com/noriah/catnip/processor"
 
 	_ "github.com/noriah/catnip/input/all"
 
 	"github.com/integrii/flaggy"
-	"github.com/pkg/errors"
 )
 
 // AppName is the app name
@@ -38,110 +36,58 @@ func main() {
 		return
 	}
 
-	chk(cfg.Sanitize(), "invalid config")
+	chk(cfg.validate(), "invalid config")
 
-	chk(catnip(&cfg), "failed to run catnip")
-}
+	display := graphic.NewDisplay()
 
-// Catnip starts to draw the processor on the termbox screen.
-func catnip(cfg *config) error {
-
-	display := &graphic.Display{}
-
-	// PROCESSOR SETUP
-
-	inputBuffers := input.MakeBuffers(cfg.channelCount, cfg.sampleSize)
-
-	procConfig := processor.Config{
+	catnipCfg := catnip.Config{
+		Backend:      cfg.backend,
+		Device:       cfg.device,
 		SampleRate:   cfg.sampleRate,
 		SampleSize:   cfg.sampleSize,
 		ChannelCount: cfg.channelCount,
-		FrameRate:    cfg.frameRate,
-		Buffers:      inputBuffers,
+		ProcessRate:  cfg.frameRate,
+		Combine:      cfg.combine,
+		UseThreaded:  cfg.useThreaded,
+		SetupFunc: func() error {
+			if err := display.Init(cfg.sampleRate, cfg.sampleSize); err != nil {
+				return err
+			}
+
+			display.SetSizes(cfg.barSize, cfg.spaceSize)
+			display.SetBase(cfg.baseSize)
+			display.SetDrawType(graphic.DrawType(cfg.drawType))
+			display.SetStyles(cfg.styles)
+			display.SetInvertDraw(cfg.invertDraw)
+
+			return nil
+		},
+		StartFunc: func(ctx context.Context) (context.Context, error) {
+			ctx = display.Start(ctx)
+
+			return ctx, nil
+		},
+		CleanupFunc: func() error {
+			display.Stop()
+			display.Close()
+			return nil
+		},
+		Output:   display,
+		Windower: window.Lanczos,
 		Analyzer: dsp.NewAnalyzer(dsp.AnalyzerConfig{
 			SampleRate: cfg.sampleRate,
 			SampleSize: cfg.sampleSize,
 			SquashLow:  true,
 			BinMethod:  dsp.MaxSamples,
 		}),
-		Output: display,
 		Smoother: dsp.NewSmoother(dsp.SmootherConfig{
 			SampleSize:      cfg.sampleSize,
 			ChannelCount:    cfg.channelCount,
 			SmoothingFactor: cfg.smoothFactor,
 		}),
-		Windower: window.Lanczos,
 	}
 
-	var vis processor.Processor
-
-	if cfg.useThreaded {
-		vis = processor.NewThreaded(procConfig)
-	} else {
-		vis = processor.New(procConfig)
-	}
-
-	// INPUT SETUP
-
-	backend, err := input.InitBackend(cfg.backend)
-	if err != nil {
-		return err
-	}
-
-	sessConfig := input.SessionConfig{
-		FrameSize:  cfg.channelCount,
-		SampleSize: cfg.sampleSize,
-		SampleRate: cfg.sampleRate,
-	}
-
-	if sessConfig.Device, err = input.GetDevice(backend, cfg.device); err != nil {
-		return err
-	}
-
-	audio, err := backend.Start(sessConfig)
-	defer backend.Close()
-
-	if err != nil {
-		return errors.Wrap(err, "failed to start the input backend")
-	}
-
-	// DISPLAY SETUP
-
-	if err = display.Init(cfg.sampleRate, cfg.sampleSize); err != nil {
-		return err
-	}
-	defer display.Close()
-
-	display.SetSizes(cfg.barSize, cfg.spaceSize)
-	display.SetBase(cfg.baseSize)
-	display.SetDrawType(graphic.DrawType(cfg.drawType))
-	display.SetStyles(cfg.styles)
-	display.SetInvertDraw(cfg.invertDraw)
-
-	// Root Context
-	ctx, cancel := context.WithCancel(context.Background())
-	defer cancel()
-
-	ctx = display.Start(ctx)
-	defer display.Stop()
-
-	ctx = vis.Start(ctx)
-	defer vis.Stop()
-
-	kickChan := make(chan bool, 1)
-
-	mu := &sync.Mutex{}
-
-	// Start the processor
-	go vis.Process(ctx, kickChan, mu)
-
-	if err := audio.Start(ctx, inputBuffers, kickChan, mu); err != nil {
-		if !errors.Is(ctx.Err(), context.Canceled) {
-			return errors.Wrap(err, "failed to start input session")
-		}
-	}
-
-	return nil
+	chk(catnip.Catnip(&catnipCfg), "failed to run catnip")
 }
 
 func doFlags(cfg *config) bool {
