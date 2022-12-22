@@ -1,5 +1,5 @@
 //go:build cgo && withportaudio
 
-package main
+package all
 
 import _ "github.com/noriah/catnip/input/portaudio"

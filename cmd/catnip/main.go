@@ -12,8 +12,7 @@ import (
 	"github.com/noriah/catnip/input"
 	"github.com/noriah/catnip/processor"
 
-	_ "github.com/noriah/catnip/input/ffmpeg"
-	_ "github.com/noriah/catnip/input/parec"
+	_ "github.com/noriah/catnip/input/all"
 
 	"github.com/integrii/flaggy"
 	"github.com/pkg/errors"
