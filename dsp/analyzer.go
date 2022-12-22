@@ -7,15 +7,18 @@
 // https://github.com/hvianna/audioMotion-analyzer/blob/master/src/audioMotion-analyzer.js#L1053
 // https://dsp.stackexchange.com/questions/6499/help-calculating-understanding-the-mfccs-mel-frequency-cepstrum-coefficients
 // https://stackoverflow.com/questions/3694918/how-to-extract-frequency-associated-with-fft-values-in-python
-//  - https://stackoverflow.com/a/27191172
-//
+//   - https://stackoverflow.com/a/27191172
 package dsp
 
 import "math"
 
+type BinMethod func(int, float64, float64) float64
+
 type AnalyzerConfig struct {
-	SampleRate float64 // audio sample rate
-	SampleSize int     // number of samples per slice
+	SampleRate float64   // audio sample rate
+	SampleSize int       // number of samples per slice
+	SquashLow  bool      // squash the low end the spectrum
+	BinMethod  BinMethod // method used for calculating bin value
 }
 
 type Analyzer interface {
@@ -58,6 +61,24 @@ var frequencies = []float64{
 	// everything else
 }
 
+// Average all the samples together
+func AverageSamples(count int, current, new float64) float64 {
+	return current + (new / float64(count))
+}
+
+// Sum all the samples together
+func SumSamples(count int, current, new float64) float64 {
+	return current + new
+}
+
+// Return the maximum value of all the samples
+func MaxSamples(count int, current, new float64) float64 {
+	if current < new {
+		return new
+	}
+	return current
+}
+
 func NewAnalyzer(cfg AnalyzerConfig) Analyzer {
 	return &analyzer{
 		cfg:     cfg,
@@ -72,7 +93,6 @@ func (az *analyzer) BinCount() int {
 }
 
 func (az *analyzer) ProcessBin(idx int, src []complex128) float64 {
-	mag := 0.0
 	bin := az.bins[idx]
 
 	fftFloor, fftCeil := bin.floorFFT, bin.ceilFFT
@@ -81,16 +101,18 @@ func (az *analyzer) ProcessBin(idx int, src []complex128) float64 {
 	}
 
 	src = src[fftFloor:fftCeil]
+	mag := 0.0
+	count := len(src)
 	for _, cmplx := range src {
 		power := math.Hypot(real(cmplx), imag(cmplx))
-		if mag < power {
-			mag = power
-		}
+		mag = az.cfg.BinMethod(count, mag, power)
 	}
 
-	// squash the low low end a bit.
-	if f := az.freqToIdx(400.0, math.Floor); fftFloor < f {
-		mag *= (0.55 * (float64(fftFloor+1) / float64(f)))
+	if az.cfg.SquashLow {
+		// squash the low low end a bit.
+		if f := az.freqToIdx(400.0, math.Floor); fftFloor < f {
+			mag *= (0.55 * (float64(fftFloor+1) / float64(f)))
+		}
 	}
 
 	if mag = math.Log(mag); mag < 0.0 {

@@ -62,12 +62,15 @@ func catnip(cfg *config) error {
 		Analyzer: dsp.NewAnalyzer(dsp.AnalyzerConfig{
 			SampleRate: cfg.sampleRate,
 			SampleSize: cfg.sampleSize,
+			SquashLow:  true,
+			BinMethod:  dsp.MaxSamples,
 		}),
 		Output: display,
 		Smoother: dsp.NewSmoother(dsp.SmootherConfig{
 			SampleSize:      cfg.sampleSize,
 			ChannelCount:    cfg.channelCount,
-			SmoothingFactor: cfg.smoothFactor}),
+			SmoothingFactor: cfg.smoothFactor,
+		}),
 		Windower: window.Lanczos,
 	}
 
