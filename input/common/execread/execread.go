@@ -9,6 +9,7 @@ import (
 	"os"
 	"os/exec"
 	"sync"
+	"time"
 
 	"github.com/noriah/catnip/input"
 	"github.com/pkg/errors"
@@ -47,10 +48,8 @@ func (s *Session) Start(ctx context.Context, dst [][]input.Sample, kickChan chan
 		return errors.New("invalid dst length given")
 	}
 
-	// Take argv and free it soon after, since we won't be needing it again.
 	cmd := exec.CommandContext(ctx, s.argv[0], s.argv[1:]...)
 	cmd.Stderr = os.Stderr
-	s.argv = nil
 
 	o, err := cmd.StdoutPipe()
 	if err != nil {
@@ -58,9 +57,20 @@ func (s *Session) Start(ctx context.Context, dst [][]input.Sample, kickChan chan
 	}
 	defer o.Close()
 
-	bufsz := s.samples * 4
-	if !s.f32mode {
-		bufsz *= 2
+	// We need o as an *os.File for SetWriteDeadline.
+	of, ok := o.(*os.File)
+	if !ok {
+		return errors.New("stdout pipe is not an *os.File (bug)")
+	}
+
+	if err := cmd.Start(); err != nil {
+		return errors.Wrap(err, "failed to start "+s.argv[0])
+	}
+
+	if s.OnStart != nil {
+		if err := s.OnStart(ctx, cmd); err != nil {
+			return err
+		}
 	}
 
 	framesz := s.cfg.FrameSize
@@ -69,43 +79,72 @@ func (s *Session) Start(ctx context.Context, dst [][]input.Sample, kickChan chan
 		f64:   !s.f32mode,
 	}
 
-	// Allocate 4 times the buffer. We should ensure that we can read some of
-	// the overflow.
-	raw := make([]byte, bufsz)
-
-	if err := cmd.Start(); err != nil {
-		return errors.Wrap(err, "failed to start ffmpeg")
+	bufsz := s.samples
+	if !s.f32mode {
+		bufsz *= 2
 	}
-	defer cmd.Process.Signal(os.Interrupt)
 
-	if s.OnStart != nil {
-		if err := s.OnStart(ctx, cmd); err != nil {
-			return err
-		}
-	}
+	raw := make([]byte, bufsz*4)
+
+	// We double this as a workaround because sampleDuration is less than the
+	// actual time that ReadFull blocks for some reason, probably because the
+	// process decides to discard audio when it overflows.
+	sampleDuration := time.Duration(
+		float64(s.cfg.SampleSize) / s.cfg.SampleRate * float64(time.Second))
+	// We also keep track of whether the deadline was hit once so we can half
+	// the sample duration. This smooths out the jitter.
+	var readExpired bool
 
 	for {
-		reader.reset(raw)
-
-		mu.Lock()
-		for n := 0; n < s.samples; n++ {
-			dst[n%framesz][n/framesz] = reader.next()
+		// Set us a read deadline. If the deadline is reached, we'll write zeros
+		// to the buffer.
+		timeout := sampleDuration
+		if !readExpired {
+			timeout *= 2
 		}
-		mu.Unlock()
-
-		select {
-		case <-ctx.Done():
-			return ctx.Err()
-			// default:
-		case kickChan <- true:
+		if err := of.SetReadDeadline(time.Now().Add(timeout)); err != nil {
+			return errors.Wrap(err, "failed to set read deadline")
 		}
 
 		_, err := io.ReadFull(o, raw)
 		if err != nil {
-			if errors.Is(err, io.EOF) {
+			switch {
+			case errors.Is(err, io.EOF):
 				return nil
+			case errors.Is(err, os.ErrDeadlineExceeded):
+				readExpired = true
+			default:
+				return err
 			}
-			return err
+		} else {
+			readExpired = false
+		}
+
+		if readExpired {
+			mu.Lock()
+			// We can write directly to dst just so we can avoid parsing zero
+			// bytes to floats.
+			for _, buf := range dst {
+				// Go should optimize this to a memclr.
+				for i := range buf {
+					buf[i] = 0
+				}
+			}
+			mu.Unlock()
+		} else {
+			reader.reset(raw)
+			mu.Lock()
+			for n := 0; n < s.samples; n++ {
+				dst[n%framesz][n/framesz] = reader.next()
+			}
+			mu.Unlock()
+		}
+
+		// Signal that we've written to dst.
+		select {
+		case <-ctx.Done():
+			return ctx.Err()
+		case kickChan <- true:
 		}
 	}
 }
@@ -113,23 +152,21 @@ func (s *Session) Start(ctx context.Context, dst [][]input.Sample, kickChan chan
 type floatReader struct {
 	order binary.ByteOrder
 	buf   []byte
-	n     int64
 	f64   bool
 }
 
 func (f *floatReader) reset(b []byte) {
-	f.n = 0
 	f.buf = b
 }
 
 func (f *floatReader) next() float64 {
-	n := f.n
-
 	if f.f64 {
-		f.n += 8
-		return math.Float64frombits(f.order.Uint64(f.buf[n:]))
+		b := f.buf[:8]
+		f.buf = f.buf[8:]
+		return math.Float64frombits(f.order.Uint64(b))
 	}
 
-	f.n += 4
-	return float64(math.Float32frombits(f.order.Uint32(f.buf[n:])))
+	b := f.buf[:4]
+	f.buf = f.buf[4:]
+	return float64(math.Float32frombits(f.order.Uint32(b)))
 }
