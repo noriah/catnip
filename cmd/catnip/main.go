@@ -87,7 +87,11 @@ func main() {
 		}),
 	}
 
-	chk(catnip.Catnip(&catnipCfg), "failed to run catnip")
+	// Root Context
+	ctx, cancel := context.WithCancel(context.Background())
+	defer cancel()
+
+	chk(catnip.Run(&catnipCfg, ctx), "failed to run catnip")
 }
 
 func doFlags(cfg *config) bool {

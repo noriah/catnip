@@ -14,7 +14,7 @@ type SetupFunc func() error
 type StartFunc func(ctx context.Context) (context.Context, error)
 type CleanupFunc func() error
 
-func Catnip(cfg *Config) error {
+func Run(cfg *Config, ctx context.Context) error {
 	if err := cfg.Validate(); err != nil {
 		return err
 	}
@@ -76,10 +76,6 @@ func Catnip(cfg *Config) error {
 	if cfg.CleanupFunc != nil {
 		defer cfg.CleanupFunc()
 	}
-
-	// Root Context
-	ctx, cancel := context.WithCancel(context.Background())
-	defer cancel()
 
 	if cfg.StartFunc != nil {
 		if ctx, err = cfg.StartFunc(ctx); err != nil {
