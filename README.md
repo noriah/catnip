@@ -18,6 +18,7 @@
 - DirectShow (windblows FFmpeg)
 - PortAudio (linux/macOS/windblows)
 - PulseAudio (parec/FFmpeg)
+- Pipewire (pw-cat)
 
 ## it depends on
 
@@ -31,6 +32,7 @@
 - binaries
 	- ffmpeg (required for FFmpeg backends)
 	- parec (required for PulseAudio backend with parec)
+    - pw-cat, pw-link (required for Pipewire backend)
 
 - c libraries (optional, requires CGO - `CGO_ENABLED=1`)
 	- fftw (fftw3) (enable with `-tags withfftw`)
