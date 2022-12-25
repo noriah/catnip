@@ -3,7 +3,7 @@ package parec
 import (
 	"fmt"
 
-	"github.com/lawl/pulseaudio"
+	"github.com/noisetorch/pulseaudio"
 	"github.com/noriah/catnip/input"
 	"github.com/noriah/catnip/input/common/execread"
 	"github.com/pkg/errors"
@@ -83,5 +83,5 @@ func NewSession(cfg input.SessionConfig) (*execread.Session, error) {
 		args = append(args, "-d", dv.String())
 	}
 
-	return execread.NewSession(args, true, cfg)
+	return execread.NewSession(args, true, cfg), nil
 }

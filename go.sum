@@ -1,9 +1,9 @@
 github.com/integrii/flaggy v1.4.4 h1:8fGyiC14o0kxhTqm2VBoN19fDKPZsKipP7yggreTMDc=
 github.com/integrii/flaggy v1.4.4/go.mod h1:tnTxHeTJbah0gQ6/K0RW0J7fMUBk9MCF5blhm43LNpI=
-github.com/lawl/pulseaudio v0.0.0-20210928141934-ed754c0c6618 h1:lktbhQBHluc1oWEDow4DEv13qkWJ8zm/dTUSKer2iKk=
-github.com/lawl/pulseaudio v0.0.0-20210928141934-ed754c0c6618/go.mod h1:9h36x4KH7r2V8DOCKoPMt87IXZ++X90y8D5nnuwq290=
 github.com/mattn/go-runewidth v0.0.9 h1:Lm995f3rfxdpd6TSmuVCHVb/QhupuXlYr8sCI/QdE+0=
 github.com/mattn/go-runewidth v0.0.9/go.mod h1:H031xJmbD/WCDINGzjvQ9THkh0rPKHF+m2gUSrubnMI=
+github.com/noisetorch/pulseaudio v0.0.0-20220603053345-9303200c3861 h1:Xng5X+MlNK7Y/Ede75B86wJgaFMFvuey1K4Suh9k2E4=
+github.com/noisetorch/pulseaudio v0.0.0-20220603053345-9303200c3861/go.mod h1:/zosM8PSkhuVyfJ9c/qzBhPSm3k06m9U4y4SDfH0jeA=
 github.com/nsf/termbox-go v1.1.1 h1:nksUPLCb73Q++DwbYUBEglYBRPZyoXJdrj5L+TkjyZY=
 github.com/nsf/termbox-go v1.1.1/go.mod h1:T0cTdVuOwf7pHQNtfhnEbzHbcNyCEcVU4YPpouCbVxo=
 github.com/pkg/errors v0.9.1 h1:FEBLx1zS214owpjy7qsBeixbURkuhQAwrK5UwLGTwt4=

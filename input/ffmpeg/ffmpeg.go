@@ -21,5 +21,5 @@ func NewSession(b FFmpegBackend, cfg input.SessionConfig) (*execread.Session, er
 		"-",
 	)
 
-	return execread.NewSession(args, false, cfg)
+	return execread.NewSession(args, false, cfg), nil
 }
