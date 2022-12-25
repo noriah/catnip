@@ -177,17 +177,6 @@ func (d *Display) inputProcessor() {
 		switch ev.Type {
 		case termbox.EventKey:
 			switch ev.Key {
-			case termbox.KeyArrowUp:
-				d.AdjustSizes(1, 0)
-
-			case termbox.KeyArrowRight:
-				d.AdjustSizes(0, 1)
-
-			case termbox.KeyArrowDown:
-				d.AdjustSizes(-1, 0)
-
-			case termbox.KeyArrowLeft:
-				d.AdjustSizes(0, -1)
 
 			case termbox.KeySpace:
 				d.SetDrawType(d.drawType + 1)
@@ -197,6 +186,18 @@ func (d *Display) inputProcessor() {
 
 			default:
 				switch ev.Ch {
+				case 'w', 'W':
+					d.AdjustSizes(1, 0)
+
+				case 'd', 'D':
+					d.AdjustSizes(0, 1)
+
+				case 's', 'S':
+					d.AdjustSizes(-1, 0)
+
+				case 'a', 'A':
+					d.AdjustSizes(0, -1)
+
 				case 'i', 'I':
 					d.SetInvertDraw(!d.invertDraw)
 
