@@ -13,7 +13,7 @@ import (
 
 type Output interface {
 	Bins(...int) int
-	Write([][]float64, int, float64) error
+	Write([][]float64, int) error
 }
 
 type Processor interface {
@@ -113,9 +113,7 @@ func (vis *processor) Process(ctx context.Context, kickChan chan bool, mu *sync.
 			vis.bars = vis.anlz.Recalculate(n)
 		}
 
-		peak := 0.0
 		for idx := range vis.fftBufs {
-
 			buf := vis.barBufs[idx]
 
 			for bIdx := range buf[:vis.bars] {
@@ -124,15 +122,11 @@ func (vis *processor) Process(ctx context.Context, kickChan chan bool, mu *sync.
 					v = vis.smth.SmoothBin(idx, bIdx, v)
 				}
 
-				if peak < v {
-					peak = v
-				}
-
 				buf[bIdx] = v
 			}
 		}
 
-		vis.out.Write(vis.barBufs, vis.channelCount, peak)
+		vis.out.Write(vis.barBufs, vis.channelCount)
 
 		select {
 		case <-ctx.Done():

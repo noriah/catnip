@@ -14,12 +14,6 @@ type config struct {
 	device string
 	// SampleRate is the rate at which samples are read
 	sampleRate float64
-	// LoCutFrqq is the low end of our audio spectrum
-	// Deprecated
-	// loCutFreq float64
-	// HiCutFreq is the high end of our audio spectrum
-	// Deprecated
-	// hiCutFreq float64
 	// SmoothFactor factor of smooth
 	smoothFactor float64
 	// SampleSize is how much we draw. Play with it

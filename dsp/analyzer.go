@@ -15,10 +15,11 @@ import "math"
 type BinMethod func(int, float64, float64) float64
 
 type AnalyzerConfig struct {
-	SampleRate float64   // audio sample rate
-	SampleSize int       // number of samples per slice
-	SquashLow  bool      // squash the low end the spectrum
-	BinMethod  BinMethod // method used for calculating bin value
+	SampleRate   float64   // audio sample rate
+	SampleSize   int       // number of samples per slice
+	SquashLow    bool      // squash the low end the spectrum
+	SquashLowOld bool      // squash the low end using the old method
+	BinMethod    BinMethod // method used for calculating bin value
 }
 
 type Analyzer interface {
@@ -61,22 +62,47 @@ var frequencies = []float64{
 	// everything else
 }
 
-// Average all the samples together
-func AverageSamples(count int, current, new float64) float64 {
-	return current + (new / float64(count))
-}
-
-// Sum all the samples together
-func SumSamples(count int, current, new float64) float64 {
-	return current + new
-}
-
-// Return the maximum value of all the samples
-func MaxSamples(count int, current, new float64) float64 {
-	if current < new {
-		return new
+// Average all the samples together.
+func AverageSamples() BinMethod {
+	return func(count int, current, new float64) float64 {
+		return current + (new / float64(count))
 	}
-	return current
+}
+
+// Sum all the samples together.
+func SumSamples() BinMethod {
+	return func(_ int, current, new float64) float64 {
+		return current + new
+	}
+}
+
+// Return the maximum value of all the samples.
+func MaxSampleValue() BinMethod {
+	return func(_ int, current, new float64) float64 {
+		if current < new {
+			return new
+		}
+		return current
+	}
+}
+
+// Return the minimum value of all the samples that is not zero.
+func MinNonZeroSampleValue() BinMethod {
+	return func(_ int, current, new float64) float64 {
+		if current == 0.0 {
+			return new
+		}
+
+		if new == 0.0 {
+			return current
+		}
+
+		if current > new {
+			return new
+		}
+
+		return current
+	}
 }
 
 func NewAnalyzer(cfg AnalyzerConfig) Analyzer {
@@ -110,8 +136,14 @@ func (az *analyzer) ProcessBin(idx int, src []complex128) float64 {
 
 	if az.cfg.SquashLow {
 		// squash the low low end a bit.
-		if f := az.freqToIdx(400.0, math.Floor); fftFloor < f {
-			mag *= (0.55 * (float64(fftFloor+1) / float64(f)))
+		if az.cfg.SquashLowOld {
+			if f := az.freqToIdx(400.0, math.Floor); fftFloor < f {
+				mag *= 0.55 * (float64(fftFloor+1) / float64(f))
+			}
+		} else {
+			if f := az.freqToIdx(600.0, math.Floor); fftFloor < f {
+				mag *= 0.55 * math.Min(1.0, (float64(fftFloor+3)/float64(f)))
+			}
 		}
 	}
 

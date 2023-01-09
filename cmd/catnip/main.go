@@ -4,6 +4,8 @@ import (
 	"context"
 	"fmt"
 	"log"
+	"os"
+	"os/signal"
 
 	"github.com/noriah/catnip"
 	"github.com/noriah/catnip/dsp"
@@ -73,12 +75,12 @@ func main() {
 			return nil
 		},
 		Output:   display,
-		Windower: window.Lanczos,
+		Windower: window.Lanczos(),
 		Analyzer: dsp.NewAnalyzer(dsp.AnalyzerConfig{
 			SampleRate: cfg.sampleRate,
 			SampleSize: cfg.sampleSize,
 			SquashLow:  true,
-			BinMethod:  dsp.MaxSamples,
+			BinMethod:  dsp.MaxSampleValue(),
 		}),
 		Smoother: dsp.NewSmoother(dsp.SmootherConfig{
 			SampleSize:      cfg.sampleSize,
@@ -88,7 +90,7 @@ func main() {
 	}
 
 	// Root Context
-	ctx, cancel := context.WithCancel(context.Background())
+	ctx, cancel := signal.NotifyContext(context.Background(), os.Interrupt)
 	defer cancel()
 
 	chk(catnip.Run(&catnipCfg, ctx), "failed to run catnip")

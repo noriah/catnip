@@ -67,6 +67,8 @@ func (vis *threadedProcessor) channelProcessor(ch int, kick <-chan bool) {
 	barBuf := vis.barBufs[ch]
 	fftBuf := vis.fftBufs[ch]
 
+	windower := window.Lanczos()
+
 	for {
 		select {
 		case <-vis.ctx.Done():
@@ -74,23 +76,15 @@ func (vis *threadedProcessor) channelProcessor(ch int, kick <-chan bool) {
 		case <-kick:
 		}
 
-		window.Lanczos(buffer)
+		windower(buffer)
 		plan.Execute()
-
-		peak := 0.0
 
 		for i := range barBuf[:vis.bars] {
 			v := vis.anlz.ProcessBin(i, fftBuf)
 			v = vis.smth.SmoothBin(ch, i, v)
 
-			if peak < v {
-				peak = v
-			}
-
 			barBuf[i] = v
 		}
-
-		vis.peaks[ch] = peak
 
 		vis.wg.Done()
 	}
@@ -126,13 +120,5 @@ func (vis *threadedProcessor) Process(ctx context.Context, kickChan chan bool, m
 
 	vis.wg.Wait()
 
-	peak := 0.0
-
-	for _, p := range vis.peaks {
-		if peak < p {
-			peak = p
-		}
-	}
-
-	vis.out.Write(vis.barBufs, vis.channelCount, peak)
+	vis.out.Write(vis.barBufs, vis.channelCount)
 }

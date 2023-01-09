@@ -290,14 +290,26 @@ func (d *Display) fillStyleBuffer(left, center, right int) {
 }
 
 // Draw takes data and draws.
-func (d *Display) Write(buffers [][]float64, channels int, peak float64) error {
+func (d *Display) Write(buffers [][]float64, channels int) error {
+
+	peak := 0.0
+
+	for i := 0; i < channels; i++ {
+		for _, val := range buffers[i] {
+			if val > peak {
+				peak = val
+			}
+		}
+	}
 
 	scale := 1.0
+
 	// do some scaling if we are above the PeakThreshold
 	if peak >= PeakThreshold {
 		d.fastWindow.Update(peak)
 		vMean, vSD := d.slowWindow.Update(peak)
 
+		// this is some major hot garbage. but it works to some extent.
 		// if our slow window finally has more values than our fast window
 		if length := d.slowWindow.Len(); length >= d.fastWindow.Cap() {
 			// no idea what this is doing
