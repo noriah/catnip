@@ -10,7 +10,8 @@ type SmootherConfig struct {
 }
 
 type Smoother interface {
-	SmoothBin(int, int, float64) float64
+	SmoothBuffers([][]float64)
+	SmoothBin(int, int, float64, float64) float64
 }
 
 type smoother struct {
@@ -34,7 +35,24 @@ func NewSmoother(cfg SmootherConfig) Smoother {
 	return sm
 }
 
-func (sm *smoother) SmoothBin(ch, idx int, value float64) float64 {
+func (sm *smoother) SmoothBuffers(bufs [][]float64) {
+	peak := 0.0
+	for _, buf := range bufs {
+		for _, v := range buf {
+			if v > peak {
+				peak = v
+			}
+		}
+	}
+
+	for ch, buf := range bufs {
+		for idx, v := range buf {
+			buf[idx] = sm.SmoothBin(ch, idx, v, peak)
+		}
+	}
+}
+
+func (sm *smoother) SmoothBin(ch, idx int, value, peak float64) float64 {
 	existing := sm.values[ch][idx]
 	factor := sm.smoothFactor
 
@@ -50,13 +68,20 @@ func (sm *smoother) SmoothBin(ch, idx int, value float64) float64 {
 
 		diff := math.Abs(value - existing)
 		max := math.Max(value, existing)
+		// average := (value + existing) / 2.0
 
 		diffPct := diff / max
+		peakDiffPct := value / math.Max(1, peak)
 
-		partial := (1.0 - factor) * 0.75
+		partial := (1.0 - factor) * 0.45
 		factor += partial - ((partial + 0.01) * math.Pow(diffPct, 1.5))
+		factor += (partial / 2.0) - (((partial / 2.0) + 0.00) * math.Pow(peakDiffPct, 4.0))
 
-		factor = math.Max(0.1, math.Min(0.9999, factor))
+		factor = math.Max(
+			math.SmallestNonzeroFloat64,
+			math.Min(
+				1.0-math.SmallestNonzeroFloat64,
+				factor))
 	}
 
 	value *= 1.0 - factor

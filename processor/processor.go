@@ -113,17 +113,16 @@ func (vis *processor) Process(ctx context.Context, kickChan chan bool, mu *sync.
 			vis.bars = vis.anlz.Recalculate(n)
 		}
 
-		for idx := range vis.fftBufs {
+		for idx, fftBuf := range vis.fftBufs {
 			buf := vis.barBufs[idx]
 
 			for bIdx := range buf[:vis.bars] {
-				v := vis.anlz.ProcessBin(bIdx, vis.fftBufs[idx])
-				if vis.smth != nil {
-					v = vis.smth.SmoothBin(idx, bIdx, v)
-				}
-
-				buf[bIdx] = v
+				buf[bIdx] = vis.anlz.ProcessBin(bIdx, fftBuf)
 			}
+		}
+
+		if vis.smth != nil {
+			vis.smth.SmoothBuffers(vis.barBufs)
 		}
 
 		vis.out.Write(vis.barBufs, vis.channelCount)
