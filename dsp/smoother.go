@@ -6,6 +6,7 @@ type SmootherConfig struct {
 	SampleSize      int     // number of samples per slice
 	ChannelCount    int     // number of channels
 	SmoothingFactor float64 // smoothing factor
+	NewSmoothing    bool    // use new smoothing method
 }
 
 type Smoother interface {
@@ -15,11 +16,13 @@ type Smoother interface {
 type smoother struct {
 	values       [][]float64 // old values used for smoothing
 	smoothFactor float64     // smothing factor
+	newSmoothing bool        // use new smoothing method
 }
 
 func NewSmoother(cfg SmootherConfig) Smoother {
 	sm := &smoother{
-		values: make([][]float64, cfg.ChannelCount),
+		values:       make([][]float64, cfg.ChannelCount),
+		newSmoothing: cfg.NewSmoothing,
 	}
 
 	for idx := range sm.values {
@@ -32,8 +35,32 @@ func NewSmoother(cfg SmootherConfig) Smoother {
 }
 
 func (sm *smoother) SmoothBin(ch, idx int, value float64) float64 {
-	value *= 1.0 - sm.smoothFactor
-	value += sm.values[ch][idx] * sm.smoothFactor
+	existing := sm.values[ch][idx]
+	factor := sm.smoothFactor
+
+	if sm.newSmoothing {
+
+		if math.IsNaN(value) {
+			value = 0.0
+		}
+
+		if math.IsNaN(existing) {
+			existing = 0.0
+		}
+
+		diff := math.Abs(value - existing)
+		max := math.Max(value, existing)
+
+		diffPct := diff / max
+
+		partial := (1.0 - factor) * 0.75
+		factor += partial - ((partial + 0.01) * math.Pow(diffPct, 1.5))
+
+		factor = math.Max(0.1, math.Min(0.9999, factor))
+	}
+
+	value *= 1.0 - factor
+	value += existing * factor
 
 	sm.values[ch][idx] = value
 

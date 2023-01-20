@@ -86,6 +86,7 @@ func main() {
 			SampleSize:      cfg.sampleSize,
 			ChannelCount:    cfg.channelCount,
 			SmoothingFactor: cfg.smoothFactor,
+			NewSmoothing:    cfg.newSmoothing,
 		}),
 	}
 
@@ -134,6 +135,7 @@ func doFlags(cfg *config) bool {
 	parser.Int(&cfg.drawType, "dt", "draw", "draw type (1, 2, 3, 4, 5, 6)")
 	parser.Bool(&cfg.useThreaded, "t", "threaded", "use the threaded processor")
 	parser.Bool(&cfg.invertDraw, "i", "invert", "invert the direction of bin drawing")
+	parser.Bool(&cfg.newSmoothing, "ns", "new-smoothing", "use new smoothing method")
 
 	fg, bg, center := graphic.DefaultStyles().AsUInt16s()
 	parser.UInt16(&fg, "fg", "foreground",

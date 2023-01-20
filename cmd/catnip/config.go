@@ -37,6 +37,8 @@ type config struct {
 	useThreaded bool
 	// Invert the order of bin drawing
 	invertDraw bool
+	// New Smoothing method
+	newSmoothing bool
 	// Styles is the configuration for bar color styles
 	styles graphic.Styles
 }
@@ -62,6 +64,8 @@ func newZeroConfig() config {
 		drawType:     int(graphic.DrawDefault),
 		combine:      false,
 		useThreaded:  false,
+		invertDraw:   false,
+		newSmoothing: false,
 	}
 }
 
