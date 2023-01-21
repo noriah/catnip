@@ -2,7 +2,6 @@ package graphic
 
 import (
 	"context"
-	"math"
 	"sync"
 	"sync/atomic"
 
@@ -26,14 +25,8 @@ const (
 	// NumRunes number of runes for sub step bars
 	NumRunes = 8
 
-	// ScalingSlowWindow in seconds
-	ScalingSlowWindow = 5
-	// ScalingFastWindow in seconds
-	ScalingFastWindow = ScalingSlowWindow * 0.2
-	// ScalingDumpPercent is how much we erase on rescale
-	ScalingDumpPercent = 0.60
-	// ScalingResetDeviation standard deviations from the mean before reset
-	ScalingResetDeviation = 1.0
+	// ScalingWindow in seconds
+	ScalingWindow = 5
 	// PeakThreshold is the threshold to not draw if the peak is less.
 	PeakThreshold = 0.01
 )
@@ -99,8 +92,7 @@ type Display struct {
 	termWidth   int
 	termHeight  int
 	invertDraw  bool
-	slowWindow  *util.MovingWindow
-	fastWindow  *util.MovingWindow
+	window      *util.MovingWindow
 	drawType    DrawType
 	styles      Styles
 	styleBuffer []termbox.Attribute
@@ -118,11 +110,8 @@ func NewDisplay() *Display {
 func (d *Display) Init(sampleRate float64, sampleSize int) error {
 	// make a large buffer as this could be as big as the screen width/height.
 
-	slowSize := ((int(ScalingSlowWindow * sampleRate)) / sampleSize) * 2
-	d.slowWindow = util.NewMovingWindow(slowSize)
-
-	fastSize := ((int(ScalingFastWindow * sampleRate)) / sampleSize) * 2
-	d.fastWindow = util.NewMovingWindow(fastSize)
+	slowSize := ((int(ScalingWindow * sampleRate)) / sampleSize) * 2
+	d.window = util.NewMovingWindow(slowSize)
 
 	d.styleBuffer = make([]termbox.Attribute, 4096)
 
@@ -293,9 +282,10 @@ func (d *Display) fillStyleBuffer(left, center, right int) {
 func (d *Display) Write(buffers [][]float64, channels int) error {
 
 	peak := 0.0
+	bins := d.Bins(channels)
 
 	for i := 0; i < channels; i++ {
-		for _, val := range buffers[i] {
+		for _, val := range buffers[i][:bins] {
 			if val > peak {
 				peak = val
 			}
@@ -306,17 +296,10 @@ func (d *Display) Write(buffers [][]float64, channels int) error {
 
 	// do some scaling if we are above the PeakThreshold
 	if peak >= PeakThreshold {
-		d.fastWindow.Update(peak)
-		vMean, vSD := d.slowWindow.Update(peak)
+		vMean, vSD := d.window.Update(peak)
 
-		// this is some major hot garbage. but it works to some extent.
-		// if our slow window finally has more values than our fast window
-		if length := d.slowWindow.Len(); length >= d.fastWindow.Cap() {
-			// no idea what this is doing
-			if math.Abs(d.fastWindow.Mean()-vMean) > (ScalingResetDeviation * vSD) {
-				// drop some values and continue
-				vMean, vSD = d.slowWindow.Drop(int(float64(length) * ScalingDumpPercent))
-			}
+		if t := vMean + (1.5 * vSD); peak > t {
+			vMean, vSD = d.window.Drop(5)
 		}
 
 		if t := vMean + (1.5 * vSD); t > 1.0 {
