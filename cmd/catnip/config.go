@@ -58,7 +58,7 @@ func newZeroConfig() config {
 	return config{
 		sampleRate:                 44100,
 		sampleSize:                 1024,
-		smoothFactor:               78.15,
+		smoothFactor:               74.15,
 		smoothingMethod:            dsp.SmoothSimpleAverage,
 		smoothingAverageWindowSize: 5,
 		frameRate:                  0,
