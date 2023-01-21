@@ -3,6 +3,7 @@ package main
 import (
 	"errors"
 
+	"github.com/noriah/catnip/dsp"
 	"github.com/noriah/catnip/graphic"
 )
 
@@ -16,6 +17,10 @@ type config struct {
 	sampleRate float64
 	// SmoothFactor factor of smooth
 	smoothFactor float64
+	// Smoothing method used to do time smoothing.
+	smoothingMethod int
+	// Size of window used for averaging methods.
+	smoothingAverageWindowSize int
 	// SampleSize is how much we draw. Play with it
 	sampleSize int
 	// FrameRate is the number of frames to draw every second (0 draws it every
@@ -37,8 +42,6 @@ type config struct {
 	useThreaded bool
 	// Invert the order of bin drawing
 	invertDraw bool
-	// New Smoothing method
-	newSmoothing bool
 	// Styles is the configuration for bar color styles
 	styles graphic.Styles
 }
@@ -53,19 +56,20 @@ type config struct {
 //   - super smooth detail view
 func newZeroConfig() config {
 	return config{
-		sampleRate:   44100,
-		sampleSize:   1024,
-		smoothFactor: 80.15,
-		frameRate:    0,
-		baseSize:     1,
-		barSize:      2,
-		spaceSize:    1,
-		channelCount: 2,
-		drawType:     int(graphic.DrawDefault),
-		combine:      false,
-		useThreaded:  false,
-		invertDraw:   false,
-		newSmoothing: false,
+		sampleRate:                 44100,
+		sampleSize:                 1024,
+		smoothFactor:               78.15,
+		smoothingMethod:            dsp.SmoothSimpleAverage,
+		smoothingAverageWindowSize: 5,
+		frameRate:                  0,
+		baseSize:                   1,
+		barSize:                    2,
+		spaceSize:                  1,
+		channelCount:               2,
+		drawType:                   int(graphic.DrawDefault),
+		combine:                    false,
+		useThreaded:                false,
+		invertDraw:                 false,
 	}
 }
 

@@ -81,7 +81,7 @@ func (vis *threadedProcessor) channelProcessor(ch int, kick <-chan bool) {
 
 		for i := range barBuf[:vis.bars] {
 			v := vis.anlz.ProcessBin(i, fftBuf)
-			v = vis.smth.SmoothBin(ch, i, v, 0.0)
+			v = vis.smth.SmoothBin(ch, i, v)
 
 			barBuf[i] = v
 		}
