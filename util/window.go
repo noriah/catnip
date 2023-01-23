@@ -25,10 +25,7 @@ func (mw *MovingWindow) calcFinal() (mean float64, stddev float64) {
 	if mw.length > 1 {
 		// mw.stddev = math.Sqrt(mw.variance / (mw.length - 1))
 		// okay so this came from dpayne/cli-visualizer
-		stddev = (mw.variance / float64(mw.length-1)) - (mw.average * mw.average)
-		if stddev < 0.0 {
-			stddev = -stddev
-		}
+		stddev = math.Abs((mw.variance / float64(mw.length-1)))
 		stddev = math.Sqrt(stddev)
 	}
 
@@ -47,12 +44,13 @@ func (mw *MovingWindow) calcFinal() (mean float64, stddev float64) {
 func (mw *MovingWindow) Update(value float64) (mean float64, stddev float64) {
 	if mw.length < mw.capacity {
 		mw.length++
-		mw.average += ((value - mw.average) / float64(mw.length))
-		mw.variance += value * value
+		mw.average += (value - mw.average) / float64(mw.length)
+		mw.variance += math.Pow(value-mw.average, 2.0)
 	} else {
 		old := mw.data[mw.index]
-		mw.average += ((value - old) / float64(mw.length))
-		mw.variance += (value * value) - (old * old)
+		newAverage := mw.average + (value-old)/float64(mw.length)
+		mw.variance += math.Pow(value-newAverage, 2.0) - math.Pow(old-mw.average, 2.0)
+		mw.average = newAverage
 	}
 
 	mw.data[mw.index] = value
@@ -88,11 +86,11 @@ func (mw *MovingWindow) Drop(count int) (mean float64, stddev float64) {
 
 	// If we dont have enough length for standard dev, clear variance
 	if mw.length < 2 {
-		mw.variance = 0
+		mw.variance = 0.0
 		if mw.length < 1 {
 			mw.length = 0
 			// same idea with sum. just clear it so we dont have a rouding issue
-			mw.average = 0
+			mw.average = 0.0
 		}
 	}
 
