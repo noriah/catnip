@@ -60,7 +60,7 @@ func newZeroConfig() config {
 		sampleSize:                 1024,
 		smoothFactor:               74.15,
 		smoothingMethod:            dsp.SmoothSimpleAverage,
-		smoothingAverageWindowSize: 5,
+		smoothingAverageWindowSize: 0, // if zero, will be calculated
 		frameRate:                  0,
 		baseSize:                   1,
 		barSize:                    2,

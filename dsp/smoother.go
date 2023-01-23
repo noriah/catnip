@@ -19,6 +19,7 @@ const (
 
 type SmootherConfig struct {
 	SampleSize      int             // number of samples per slice
+	SampleRate      float64         // sample rate
 	ChannelCount    int             // number of channels
 	SmoothingFactor float64         // smoothing factor
 	SmoothingMethod SmoothingMethod // smoothing method
@@ -44,11 +45,23 @@ func NewSmoother(cfg SmootherConfig) Smoother {
 		smoothMethod: cfg.SmoothingMethod,
 	}
 
+	// calculate the window size if its not set
+	size := cfg.AverageSize
+	if size < 1 {
+		rate := cfg.SampleRate / float64(cfg.SampleSize)
+		// this is based on my experimentation. no evidence that it is best.
+		// the goal of the window average is to smooth out the very minor amplitude
+		// changes. the visual representation of them is a function of the frame
+		// rate. assuming a base of 60FPS, this should handle it pretty well for
+		// most rate/size combinations.
+		size = int(math.Ceil(5.0 * (rate / 60.0)))
+	}
+
 	for idx := range sm.values {
 		sm.values[idx] = make([]float64, cfg.SampleSize)
 		sm.averages[idx] = make([]*util.MovingWindow, cfg.SampleSize)
 		for i := range sm.averages[idx] {
-			sm.averages[idx][i] = util.NewMovingWindow(cfg.AverageSize)
+			sm.averages[idx][i] = util.NewMovingWindow(size)
 		}
 	}
 
@@ -78,16 +91,11 @@ func (sm *smoother) SmoothBin(ch, idx int, value float64) float64 {
 	return sm.switchSmoothing(ch, idx, value, 0.0)
 }
 
-// SetSmoothing sets the smoothing parameters
 func (sm *smoother) setSmoothing(factor float64) {
 	if factor <= 0.0 {
 		factor = math.SmallestNonzeroFloat64
 	}
-
-	sf := math.Pow(10.0, (1.0-factor)*(-25.0))
-
-	// roughly 2048/122800
-	sm.smoothFactor = math.Pow(sf, 0.0167)
+	sm.smoothFactor = factor
 }
 
 func (sm *smoother) switchSmoothing(ch, idx int, value, peak float64) float64 {

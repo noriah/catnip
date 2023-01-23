@@ -7,12 +7,9 @@ type MovingWindow struct {
 	index    int
 	length   int
 	capacity int
-
 	variance float64
 	stddev   float64
-
-	sum     float64
-	average float64
+	average  float64
 
 	data []float64
 }
@@ -24,40 +21,37 @@ func NewMovingWindow(size int) *MovingWindow {
 	}
 }
 
-func (mw *MovingWindow) calcFinal() (float64, float64) {
+func (mw *MovingWindow) calcFinal() (mean float64, stddev float64) {
 	if mw.length > 1 {
 		// mw.stddev = math.Sqrt(mw.variance / (mw.length - 1))
 		// okay so this came from dpayne/cli-visualizer
-		mw.stddev = (mw.variance / float64(mw.length-1)) - (mw.average * mw.average)
-		if mw.stddev < 0.0 {
-			mw.stddev = -mw.stddev
+		stddev = (mw.variance / float64(mw.length-1)) - (mw.average * mw.average)
+		if stddev < 0.0 {
+			stddev = -stddev
 		}
-		mw.stddev = math.Sqrt(mw.stddev)
-	} else {
-		mw.stddev = 0
+		stddev = math.Sqrt(stddev)
 	}
 
-	if mw.length > 0 {
-		mw.average = mw.sum / float64(mw.length)
-	} else {
+	mw.stddev = stddev
+
+	if mw.length <= 0 {
 		mw.average = 0
 	}
 
 	return mw.average, mw.stddev
 }
 
-// Update updates the moving window
-func (mw *MovingWindow) Update(value float64) (float64, float64) {
+// Update adds the new value to the moving window, returns average and stddev.
+// If the window is full, the oldest value will be removed and the new value
+// is added. Returns calculated Average and Standard Deviation.
+func (mw *MovingWindow) Update(value float64) (mean float64, stddev float64) {
 	if mw.length < mw.capacity {
-
 		mw.length++
-
-		mw.sum += value
-		mw.variance += (value * value)
-
+		mw.average += ((value - mw.average) / float64(mw.length))
+		mw.variance += value * value
 	} else {
 		old := mw.data[mw.index]
-		mw.sum += value - old
+		mw.average += ((value - old) / float64(mw.length))
 		mw.variance += (value * value) - (old * old)
 	}
 
@@ -70,8 +64,8 @@ func (mw *MovingWindow) Update(value float64) (float64, float64) {
 	return mw.calcFinal()
 }
 
-// Drop removes count items from the window
-func (mw *MovingWindow) Drop(count int) (float64, float64) {
+// Drop removes count values from the window.
+func (mw *MovingWindow) Drop(count int) (mean float64, stddev float64) {
 	if mw.length <= 0 {
 		return mw.calcFinal()
 	}
@@ -85,11 +79,10 @@ func (mw *MovingWindow) Drop(count int) (float64, float64) {
 
 		old := mw.data[idx]
 
-		mw.sum -= old
+		mw.average -= old / float64(mw.length)
 		mw.variance -= old * old
 
 		mw.length--
-
 		count--
 	}
 
@@ -99,7 +92,7 @@ func (mw *MovingWindow) Drop(count int) (float64, float64) {
 		if mw.length < 1 {
 			mw.length = 0
 			// same idea with sum. just clear it so we dont have a rouding issue
-			mw.sum = 0
+			mw.average = 0
 		}
 	}
 
@@ -128,6 +121,6 @@ func (mw *MovingWindow) StdDev() float64 {
 }
 
 // Stats returns the statistics of this window
-func (mw *MovingWindow) Stats() (float64, float64) {
+func (mw *MovingWindow) Stats() (mean float64, stddev float64) {
 	return mw.average, mw.stddev
 }

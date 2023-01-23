@@ -84,6 +84,7 @@ func main() {
 		}),
 		Smoother: dsp.NewSmoother(dsp.SmootherConfig{
 			SampleSize:      cfg.sampleSize,
+			SampleRate:      cfg.sampleRate,
 			ChannelCount:    cfg.channelCount,
 			SmoothingFactor: cfg.smoothFactor,
 			SmoothingMethod: dsp.SmoothingMethod(cfg.smoothingMethod),
