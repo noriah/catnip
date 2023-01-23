@@ -7,10 +7,11 @@
 > terminal audio visualizer for linux/unix/macOS/windows*
 
 <p align="center">
-	<a href="https://www.youtube.com/watch?v=NGtCoEsgJww">
+	<a href="https://www.youtube.com/watch?v=AuJJk56Pj7M">
 		<img src="../media/preview0.gif" />
 	</a>
 </p>
+^ click for a fun video
 
 ## it supports audio backends
 - ALSA (linux FFmpeg)
