@@ -147,8 +147,14 @@ func (az *analyzer) ProcessBin(idx int, src []complex128) float64 {
 		}
 	}
 
-	if mag = math.Log(mag); mag < 0.0 {
-		mag = 0.0
+	if mag < 0.0 {
+		return 0.0
+	}
+
+	mag = math.Log(mag)
+
+	if mag < 0.0 {
+		return 0.0
 	}
 
 	return mag
