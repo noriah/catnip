@@ -15,11 +15,12 @@ import "math"
 type BinMethod func(int, float64, float64) float64
 
 type AnalyzerConfig struct {
-	SampleRate   float64   // audio sample rate
-	SampleSize   int       // number of samples per slice
-	SquashLow    bool      // squash the low end the spectrum
-	SquashLowOld bool      // squash the low end using the old method
-	BinMethod    BinMethod // method used for calculating bin value
+	SampleRate    float64   // audio sample rate
+	SampleSize    int       // number of samples per slice
+	SquashLow     bool      // squash the low end the spectrum
+	SquashLowOld  bool      // squash the low end using the old method
+	DontNormalize bool      // dont run math.Log on output
+	BinMethod     BinMethod // method used for calculating bin value
 }
 
 type Analyzer interface {
@@ -30,10 +31,11 @@ type Analyzer interface {
 
 // analyzer is an audio spectrum in a buffer
 type analyzer struct {
-	cfg      AnalyzerConfig // the analyzer config
-	bins     []bin          // bins for processing
-	binCount int            // number of bins we look at
-	fftSize  int            // number of fft bins
+	cfg           AnalyzerConfig // the analyzer config
+	bins          []bin          // bins for processing
+	binCount      int            // number of bins we look at
+	fftSize       int            // number of fft bins
+	dontNormalize bool           // dont normalize the output
 }
 
 // Bin is a helper struct for spectrum
@@ -107,9 +109,10 @@ func MinNonZeroSampleValue() BinMethod {
 
 func NewAnalyzer(cfg AnalyzerConfig) Analyzer {
 	return &analyzer{
-		cfg:     cfg,
-		bins:    make([]bin, cfg.SampleSize),
-		fftSize: cfg.SampleSize/2 + 1,
+		cfg:           cfg,
+		bins:          make([]bin, cfg.SampleSize),
+		fftSize:       cfg.SampleSize/2 + 1,
+		dontNormalize: cfg.DontNormalize,
 	}
 }
 
@@ -151,7 +154,9 @@ func (az *analyzer) ProcessBin(idx int, src []complex128) float64 {
 		return 0.0
 	}
 
-	mag = math.Log(mag)
+	if !az.dontNormalize {
+		mag = math.Log(mag)
+	}
 
 	if mag < 0.0 {
 		return 0.0

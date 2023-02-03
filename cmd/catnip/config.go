@@ -38,6 +38,8 @@ type config struct {
 	drawType int
 	// Combine determines if we merge streams (stereo -> mono)
 	combine bool
+	// Don't run math.Log on the output of the analyzer
+	dontNormalize bool
 	// Use threaded processor
 	useThreaded bool
 	// Invert the order of bin drawing
@@ -67,6 +69,7 @@ func newZeroConfig() config {
 		spaceSize:                  1,
 		channelCount:               2,
 		drawType:                   int(graphic.DrawDefault),
+		dontNormalize:              false,
 		combine:                    false,
 		useThreaded:                false,
 		invertDraw:                 false,

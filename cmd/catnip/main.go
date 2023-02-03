@@ -77,10 +77,11 @@ func main() {
 		Output:   display,
 		Windower: window.Lanczos(),
 		Analyzer: dsp.NewAnalyzer(dsp.AnalyzerConfig{
-			SampleRate: cfg.sampleRate,
-			SampleSize: cfg.sampleSize,
-			SquashLow:  true,
-			BinMethod:  dsp.MaxSampleValue(),
+			SampleRate:    cfg.sampleRate,
+			SampleSize:    cfg.sampleSize,
+			SquashLow:     true,
+			DontNormalize: cfg.dontNormalize,
+			BinMethod:     dsp.MaxSampleValue(),
 		}),
 		Smoother: dsp.NewSmoother(dsp.SmootherConfig{
 			SampleSize:      cfg.sampleSize,
@@ -137,6 +138,7 @@ func doFlags(cfg *config) bool {
 	parser.Int(&cfg.barSize, "bw", "bar", "bar width [1, +Inf)")
 	parser.Int(&cfg.spaceSize, "bs", "space", "space width [0, +Inf)")
 	parser.Int(&cfg.drawType, "dt", "draw", "draw type (1, 2, 3, 4, 5, 6)")
+	parser.Bool(&cfg.dontNormalize, "dn", "dont-normalize", "dont normalize analyzer output")
 	parser.Bool(&cfg.useThreaded, "t", "threaded", "use the threaded processor")
 	parser.Bool(&cfg.invertDraw, "i", "invert", "invert the direction of bin drawing")
 
