@@ -157,8 +157,17 @@ func doFlags(cfg *config) bool {
 
 	switch {
 	case listBackendsCmd.Used:
+		defaultBackend := input.DefaultBackend()
+
+		fmt.Println("all backends. '*' marks default")
+
 		for _, backend := range input.Backends {
-			fmt.Printf("- %s\n", backend.Name)
+			star := ' '
+			if defaultBackend == backend.Name {
+				star = '*'
+			}
+
+			fmt.Printf("- %s %c\n", backend.Name, star)
 		}
 
 		return true

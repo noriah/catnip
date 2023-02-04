@@ -2,6 +2,8 @@ package input
 
 import (
 	"fmt"
+	"os/exec"
+	"runtime"
 
 	"github.com/pkg/errors"
 )
@@ -32,6 +34,55 @@ func RegisterBackend(name string, b Backend) {
 	})
 }
 
+// Get all installed backend names.
+func GetAllBackendNames() []string {
+	out := make([]string, len(Backends))
+	for i, backend := range Backends {
+		out[i] = backend.Name
+	}
+	return out
+}
+
+// Get the default backend depending on
+func DefaultBackend() string {
+	switch runtime.GOOS {
+	case "windows":
+		if HasBackend("ffmpeg-dshow") {
+			return "ffmpeg-dshow"
+		}
+
+	case "darwin":
+		if backend := FindBackend("portaudio"); backend != nil {
+			if HasBackend("portaudio") {
+				return "portaudio"
+			}
+		}
+
+		if HasBackend("ffmpeg-avfoundation") {
+			return "ffmpeg-avfoundation"
+		}
+
+	case "linux":
+		if path, _ := exec.LookPath("pw-cat"); path != "" {
+			if HasBackend("pipewire") {
+				return "pipewire"
+			}
+		}
+
+		if path, _ := exec.LookPath("parec"); path != "" {
+			if HasBackend("parec") {
+				return "parec"
+			}
+		}
+
+		if HasBackend("ffmpeg-alsa") {
+			return "ffmpeg-alsa"
+		}
+	}
+
+	return ""
+}
+
 // FindBackend is a helper function that finds a backend. It returns nil if the
 // backend is not found.
 func FindBackend(name string) Backend {
@@ -41,6 +92,15 @@ func FindBackend(name string) Backend {
 		}
 	}
 	return nil
+}
+
+func HasBackend(name string) bool {
+	for _, backend := range Backends {
+		if backend.Name == name {
+			return true
+		}
+	}
+	return false
 }
 
 func InitBackend(bknd string) (Backend, error) {

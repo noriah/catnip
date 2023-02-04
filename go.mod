@@ -10,4 +10,6 @@ require (
 	gonum.org/v1/gonum v0.11.0
 )
 
-require github.com/mattn/go-runewidth v0.0.9 // indirect
+require (
+	github.com/mattn/go-runewidth v0.0.9 // indirect
+)

@@ -5,6 +5,7 @@ import (
 
 	"github.com/noriah/catnip/dsp"
 	"github.com/noriah/catnip/graphic"
+	"github.com/noriah/catnip/input"
 )
 
 // Config is a temporary struct to define parameters
@@ -58,6 +59,7 @@ type config struct {
 //   - super smooth detail view
 func newZeroConfig() config {
 	return config{
+		backend:                    input.DefaultBackend(),
 		sampleRate:                 44100,
 		sampleSize:                 1024,
 		smoothFactor:               74.15,
