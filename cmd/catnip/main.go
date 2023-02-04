@@ -27,7 +27,7 @@ const AppDesc = "Continuous Automatic Terminal Number Interpretation Printer"
 // AppSite is the app website
 const AppSite = "https://github.com/noriah/catnip"
 
-var version = "unknown"
+var version = "git"
 
 func main() {
 	log.SetFlags(0)
@@ -66,7 +66,6 @@ func main() {
 		},
 		StartFunc: func(ctx context.Context) (context.Context, error) {
 			ctx = display.Start(ctx)
-
 			return ctx, nil
 		},
 		CleanupFunc: func() error {

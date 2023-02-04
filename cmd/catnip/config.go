@@ -51,23 +51,17 @@ type config struct {
 
 // NewZeroConfig returns a zero config
 // it is the "default"
-//
-// nori's defaults:
-//   - sampleRate: 122880
-//   - sampleSize: 2048
-//   - smoothFactor: 80.15
-//   - super smooth detail view
 func newZeroConfig() config {
 	return config{
 		backend:                    input.DefaultBackend(),
 		sampleRate:                 44100,
 		sampleSize:                 1024,
-		smoothFactor:               74.15,
-		smoothingMethod:            dsp.SmoothSimpleAverage,
+		smoothFactor:               64.15,
+		smoothingMethod:            int(dsp.SmoothDefault),
 		smoothingAverageWindowSize: 0, // if zero, will be calculated
 		frameRate:                  0,
 		baseSize:                   1,
-		barSize:                    2,
+		barSize:                    1,
 		spaceSize:                  1,
 		channelCount:               2,
 		drawType:                   int(graphic.DrawDefault),

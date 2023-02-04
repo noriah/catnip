@@ -95,12 +95,7 @@ func FindBackend(name string) Backend {
 }
 
 func HasBackend(name string) bool {
-	for _, backend := range Backends {
-		if backend.Name == name {
-			return true
-		}
-	}
-	return false
+	return FindBackend(name) != nil
 }
 
 func InitBackend(bknd string) (Backend, error) {

@@ -9,21 +9,23 @@ import (
 type SmoothingMethod int
 
 const (
-	SmoothUnspecified   = iota // 0
-	SmoothSimple               // 1
-	SmoothAverage              // 2
-	SmoothSimpleAverage        // 3
-	SmoothNew                  // 5
-	SmoothNewAverage           // 4
+	SmoothUnspecified   SmoothingMethod = iota // 0
+	SmoothSimple                               // 1
+	SmoothAverage                              // 2
+	SmoothSimpleAverage                        // 3
+	SmoothNew                                  // 5
+	SmoothNewAverage                           // 4
+
+	SmoothDefault = SmoothSimpleAverage
 )
 
 type SmootherConfig struct {
+	AverageSize     int             // size of window for average methods
+	ChannelCount    int             // number of channels
 	SampleSize      int             // number of samples per slice
 	SampleRate      float64         // sample rate
-	ChannelCount    int             // number of channels
 	SmoothingFactor float64         // smoothing factor
 	SmoothingMethod SmoothingMethod // smoothing method
-	AverageSize     int             // size of window for average methods
 }
 
 type Smoother interface {
@@ -39,9 +41,14 @@ type smoother struct {
 }
 
 func NewSmoother(cfg SmootherConfig) Smoother {
+	if cfg.SmoothingFactor <= 0.0 {
+		cfg.SmoothingFactor = math.SmallestNonzeroFloat64
+	}
+
 	sm := &smoother{
 		values:       make([][]float64, cfg.ChannelCount),
 		averages:     make([][]*util.MovingWindow, cfg.ChannelCount),
+		smoothFactor: cfg.SmoothingFactor,
 		smoothMethod: cfg.SmoothingMethod,
 	}
 
@@ -65,8 +72,6 @@ func NewSmoother(cfg SmootherConfig) Smoother {
 		}
 	}
 
-	sm.setSmoothing(cfg.SmoothingFactor)
-
 	return sm
 }
 
@@ -89,13 +94,6 @@ func (sm *smoother) SmoothBuffers(bufs [][]float64) {
 
 func (sm *smoother) SmoothBin(ch, idx int, value float64) float64 {
 	return sm.switchSmoothing(ch, idx, value, 0.0)
-}
-
-func (sm *smoother) setSmoothing(factor float64) {
-	if factor <= 0.0 {
-		factor = math.SmallestNonzeroFloat64
-	}
-	sm.smoothFactor = factor
 }
 
 func (sm *smoother) switchSmoothing(ch, idx int, value, peak float64) float64 {

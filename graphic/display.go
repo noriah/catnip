@@ -311,22 +311,22 @@ func (d *Display) Write(buffers [][]float64, channels int) error {
 
 	switch d.drawType {
 	case DrawUp:
-		d.DrawUp(buffers, channels, scale)
+		d.drawUp(buffers, channels, scale)
 
 	case DrawUpDown:
-		d.DrawUpDown(buffers, channels, scale)
+		d.drawUpDown(buffers, channels, scale)
 
 	case DrawDown:
-		d.DrawDown(buffers, channels, scale)
+		d.drawDown(buffers, channels, scale)
 
 	case DrawLeft:
-		d.DrawLeft(buffers, channels, scale)
+		d.drawLeft(buffers, channels, scale)
 
 	case DrawLeftRight:
-		d.DrawLeftRight(buffers, channels, scale)
+		d.drawLeftRight(buffers, channels, scale)
 
 	case DrawRight:
-		d.DrawRight(buffers, channels, scale)
+		d.drawRight(buffers, channels, scale)
 
 	default:
 		return nil
@@ -433,8 +433,8 @@ func sizeAndCap(value float64, space int, zeroBase bool, baseRune rune) (int, ru
 
 // DRAWING METHODS
 
-// DrawUp will draw up.
-func (d *Display) DrawUp(bins [][]float64, channelCount int, scale float64) {
+// drawUp will draw up.
+func (d *Display) drawUp(bins [][]float64, channelCount int, scale float64) {
 	binCount := d.Bins(channelCount)
 	barSpace := intMax(d.termHeight-d.baseSize, 0)
 	scale = float64(barSpace) / scale
@@ -474,8 +474,8 @@ func (d *Display) DrawUp(bins [][]float64, channelCount int, scale float64) {
 	}
 }
 
-// DrawUpDown will draw up and down.
-func (d *Display) DrawUpDown(bins [][]float64, channelCount int, scale float64) {
+// drawUpDown will draw up and down.
+func (d *Display) drawUpDown(bins [][]float64, channelCount int, scale float64) {
 	binCount := d.Bins(channelCount)
 	centerStart := intMax((d.termHeight-d.baseSize)/2, 0)
 	centerStop := centerStart + d.baseSize
@@ -521,8 +521,8 @@ func (d *Display) DrawUpDown(bins [][]float64, channelCount int, scale float64) 
 	}
 }
 
-// DrawDown will draw down.
-func (d *Display) DrawDown(bins [][]float64, channelCount int, scale float64) {
+// drawDown will draw down.
+func (d *Display) drawDown(bins [][]float64, channelCount int, scale float64) {
 	binCount := d.Bins(channelCount)
 	barSpace := intMax(d.termHeight-d.baseSize, 0)
 	scale = float64(barSpace) / scale
@@ -566,7 +566,7 @@ func (d *Display) DrawDown(bins [][]float64, channelCount int, scale float64) {
 	}
 }
 
-func (d *Display) DrawLeft(bins [][]float64, channelCount int, scale float64) {
+func (d *Display) drawLeft(bins [][]float64, channelCount int, scale float64) {
 	binCount := d.Bins(channelCount)
 	barSpace := intMax(d.termWidth-d.baseSize, 0)
 	scale = float64(barSpace) / scale
@@ -606,8 +606,8 @@ func (d *Display) DrawLeft(bins [][]float64, channelCount int, scale float64) {
 	}
 }
 
-// DrawLeftRight will draw left and right.
-func (d *Display) DrawLeftRight(bins [][]float64, channelCount int, scale float64) {
+// drawLeftRight will draw left and right.
+func (d *Display) drawLeftRight(bins [][]float64, channelCount int, scale float64) {
 	binCount := d.Bins(channelCount)
 	centerStart := intMax((d.termWidth-d.baseSize)/2, 0)
 	centerStop := centerStart + d.baseSize
@@ -656,7 +656,7 @@ func (d *Display) DrawLeftRight(bins [][]float64, channelCount int, scale float6
 	}
 }
 
-func (d *Display) DrawRight(bins [][]float64, channelCount int, scale float64) {
+func (d *Display) drawRight(bins [][]float64, channelCount int, scale float64) {
 	binCount := d.Bins(channelCount)
 	barSpace := intMax(d.termWidth-d.baseSize, 0)
 	scale = float64(barSpace) / scale

@@ -41,8 +41,6 @@ func Run(cfg *Config, ctx context.Context) error {
 		vis = processor.New(procConfig)
 	}
 
-	// INPUT SETUP
-
 	backend, err := input.InitBackend(cfg.Backend)
 	if err != nil {
 		return err
@@ -64,8 +62,6 @@ func Run(cfg *Config, ctx context.Context) error {
 	if err != nil {
 		return errors.Wrap(err, "failed to start the input backend")
 	}
-
-	// DISPLAY SETUP
 
 	if cfg.SetupFunc != nil {
 		if err := cfg.SetupFunc(); err != nil {
@@ -90,7 +86,6 @@ func Run(cfg *Config, ctx context.Context) error {
 
 	mu := &sync.Mutex{}
 
-	// Start the processor
 	go vis.Process(ctx, kickChan, mu)
 
 	if err := audio.Start(ctx, inputBuffers, kickChan, mu); err != nil {
