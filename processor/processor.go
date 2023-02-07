@@ -12,14 +12,14 @@ import (
 )
 
 type Output interface {
-	Bins(...int) int
+	Bins(int) int
 	Write([][]float64, int) error
 }
 
 type Processor interface {
-	Start(ctx context.Context) context.Context
+	Start(ctx context.Context, kickChan chan bool, mu *sync.Mutex) context.Context
 	Stop()
-	Process(context.Context, chan bool, *sync.Mutex)
+	Process()
 }
 
 type Config struct {
@@ -48,6 +48,9 @@ type processor struct {
 	inputBufs [][]input.Sample
 
 	plans []*fft.Plan
+
+	mu        *sync.Mutex
+	ctxCancel context.CancelFunc
 
 	anlz  dsp.Analyzer
 	out   Output
@@ -80,16 +83,20 @@ func New(cfg Config) *processor {
 	return vis
 }
 
-func (vis *processor) Start(ctx context.Context) context.Context {
+func (vis *processor) Start(ctx context.Context, kickChan chan bool, mu *sync.Mutex) context.Context {
+	newCtx, cancel := context.WithCancel(ctx)
+	vis.ctxCancel = cancel
+	vis.mu = mu
+	go vis.run(newCtx, kickChan)
 
-	return ctx
+	return newCtx
 }
 
-func (vis *processor) Stop() {}
+func (vis *processor) Stop() {
+	vis.ctxCancel()
+}
 
-// Process runs processing on sample sets and calls Write on the output once per sample set.
-func (vis *processor) Process(ctx context.Context, kickChan chan bool, mu *sync.Mutex) {
-
+func (vis *processor) run(ctx context.Context, kickChan chan bool) {
 	if vis.processRate <= 0 {
 		// if we do not have a framerate set, allow at most 1 second per sampling
 		vis.processRate = 1
@@ -100,33 +107,7 @@ func (vis *processor) Process(ctx context.Context, kickChan chan bool, mu *sync.
 	defer ticker.Stop()
 
 	for {
-		mu.Lock()
-		for idx := range vis.barBufs {
-			if vis.wndwr != nil {
-				vis.wndwr(vis.inputBufs[idx])
-			}
-			vis.plans[idx].Execute()
-		}
-		mu.Unlock()
-
-		if n := vis.out.Bins(vis.channelCount); n != vis.bars {
-			vis.bars = vis.anlz.Recalculate(n)
-		}
-
-		for idx, fftBuf := range vis.fftBufs {
-			buf := vis.barBufs[idx]
-
-			for bIdx := range buf[:vis.bars] {
-				buf[bIdx] = vis.anlz.ProcessBin(bIdx, fftBuf)
-			}
-		}
-
-		if vis.smth != nil {
-			vis.smth.SmoothBuffers(vis.barBufs)
-		}
-
-		vis.out.Write(vis.barBufs, vis.channelCount)
-
+		vis.Process()
 		select {
 		case <-ctx.Done():
 			return
@@ -136,4 +117,34 @@ func (vis *processor) Process(ctx context.Context, kickChan chan bool, mu *sync.
 		}
 		ticker.Reset(dur)
 	}
+}
+
+// Process runs processing on sample sets and calls Write on the output once per sample set.
+func (vis *processor) Process() {
+	vis.mu.Lock()
+	for idx := range vis.barBufs {
+		if vis.wndwr != nil {
+			vis.wndwr(vis.inputBufs[idx])
+		}
+		vis.plans[idx].Execute()
+	}
+	vis.mu.Unlock()
+
+	if n := vis.out.Bins(vis.channelCount); n != vis.bars {
+		vis.bars = vis.anlz.Recalculate(n)
+	}
+
+	for idx, fftBuf := range vis.fftBufs {
+		buf := vis.barBufs[idx]
+
+		for bIdx := range buf[:vis.bars] {
+			buf[bIdx] = vis.anlz.ProcessBin(bIdx, fftBuf)
+		}
+	}
+
+	if vis.smth != nil {
+		vis.smth.SmoothBuffers(vis.barBufs)
+	}
+
+	vis.out.Write(vis.barBufs, vis.channelCount)
 }

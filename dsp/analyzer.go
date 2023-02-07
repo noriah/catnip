@@ -31,11 +31,10 @@ type Analyzer interface {
 
 // analyzer is an audio spectrum in a buffer
 type analyzer struct {
-	cfg           AnalyzerConfig // the analyzer config
-	bins          []bin          // bins for processing
-	binCount      int            // number of bins we look at
-	fftSize       int            // number of fft bins
-	dontNormalize bool           // dont normalize the output
+	cfg      AnalyzerConfig // the analyzer config
+	bins     []bin          // bins for processing
+	binCount int            // number of bins we look at
+	fftSize  int            // number of fft bins
 }
 
 // Bin is a helper struct for spectrum
@@ -109,10 +108,9 @@ func MinNonZeroSampleValue() BinMethod {
 
 func NewAnalyzer(cfg AnalyzerConfig) Analyzer {
 	return &analyzer{
-		cfg:           cfg,
-		bins:          make([]bin, cfg.SampleSize),
-		fftSize:       cfg.SampleSize/2 + 1,
-		dontNormalize: cfg.DontNormalize,
+		cfg:     cfg,
+		bins:    make([]bin, cfg.SampleSize),
+		fftSize: cfg.SampleSize/2 + 1,
 	}
 }
 
@@ -154,7 +152,7 @@ func (az *analyzer) ProcessBin(idx int, src []complex128) float64 {
 		return 0.0
 	}
 
-	if !az.dontNormalize {
+	if !az.cfg.DontNormalize {
 		mag = math.Log(mag)
 	}
 

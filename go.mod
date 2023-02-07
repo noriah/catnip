@@ -1,6 +1,6 @@
 module github.com/noriah/catnip
 
-go 1.18
+go 1.20
 
 require (
 	github.com/integrii/flaggy v1.4.4

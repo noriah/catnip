@@ -2,6 +2,7 @@ package catnip
 
 import (
 	"errors"
+	"fmt"
 
 	"github.com/noriah/catnip/dsp"
 	"github.com/noriah/catnip/dsp/window"
@@ -49,9 +50,6 @@ func NewZeroConfig() Config {
 		SampleRate:   44100,
 		SampleSize:   1024,
 		ChannelCount: 1,
-		ProcessRate:  0,
-		Combine:      false,
-		UseThreaded:  false,
 	}
 }
 
@@ -65,13 +63,14 @@ func (cfg *Config) Validate() error {
 	}
 
 	switch {
-
-	case cfg.ChannelCount > 2:
-		return errors.New("too many channels (2 max)")
+	case cfg.ChannelCount > MaxChannelCount:
+		return fmt.Errorf("too many channels (%d max)", MaxChannelCount)
 
 	case cfg.ChannelCount < 1:
 		return errors.New("too few channels (1 min)")
 
+	case cfg.SampleSize > MaxSampleSize:
+		return fmt.Errorf("sample size too large (%d max)", MaxSampleSize)
 	}
 
 	return nil

@@ -10,6 +10,9 @@ import (
 	"github.com/pkg/errors"
 )
 
+const MaxChannelCount = 2
+const MaxSampleSize = 2048
+
 type SetupFunc func() error
 type StartFunc func(ctx context.Context) (context.Context, error)
 type CleanupFunc func() error
@@ -79,14 +82,11 @@ func Run(cfg *Config, ctx context.Context) error {
 		}
 	}
 
-	ctx = vis.Start(ctx)
-	defer vis.Stop()
-
 	kickChan := make(chan bool, 1)
-
 	mu := &sync.Mutex{}
 
-	go vis.Process(ctx, kickChan, mu)
+	ctx = vis.Start(ctx, kickChan, mu)
+	defer vis.Stop()
 
 	if err := audio.Start(ctx, inputBuffers, kickChan, mu); err != nil {
 		if !errors.Is(ctx.Err(), context.Canceled) {

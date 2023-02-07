@@ -6,6 +6,7 @@ import (
 	"sync/atomic"
 
 	"github.com/noriah/catnip/util"
+
 	"github.com/nsf/termbox-go"
 )
 
@@ -393,19 +394,15 @@ func (d *Display) SetInvertDraw(invert bool) {
 }
 
 // Bins returns the number of bars we will draw.
-func (d *Display) Bins(sets ...int) int {
-	x := 1
-	if len(sets) > 0 {
-		x = sets[0]
-	}
+func (d *Display) Bins(chCount int) int {
 
 	switch d.drawType {
 	case DrawUp, DrawDown:
-		return (d.termWidth / d.binSize) / x
+		return (d.termWidth / d.binSize) / chCount
 	case DrawUpDown:
 		return d.termWidth / d.binSize
 	case DrawLeft, DrawRight:
-		return (d.termHeight / d.binSize) / x
+		return (d.termHeight / d.binSize) / chCount
 	case DrawLeftRight:
 		return d.termHeight / d.binSize
 	default:

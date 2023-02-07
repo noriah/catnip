@@ -90,7 +90,7 @@ func (vis *threadedProcessor) channelProcessor(ch int, kick <-chan bool) {
 	}
 }
 
-func (vis *threadedProcessor) Start(ctx context.Context) context.Context {
+func (vis *threadedProcessor) Start(ctx context.Context, kickChan chan bool, mu *sync.Mutex) context.Context {
 	vis.ctx, vis.cancel = context.WithCancel(ctx)
 
 	for i, kick := range vis.kicks {
@@ -107,7 +107,7 @@ func (vis *threadedProcessor) Stop() {
 }
 
 // Process runs one draw refresh with the visualizer on the termbox screen.
-func (vis *threadedProcessor) Process(ctx context.Context, kickChan chan bool, mu *sync.Mutex) {
+func (vis *threadedProcessor) Process() {
 	if n := vis.out.Bins(vis.channelCount); n != vis.bars {
 		vis.bars = vis.anlz.Recalculate(n)
 	}
