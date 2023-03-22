@@ -191,6 +191,9 @@ func (d *Display) inputProcessor() {
 				case 'i', 'I':
 					d.SetInvertDraw(!d.invertDraw)
 
+				case 'r', 'R':
+					d.window.Drop(d.window.Cap())
+
 				case '+', '=':
 					d.AdjustBase(1)
 
