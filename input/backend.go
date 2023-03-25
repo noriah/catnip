@@ -43,7 +43,7 @@ func GetAllBackendNames() []string {
 	return out
 }
 
-// Get the default backend depending on
+// Get the default backend depending on runtime.GOOS
 func DefaultBackend() string {
 	switch runtime.GOOS {
 	case "windows":
@@ -52,10 +52,8 @@ func DefaultBackend() string {
 		}
 
 	case "darwin":
-		if backend := FindBackend("portaudio"); backend != nil {
-			if HasBackend("portaudio") {
-				return "portaudio"
-			}
+		if HasBackend("portaudio") {
+			return "portaudio"
 		}
 
 		if HasBackend("ffmpeg-avfoundation") {
@@ -63,14 +61,14 @@ func DefaultBackend() string {
 		}
 
 	case "linux":
-		if path, _ := exec.LookPath("pw-cat"); path != "" {
-			if HasBackend("pipewire") {
+		if HasBackend("pipewire") {
+			if path, _ := exec.LookPath("pw-cat"); path != "" {
 				return "pipewire"
 			}
 		}
 
-		if path, _ := exec.LookPath("parec"); path != "" {
-			if HasBackend("parec") {
+		if HasBackend("parec") {
+			if path, _ := exec.LookPath("parec"); path != "" {
 				return "parec"
 			}
 		}
