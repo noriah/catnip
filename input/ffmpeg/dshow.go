@@ -28,7 +28,7 @@ func NewWindowsSession(b FFmpegBackend, cfg input.SessionConfig) (*execread.Sess
 	args = append(args, b.InputArgs()...)
 	args = append(args, "-f", "f64le", "-")
 
-	return execread.NewSession(args, false, cfg)
+	return execread.NewSession(args, false, cfg), nil
 }
 
 // DShow is the DirectShow input for FFmpeg on Windows.
