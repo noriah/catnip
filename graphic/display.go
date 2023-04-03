@@ -2,7 +2,6 @@ package graphic
 
 import (
 	"context"
-	"sync"
 	"sync/atomic"
 
 	"github.com/noriah/catnip/util"
@@ -27,7 +26,7 @@ const (
 	NumRunes = 8
 
 	// ScalingWindow in seconds
-	ScalingWindow = 5
+	ScalingWindow = 2.5
 	// PeakThreshold is the threshold to not draw if the peak is less.
 	PeakThreshold = 0.01
 )
@@ -97,7 +96,6 @@ type Display struct {
 	drawType    DrawType
 	styles      Styles
 	styleBuffer []termbox.Attribute
-	wg          sync.WaitGroup
 	ctx         context.Context
 	cancel      context.CancelFunc
 }
@@ -302,7 +300,11 @@ func (d *Display) Write(buffers [][]float64, channels int) error {
 	if peak >= PeakThreshold {
 		vMean, vSD := d.window.Update(peak)
 
-		if t := vMean + (1.5 * vSD); peak > t {
+		if t := vMean + (1.25 * vSD); peak > t {
+			vMean, vSD = d.window.Drop(5)
+		}
+
+		if t := vMean - (1.5 * vSD); peak < t {
 			vMean, vSD = d.window.Drop(5)
 		}
 
@@ -310,8 +312,6 @@ func (d *Display) Write(buffers [][]float64, channels int) error {
 			scale = t
 		}
 	}
-
-	d.wg.Add(channels)
 
 	switch d.drawType {
 	case DrawUp:

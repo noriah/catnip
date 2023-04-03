@@ -77,8 +77,8 @@ func (mw *MovingWindow) Drop(count int) (mean float64, stddev float64) {
 
 		old := mw.data[idx]
 
+		mw.variance -= math.Pow(old-mw.average, 2.0)
 		mw.average -= old / float64(mw.length)
-		mw.variance -= old * old
 
 		mw.length--
 		count--
