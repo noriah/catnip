@@ -7,7 +7,7 @@
 > terminal audio visualizer for linux/unix/macOS/windows*
 
 <p align="center">
-	<a href="https://www.youtube.com/watch?v=DWeVTGnsSz0">
+	<a href="https://www.youtube.com/watch?v=S0LJCGOsq-4">
 		<img src="../media/preview0.gif" />
 	</a>
 </p>

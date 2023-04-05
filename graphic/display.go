@@ -26,7 +26,7 @@ const (
 	NumRunes = 8
 
 	// ScalingWindow in seconds
-	ScalingWindow = 2.5
+	ScalingWindow = 1.5
 	// PeakThreshold is the threshold to not draw if the peak is less.
 	PeakThreshold = 0.01
 )
@@ -91,6 +91,7 @@ type Display struct {
 	baseSize    int
 	termWidth   int
 	termHeight  int
+	trackFrames int
 	invertDraw  bool
 	window      *util.MovingWindow
 	drawType    DrawType
@@ -300,15 +301,23 @@ func (d *Display) Write(buffers [][]float64, channels int) error {
 	if peak >= PeakThreshold {
 		vMean, vSD := d.window.Update(peak)
 
-		if t := vMean + (1.25 * vSD); peak > t {
-			vMean, vSD = d.window.Drop(5)
+		if c, l := d.window.Cap(), d.window.Len(); l >= int(float32(c)*0.1) {
+			if t := vMean + (1.25 * vSD); peak > t {
+				if d.trackFrames++; d.trackFrames >= 3 {
+					vMean, vSD = d.window.Drop(5)
+				}
+
+			} else if t := vMean - (1.3 * vSD); peak < t {
+				if d.trackFrames--; d.trackFrames <= -3 {
+					vMean, vSD = d.window.Drop(5)
+				}
+
+			} else {
+				d.trackFrames = 0
+			}
 		}
 
-		if t := vMean - (1.5 * vSD); peak < t {
-			vMean, vSD = d.window.Drop(5)
-		}
-
-		if t := vMean + (1.5 * vSD); t > 1.0 {
+		if t := vMean + (1.3 * vSD); t > 1.0 {
 			scale = t
 		}
 	}
