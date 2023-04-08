@@ -97,6 +97,37 @@ func (mw *MovingWindow) Drop(count int) (mean float64, stddev float64) {
 	return mw.calcFinal()
 }
 
+func (mw *MovingWindow) Recalculate() (float64, float64) {
+	count := mw.Len()
+
+	sum := 0.0
+	for c := count; c > 0; c-- {
+		idx := (mw.index - mw.length)
+		if idx < 0 {
+			idx = mw.capacity + idx
+		}
+
+		sum += mw.data[idx]
+	}
+
+	mw.average = sum / float64(count)
+
+	dev := 0.0
+
+	for c := count; c > 0; c-- {
+		idx := (mw.index - mw.length)
+		if idx < 0 {
+			idx = mw.capacity + idx
+		}
+
+		dev += math.Pow(mw.data[idx]-mw.average, 2.0)
+	}
+
+	mw.stddev = math.Sqrt(dev / float64(count))
+
+	return mw.Stats()
+}
+
 // Len returns how many items in the window
 func (mw *MovingWindow) Len() int {
 	// logical length

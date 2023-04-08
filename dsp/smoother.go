@@ -13,8 +13,8 @@ const (
 	SmoothSimple                               // 1
 	SmoothAverage                              // 2
 	SmoothSimpleAverage                        // 3
-	SmoothNew                                  // 5
-	SmoothNewAverage                           // 4
+	SmoothNew                                  // 4
+	SmoothNewAverage                           // 5
 
 	SmoothDefault = SmoothSimpleAverage
 )

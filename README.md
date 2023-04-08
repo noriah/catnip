@@ -17,7 +17,7 @@
 - ALSA (linux FFmpeg)
 - AVFoundation (macOS FFmpeg)
 - DirectShow (windblows FFmpeg)
-- PortAudio (linux/macOS/windblows)
+- PortAudio (linux/macOS/windblows (maybe))
 - PulseAudio (parec/FFmpeg)
 - Pipewire (pw-cat)
 
@@ -27,7 +27,7 @@
 	- github.com/nsf/termbox-go
 	- github.com/integrii/flaggy
 	- github.com/pkg/errors
-	- github.com/lawl/pulseaudio
+	- github.com/noisetorch/pulseaudio
 	- gonum.org/v1/gonum
 
 - binaries
