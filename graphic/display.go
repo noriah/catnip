@@ -309,15 +309,6 @@ func (d *Display) Write(buffers [][]float64, channels int) error {
 	if peak >= PeakThreshold {
 		vMean, vSD := d.window.Update(peak)
 
-		if l, c := d.window.Len(), d.window.Cap(); l >= int(float32(c)*0.1) {
-			if t := vMean + (1.25 * vSD); peak > t {
-				vMean, vSD = d.window.Drop(3)
-
-			} else if t := vMean - (1.3 * vSD); peak < t {
-				vMean, vSD = d.window.Drop(3)
-			}
-		}
-
 		if t := vMean + (1.4 * vSD); t > 1.0 {
 			scale = t
 		}
