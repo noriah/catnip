@@ -26,7 +26,7 @@ const (
 	NumRunes = 8
 
 	// ScalingWindow in seconds
-	ScalingWindow = 2.5
+	ScalingWindow = 1.5
 	// PeakThreshold is the threshold to not draw if the peak is less.
 	PeakThreshold = 0.01
 )
@@ -110,8 +110,8 @@ func NewDisplay() *Display {
 func (d *Display) Init(sampleRate float64, sampleSize int) error {
 	// make a large buffer as this could be as big as the screen width/height.
 
-	slowSize := ((int(ScalingWindow * sampleRate)) / sampleSize) * 2
-	d.window = util.NewMovingWindow(slowSize)
+	windowSize := ((int(ScalingWindow * sampleRate)) / sampleSize) * 2
+	d.window = util.NewMovingWindow(windowSize)
 
 	d.styleBuffer = make([]termbox.Attribute, 4096)
 
@@ -150,6 +150,138 @@ func (d *Display) Stop() error {
 	}
 
 	return nil
+}
+
+// Draw takes data and draws.
+func (d *Display) Write(buffers [][]float64, channels int) error {
+
+	peak := 0.0
+	bins := d.Bins(channels)
+
+	for i := 0; i < channels; i++ {
+		for _, val := range buffers[i][:bins] {
+			if val > peak {
+				peak = val
+			}
+		}
+	}
+
+	scale := 1.0
+
+	if peak >= PeakThreshold {
+		d.trackZero = 0
+
+		// do some scaling if we are above the PeakThreshold
+		vMean, vSD := d.window.Update(peak)
+
+		if t := vMean + (2.0 * vSD); t > 1.0 {
+			scale = t
+		}
+
+	} else {
+		if d.trackZero++; d.trackZero == 5 {
+			d.window.Recalculate()
+		}
+	}
+
+	switch d.drawType {
+	case DrawUp:
+		d.drawUp(buffers, channels, scale)
+
+	case DrawUpDown:
+		d.drawUpDown(buffers, channels, scale)
+
+	case DrawDown:
+		d.drawDown(buffers, channels, scale)
+
+	case DrawLeft:
+		d.drawLeft(buffers, channels, scale)
+
+	case DrawLeftRight:
+		d.drawLeftRight(buffers, channels, scale)
+
+	case DrawRight:
+		d.drawRight(buffers, channels, scale)
+
+	default:
+		return nil
+	}
+
+	termbox.Flush()
+
+	termbox.Clear(d.styles.Foreground, d.styles.Background)
+
+	return nil
+}
+
+// SetSizes takes a bar size and spacing size.
+// Returns number of bars able to show.
+func (d *Display) SetSizes(bar, space int) {
+	bar = intMax(bar, 1)
+	space = intMax(space, 0)
+
+	d.barSize = bar
+	d.spaceSize = space
+	d.binSize = bar + space
+}
+
+// AdjustSizes modifies the bar and space size by barDelta and spaceDelta.
+func (d *Display) AdjustSizes(barDelta, spaceDelta int) {
+	d.SetSizes(d.barSize+barDelta, d.spaceSize+spaceDelta)
+}
+
+// SetBase will set the base size.
+func (d *Display) SetBase(size int) {
+	size = intMax(size, 0)
+	d.baseSize = size
+
+	d.updateStyleBuffer()
+}
+
+// AdjustBase will change the base by delta units
+func (d *Display) AdjustBase(delta int) {
+	d.SetBase(d.baseSize + delta)
+}
+
+func (d *Display) SetStyles(styles Styles) {
+	d.styles = styles
+
+	d.updateStyleBuffer()
+}
+
+// SetDrawType sets the draw type for future draws
+func (d *Display) SetDrawType(dt DrawType) {
+	switch {
+	case dt <= DrawMin:
+		d.drawType = DrawMax - 1
+	case dt >= DrawMax:
+		d.drawType = DrawMin + 1
+	default:
+		d.drawType = dt
+	}
+
+	d.updateStyleBuffer()
+}
+
+func (d *Display) SetInvertDraw(invert bool) {
+	d.invertDraw = invert
+}
+
+// Bins returns the number of bars we will draw.
+func (d *Display) Bins(chCount int) int {
+
+	switch d.drawType {
+	case DrawUp, DrawDown:
+		return (d.termWidth / d.binSize) / chCount
+	case DrawUpDown:
+		return d.termWidth / d.binSize
+	case DrawLeft, DrawRight:
+		return (d.termHeight / d.binSize) / chCount
+	case DrawLeftRight:
+		return d.termHeight / d.binSize
+	default:
+		return 0
+	}
 }
 
 func (d *Display) inputProcessor() {
@@ -278,138 +410,6 @@ func (d *Display) fillStyleBuffer(left, center, right int) {
 
 	for stop := i + right; i < stop; i++ {
 		d.styleBuffer[i] = d.styles.Foreground
-	}
-}
-
-// Draw takes data and draws.
-func (d *Display) Write(buffers [][]float64, channels int) error {
-
-	peak := 0.0
-	bins := d.Bins(channels)
-
-	for i := 0; i < channels; i++ {
-		for _, val := range buffers[i][:bins] {
-			if val > peak {
-				peak = val
-			}
-		}
-	}
-
-	scale := 1.0
-
-	if peak < PeakThreshold {
-		if d.trackZero++; d.trackZero == 5 {
-			d.window.Recalculate()
-		}
-
-	} else {
-		d.trackZero = 0
-
-		// do some scaling if we are above the PeakThreshold
-		vMean, vSD := d.window.Update(peak)
-
-		if t := vMean + (1.5 * vSD); t > 1.0 {
-			scale = t
-		}
-	}
-
-	switch d.drawType {
-	case DrawUp:
-		d.drawUp(buffers, channels, scale)
-
-	case DrawUpDown:
-		d.drawUpDown(buffers, channels, scale)
-
-	case DrawDown:
-		d.drawDown(buffers, channels, scale)
-
-	case DrawLeft:
-		d.drawLeft(buffers, channels, scale)
-
-	case DrawLeftRight:
-		d.drawLeftRight(buffers, channels, scale)
-
-	case DrawRight:
-		d.drawRight(buffers, channels, scale)
-
-	default:
-		return nil
-	}
-
-	termbox.Flush()
-
-	termbox.Clear(d.styles.Foreground, d.styles.Background)
-
-	return nil
-}
-
-// SetSizes takes a bar size and spacing size.
-// Returns number of bars able to show.
-func (d *Display) SetSizes(bar, space int) {
-	bar = intMax(bar, 1)
-	space = intMax(space, 0)
-
-	d.barSize = bar
-	d.spaceSize = space
-	d.binSize = bar + space
-}
-
-// AdjustSizes modifies the bar and space size by barDelta and spaceDelta.
-func (d *Display) AdjustSizes(barDelta, spaceDelta int) {
-	d.SetSizes(d.barSize+barDelta, d.spaceSize+spaceDelta)
-}
-
-// SetBase will set the base size.
-func (d *Display) SetBase(size int) {
-	size = intMax(size, 0)
-	d.baseSize = size
-
-	d.updateStyleBuffer()
-}
-
-// AdjustBase will change the base by delta units
-func (d *Display) AdjustBase(delta int) {
-	d.SetBase(d.baseSize + delta)
-}
-
-func (d *Display) SetStyles(styles Styles) {
-	d.styles = styles
-
-	d.updateStyleBuffer()
-}
-
-// SetDrawType sets the draw type for future draws
-func (d *Display) SetDrawType(dt DrawType) {
-	switch {
-	case dt <= DrawMin:
-		d.drawType = DrawMax - 1
-	case dt >= DrawMax:
-		d.drawType = DrawMin + 1
-	default:
-		d.drawType = dt
-	}
-
-	d.updateStyleBuffer()
-}
-
-func (d *Display) SetInvertDraw(invert bool) {
-	d.invertDraw = invert
-}
-
-// Bins returns the number of bars we will draw.
-func (d *Display) Bins(chCount int) int {
-
-	switch d.drawType {
-	case DrawUp, DrawDown:
-		return (d.termWidth / d.binSize) / chCount
-	case DrawUpDown:
-		return d.termWidth / d.binSize
-	case DrawLeft, DrawRight:
-		return (d.termHeight / d.binSize) / chCount
-	case DrawLeftRight:
-		return d.termHeight / d.binSize
-	default:
-		return 0
 	}
 }
 
