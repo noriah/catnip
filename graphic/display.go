@@ -26,7 +26,7 @@ const (
 	NumRunes = 8
 
 	// ScalingWindow in seconds
-	ScalingWindow = 1.5
+	ScalingWindow = 2.5
 	// PeakThreshold is the threshold to not draw if the peak is less.
 	PeakThreshold = 0.01
 )
@@ -295,21 +295,20 @@ func (d *Display) Write(buffers [][]float64, channels int) error {
 		}
 	}
 
-	if peak <= PeakThreshold {
+	scale := 1.0
+
+	if peak < PeakThreshold {
 		if d.trackZero++; d.trackZero == 5 {
 			d.window.Recalculate()
 		}
+
 	} else {
 		d.trackZero = 0
-	}
 
-	scale := 1.0
-
-	// do some scaling if we are above the PeakThreshold
-	if peak >= PeakThreshold {
+		// do some scaling if we are above the PeakThreshold
 		vMean, vSD := d.window.Update(peak)
 
-		if t := vMean + (1.4 * vSD); t > 1.0 {
+		if t := vMean + (1.5 * vSD); t > 1.0 {
 			scale = t
 		}
 	}
