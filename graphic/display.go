@@ -91,8 +91,7 @@ type Display struct {
 	baseSize    int
 	termWidth   int
 	termHeight  int
-	trackFrames int
-  trackZero   int
+	trackZero   int
 	invertDraw  bool
 	window      *util.MovingWindow
 	drawType    DrawType
@@ -296,7 +295,7 @@ func (d *Display) Write(buffers [][]float64, channels int) error {
 		}
 	}
 
-	if peak <= 0.0 {
+	if peak <= PeakThreshold {
 		if d.trackZero++; d.trackZero == 5 {
 			d.window.Recalculate()
 		}
@@ -310,19 +309,12 @@ func (d *Display) Write(buffers [][]float64, channels int) error {
 	if peak >= PeakThreshold {
 		vMean, vSD := d.window.Update(peak)
 
-		if c, l := d.window.Cap(), d.window.Len(); l >= int(float32(c)*0.1) {
+		if l, c := d.window.Len(), d.window.Cap(); l >= int(float32(c)*0.1) {
 			if t := vMean + (1.25 * vSD); peak > t {
-				if d.trackFrames++; d.trackFrames >= 3 {
-					vMean, vSD = d.window.Drop(3)
-				}
+				vMean, vSD = d.window.Drop(3)
 
 			} else if t := vMean - (1.3 * vSD); peak < t {
-				if d.trackFrames--; d.trackFrames <= -3 {
-					vMean, vSD = d.window.Drop(3)
-				}
-
-			} else {
-				d.trackFrames = 0
+				vMean, vSD = d.window.Drop(3)
 			}
 		}
 

@@ -17,6 +17,7 @@ type MovingWindow struct {
 func NewMovingWindow(size int) *MovingWindow {
 	return &MovingWindow{
 		data:     make([]float64, size),
+		length:   0,
 		capacity: size,
 	}
 }
@@ -97,12 +98,16 @@ func (mw *MovingWindow) Drop(count int) (mean float64, stddev float64) {
 	return mw.calcFinal()
 }
 
-func (mw *MovingWindow) Recalculate() (float64, float64) {
+func (mw *MovingWindow) Recalculate() (mean float64, stddev float64) {
 	count := mw.Len()
+
+	if count <= 0 {
+		return mw.Stats()
+	}
 
 	sum := 0.0
 	for c := count; c > 0; c-- {
-		idx := (mw.index - mw.length)
+		idx := (mw.index - c)
 		if idx < 0 {
 			idx = mw.capacity + idx
 		}
@@ -115,7 +120,7 @@ func (mw *MovingWindow) Recalculate() (float64, float64) {
 	dev := 0.0
 
 	for c := count; c > 0; c-- {
-		idx := (mw.index - mw.length)
+		idx := (mw.index - c)
 		if idx < 0 {
 			idx = mw.capacity + idx
 		}
