@@ -17,9 +17,9 @@
 - ALSA (linux FFmpeg)
 - AVFoundation (macOS FFmpeg)
 - DirectShow (windblows FFmpeg)
+- Pipewire (pw-cat)
 - PortAudio (linux/macOS/windblows (maybe))
 - PulseAudio (parec/FFmpeg)
-- Pipewire (pw-cat)
 
 ## it depends on
 
@@ -33,11 +33,11 @@
 - binaries
 	- ffmpeg (required for FFmpeg backends)
 	- parec (required for PulseAudio backend with parec)
-    - pw-cat, pw-link (required for Pipewire backend)
+  - pw-cat, pw-link (required for Pipewire backend)
 
 - c libraries (optional, requires CGO - `CGO_ENABLED=1`)
-	- fftw (fftw3) (enable with `-tags withfftw`)
-	- portaudio (portaudio-2.0) (enable with `-tags withportaudio`)
+	- fftw (fftw3) (enable with `-tags fftw`)
+	- portaudio (portaudio-2.0) (enable with `-tags portaudio`)
 
 ## get it
 
@@ -52,13 +52,13 @@ cd catnip
 go install ./cmd/catnip
 
 # with portaudio
-go install ./cmd/catnip -tags withportaudio
+go install ./cmd/catnip -tags portaudio
 
 # with fftw3
-go install ./cmd/catnip -tags withfftw
+go install ./cmd/catnip -tags fftw
 
 # with both portaudio and fftw3
-go install ./cmd/catnip -tags withportaudio,withfftw
+go install ./cmd/catnip -tags portaudio,fftw
 ```
 
 ## run it

@@ -1,4 +1,4 @@
-//go:build cgo && withportaudio
+//go:build cgo && (withportaudio || portaudio)
 
 package all
 
