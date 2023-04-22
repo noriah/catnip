@@ -143,7 +143,7 @@ func (az *analyzer) ProcessBin(idx int, src []complex128) float64 {
 			}
 		} else {
 			if f := az.freqToIdx(600.0, math.Floor); fftFloor < f {
-				mag *= 0.55 * math.Min(1.0, (float64(fftFloor+3)/float64(f)))
+				mag *= 0.55 * (math.Min(1.0, (float64(fftFloor+1) / float64(f))))
 			}
 		}
 	}
