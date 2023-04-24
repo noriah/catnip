@@ -1,4 +1,4 @@
-//go:build !cgo || !withfftw
+//go:build !cgo || (!withfftw && !fftw)
 
 package fft
 
