@@ -196,21 +196,52 @@ func (s *Session) startRelinker(ctx context.Context) error {
 		case event := <-linkEvents:
 			switch event := event.(type) {
 			case pwLinkAdd:
-				if event.DeviceName == s.targetName {
-					catnipPort := "input_" + strings.TrimPrefix(event.PortName, "output_")
-					catnipPortID := catnipPorts[catnipPort]
-					targetPortID := event.ID
+				if event.DeviceName != s.targetName {
+					break
+				}
 
-					// Link the catnip node to the device node.
-					if err := pwLink(targetPortID, catnipPortID); err != nil {
-						log.Printf(
-							"failed to link catnip port %d to device port %d: %v",
-							catnipPortID, targetPortID, err)
-					}
+				catnipPort, ok := matchPort(event, catnipPorts)
+				if !ok {
+					log.Printf(
+						"device port %s (%d) cannot be matched to catnip (ports: %v)",
+						event.PortName, event.PortID, catnipPorts)
+					break
+				}
+
+				if err := pwLink(event.PortID, catnipPort.PortID); err != nil {
+					log.Printf(
+						"failed to link catnip port %s (%d) to device port %s (%d): %v",
+						catnipPort.PortName, catnipPort.PortID,
+						event.PortName, event.PortID, err)
 				}
 			}
 		}
 	}
+}
+
+// matchPort tries to match the given link event to the catnip input ports. It
+// returns the catnip port to link to, and whether the event was matched.
+func matchPort(event pwLinkAdd, ourPorts map[string]pwObjectID) (pwLinkObject, bool) {
+	if len(ourPorts) == 1 {
+		// We only have one port, so we're probably in mono mode.
+		for name, id := range ourPorts {
+			return pwLinkObject{PortID: id, PortName: name}, true
+		}
+	}
+
+	// Try directly matching the port channel with the event's. This usually
+	// works if the number of ports is the same.
+	_, channel, ok := strings.Cut(event.PortName, "_")
+	if ok {
+		port := "input_" + channel
+		portID, ok := ourPorts[port]
+		if ok {
+			return pwLinkObject{PortID: portID, PortName: port}, true
+		}
+	}
+
+	// TODO: use more sophisticated matching here.
+	return pwLinkObject{}, false
 }
 
 func findCatnipPorts(ctx context.Context, ourProps catnipProps) (map[string]pwObjectID, error) {

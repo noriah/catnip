@@ -25,8 +25,8 @@ func pwLink(outPortID, inPortID pwObjectID) error {
 }
 
 type pwLinkObject struct {
-	ID         pwObjectID
 	DeviceName string
+	PortID     pwObjectID
 	PortName   string // usually like {input,output}_{FL,FR}
 }
 
@@ -49,7 +49,7 @@ func pwLinkObjectParse(line string) (pwLinkObject, error) {
 	}
 
 	obj = pwLinkObject{
-		ID:         pwObjectID(id),
+		PortID:     pwObjectID(id),
 		DeviceName: name,
 		PortName:   port,
 	}
