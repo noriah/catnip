@@ -115,6 +115,13 @@ func (d *Display) Init(sampleRate float64, sampleSize int) error {
 
 	d.styleBuffer = make([]termbox.Attribute, 4096)
 
+	// Prevent crash on Tmux.
+	prevState, err := normalizeTerminal()
+	if err != nil {
+		return err
+	}
+	defer prevState()
+
 	if err := termbox.Init(); err != nil {
 		return err
 	}
