@@ -28,7 +28,7 @@ const (
 	// ScalingWindow in seconds
 	ScalingWindow = 1.5
 	// PeakThreshold is the threshold to not draw if the peak is less.
-	PeakThreshold = 0.01
+	PeakThreshold = 0.001
 )
 
 // DrawType is the type.
@@ -179,16 +179,18 @@ func (d *Display) Write(buffers [][]float64, channels int) error {
 		d.trackZero = 0
 
 		// do some scaling if we are above the PeakThreshold
-		vMean, vSD := d.window.Update(peak)
-
-		if t := vMean + (2.0 * vSD); t > 1.0 {
-			scale = t
-		}
+		d.window.Update(peak)
 
 	} else {
 		if d.trackZero++; d.trackZero == 5 {
 			d.window.Recalculate()
 		}
+	}
+
+	vMean, vSD := d.window.Stats()
+
+	if t := vMean + (2.0 * vSD); t > 1.0 {
+		scale = t
 	}
 
 	switch d.drawType {
