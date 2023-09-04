@@ -79,6 +79,7 @@ func main() {
 			SampleRate:    cfg.sampleRate,
 			SampleSize:    cfg.sampleSize,
 			SquashLow:     true,
+			SquashLowOld:  false,
 			DontNormalize: cfg.dontNormalize,
 			BinMethod:     dsp.MaxSampleValue(),
 		}),
