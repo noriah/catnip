@@ -43,6 +43,7 @@ const (
 	DrawDown
 	DrawLeft
 	DrawLeftRight
+	DrawLeftRightSplit
 	DrawRight
 	DrawMax
 
@@ -213,6 +214,9 @@ func (d *Display) Write(buffers [][]float64, channels int) error {
 	case DrawLeftRight:
 		d.drawLeftRight(buffers, channels, scale)
 
+	case DrawLeftRightSplit:
+		d.drawLeftRightSplit(buffers, channels, scale)
+
 	case DrawRight:
 		d.drawRight(buffers, channels, scale)
 
@@ -288,7 +292,7 @@ func (d *Display) Bins(chCount int) int {
 		return (d.termWidth / d.binSize) / chCount
 	case DrawUpDown:
 		return d.termWidth / d.binSize
-	case DrawLeft, DrawRight:
+	case DrawLeft, DrawRight, DrawLeftRightSplit:
 		return (d.termHeight / d.binSize) / chCount
 	case DrawLeftRight:
 		return d.termHeight / d.binSize
@@ -401,7 +405,7 @@ func (d *Display) updateStyleBuffer() {
 	case DrawLeft:
 		d.fillStyleBuffer(d.termWidth-d.baseSize, d.baseSize, 0)
 
-	case DrawLeftRight:
+	case DrawLeftRight, DrawLeftRightSplit:
 		centerStart := intMax((d.termWidth-d.baseSize)/2, 0)
 		centerStop := centerStart + d.baseSize
 		d.fillStyleBuffer(centerStart, d.baseSize, d.termWidth-centerStop)
@@ -717,6 +721,58 @@ func (d *Display) drawLeftRight(bins [][]float64, channelCount int, scale float6
 
 			if rCap < BarRuneH {
 				termbox.SetCell(rStop, xRow, rCap, d.styles.Foreground, d.styles.Foreground)
+			}
+		}
+	}
+}
+
+// drawLeftRight will draw left and right.
+func (d *Display) drawLeftRightSplit(bins [][]float64, channelCount int, scale float64) {
+	binCount := d.Bins(channelCount)
+	centerStart := intMax((d.termWidth-d.baseSize)/2, 0)
+	centerStop := centerStart + d.baseSize
+
+	scale = float64(intMin(centerStart, d.termWidth-centerStop)) / scale
+
+	paddedWidth := (d.binSize * binCount * channelCount) - d.spaceSize
+	paddedWidth = intMax(intMin(paddedWidth, d.termHeight), 0)
+
+	channelWidth := d.binSize * binCount
+	edgeOffset := (d.termHeight - paddedWidth) / 2
+
+	for xSet, chBins := range bins {
+
+		for xBar := 0; xBar < binCount; xBar++ {
+
+			xBin := (xBar * (1 - xSet)) + (((binCount - 1) - xBar) * xSet)
+
+			if d.invertDraw {
+				xBin = binCount - 1 - xBin
+			}
+
+			start, lCap := sizeAndCap(chBins[xBin]*scale, centerStart, true, BarRune)
+			stop, rCap := sizeAndCap(chBins[xBin]*scale, centerStart, false, BarRuneH)
+			if stop += centerStop; stop >= d.termWidth {
+				stop = d.termWidth
+				rCap = BarRuneH
+			}
+
+			xRow := (xBar * d.binSize) + (channelWidth * xSet) + edgeOffset
+			lRow := xRow + d.barSize
+
+			for ; xRow < lRow; xRow++ {
+
+				if lCap > BarRune {
+					termbox.SetCell(start-1, xRow, lCap, StyleReverse, d.styles.Background)
+				}
+
+				for xCol := start; xCol < stop; xCol++ {
+					termbox.SetCell(xCol, xRow, BarRune, d.styleBuffer[xCol], d.styles.Background)
+				}
+
+				if rCap < BarRuneH {
+					termbox.SetCell(stop, xRow, rCap, d.styles.Foreground, d.styles.Foreground)
+				}
 			}
 		}
 	}
