@@ -549,13 +549,13 @@ func (d *Display) drawUpDown(bins [][]float64, channelCount int, scale float64) 
 // drawUpDownSplit will draw up and down split down the middle for left and
 // right channels.
 func (d *Display) drawUpDownSplit(bins [][]float64, channelCount int, scale float64) {
-	binCount := d.Bins(channelCount)
+	binCount := d.Bins(2)
 	centerStart := intMax((d.termHeight-d.baseSize)/2, 0)
 	centerStop := centerStart + d.baseSize
 
 	scale = float64(intMin(centerStart, d.termHeight-centerStop)) / scale
 
-	paddedWidth := (d.binSize * binCount * channelCount) - d.spaceSize
+	paddedWidth := (d.binSize * binCount * 2) - d.spaceSize
 	paddedWidth = intMax(intMin(paddedWidth, d.termWidth), 0)
 
 	channelWidth := d.binSize * binCount
@@ -602,13 +602,13 @@ func (d *Display) drawUpDownSplit(bins [][]float64, channelCount int, scale floa
 // drawUpDownSplitVert will draw up and down split down the middle for left and
 // right channels.
 func (d *Display) drawUpDownSplitVert(bins [][]float64, channelCount int, scale float64) {
-	binCount := d.Bins(channelCount)
+	binCount := d.Bins(2)
 	centerStart := intMax((d.termHeight-d.baseSize)/2, 0)
 	centerStop := centerStart + d.baseSize
 
 	scale = float64(intMin(centerStart, d.termHeight-centerStop)) / scale
 
-	paddedWidth := (d.binSize * binCount * channelCount) - d.spaceSize
+	paddedWidth := (d.binSize * binCount * 2) - d.spaceSize
 	paddedWidth = intMax(intMin(paddedWidth, d.termWidth), 0)
 
 	channelWidth := d.binSize * binCount
@@ -789,36 +789,36 @@ func (d *Display) drawLeftRight(bins [][]float64, channelCount int, scale float6
 
 // drawLeftRight will draw left and right.
 func (d *Display) drawLeftRightSplit(bins [][]float64, channelCount int, scale float64) {
-	binCount := d.Bins(channelCount)
+	binCount := d.Bins(2)
 	centerStart := intMax((d.termWidth-d.baseSize)/2, 0)
 	centerStop := centerStart + d.baseSize
 
 	scale = float64(intMin(centerStart, d.termWidth-centerStop)) / scale
 
-	paddedWidth := (d.binSize * binCount * channelCount) - d.spaceSize
+	paddedWidth := (d.binSize * binCount * 2) - d.spaceSize
 	paddedWidth = intMax(intMin(paddedWidth, d.termHeight), 0)
 
 	channelWidth := d.binSize * binCount
 	edgeOffset := (d.termHeight - paddedWidth) / 2
 
-	for xSet, chBins := range bins {
+	for xSide := 0; xSide < 2; xSide++ {
 
 		for xBar := 0; xBar < binCount; xBar++ {
 
-			xBin := (xBar * (1 - xSet)) + (((binCount - 1) - xBar) * xSet)
+			xBin := (xBar * (1 - xSide)) + (((binCount - 1) - xBar) * xSide)
 
 			if d.invertDraw {
 				xBin = binCount - 1 - xBin
 			}
 
-			start, lCap := sizeAndCap(chBins[xBin]*scale, centerStart, true, BarRune)
-			stop, rCap := sizeAndCap(chBins[xBin]*scale, centerStart, false, BarRuneH)
+			start, lCap := sizeAndCap(bins[xSide%channelCount][xBin]*scale, centerStart, true, BarRune)
+			stop, rCap := sizeAndCap(bins[xSide%channelCount][xBin]*scale, centerStart, false, BarRuneH)
 			if stop += centerStop; stop >= d.termWidth {
 				stop = d.termWidth
 				rCap = BarRuneH
 			}
 
-			xRow := (xBar * d.binSize) + (channelWidth * xSet) + edgeOffset
+			xRow := (xBar * d.binSize) + (channelWidth * xSide) + edgeOffset
 			lRow := xRow + d.barSize
 
 			for ; xRow < lRow; xRow++ {
