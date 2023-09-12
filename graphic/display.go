@@ -334,6 +334,12 @@ func (d *Display) inputProcessor() {
 
 			default:
 				switch ev.Ch {
+				case 'b', 'B':
+					d.SetDrawType(d.drawType - 1)
+
+				case 'n', 'N':
+					d.SetDrawType(d.drawType + 1)
+
 				case 'w', 'W':
 					d.AdjustSizes(1, 0)
 
