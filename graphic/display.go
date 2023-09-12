@@ -4,6 +4,7 @@ import (
 	"context"
 	"sync/atomic"
 
+	"github.com/noriah/catnip/dsp"
 	"github.com/noriah/catnip/util"
 
 	"github.com/nsf/termbox-go"
@@ -87,6 +88,7 @@ func (s Styles) AsUInt16s() (fg, bg, center uint16) {
 
 // Display handles drawing our visualizer.
 type Display struct {
+	Smoother    dsp.Smoother
 	running     uint32
 	barSize     int
 	spaceSize   int
@@ -355,6 +357,12 @@ func (d *Display) inputProcessor() {
 
 				case '-', '_':
 					d.AdjustBase(-1)
+
+				case '[':
+					d.Smoother.SetMethod(d.Smoother.GetMethod() - 1)
+
+				case ']':
+					d.Smoother.SetMethod(d.Smoother.GetMethod() + 1)
 
 				case 'q', 'Q':
 					return

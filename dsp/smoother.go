@@ -9,12 +9,14 @@ import (
 type SmoothingMethod int
 
 const (
-	SmoothUnspecified   SmoothingMethod = iota // 0
+	SmoothMin           SmoothingMethod = iota // 0
 	SmoothSimple                               // 1
 	SmoothAverage                              // 2
 	SmoothSimpleAverage                        // 3
 	SmoothNew                                  // 4
 	SmoothNewAverage                           // 5
+	SmoothNone                                 // 6
+	SmoothMax                                  // 7
 
 	SmoothDefault = SmoothSimpleAverage
 )
@@ -31,6 +33,8 @@ type SmootherConfig struct {
 type Smoother interface {
 	SmoothBuffers([][]float64)
 	SmoothBin(int, int, float64) float64
+	GetMethod() SmoothingMethod
+	SetMethod(SmoothingMethod)
 }
 
 type smoother struct {
@@ -96,10 +100,27 @@ func (sm *smoother) SmoothBin(ch, idx int, value float64) float64 {
 	return sm.switchSmoothing(ch, idx, value, 0.0)
 }
 
+func (sm *smoother) GetMethod() SmoothingMethod {
+	return sm.smoothMethod
+}
+
+func (sm *smoother) SetMethod(method SmoothingMethod) {
+	switch {
+	case method <= SmoothMin:
+		sm.smoothMethod = SmoothMax - 1
+	case method >= SmoothMax:
+		sm.smoothMethod = SmoothMin + 1
+	default:
+		sm.smoothMethod = method
+	}
+}
+
 func (sm *smoother) switchSmoothing(ch, idx int, value, peak float64) float64 {
 	switch sm.smoothMethod {
 	default:
-	case SmoothUnspecified:
+	case SmoothMin, SmoothMax:
+		sm.smoothMethod = SmoothDefault
+		return sm.switchSmoothing(ch, idx, value, peak)
 	case SmoothSimple:
 		return sm.smoothBinSimple(ch, idx, value)
 	case SmoothAverage:
@@ -112,12 +133,17 @@ func (sm *smoother) switchSmoothing(ch, idx int, value, peak float64) float64 {
 	case SmoothNewAverage:
 		v := sm.smoothBinAverage(ch, idx, value)
 		return sm.smoothBinNew(ch, idx, v, peak)
+	case SmoothNone:
+		return value
 	}
 
 	return 0.0
 }
 
 func (sm *smoother) smoothBinSimple(ch, idx int, value float64) float64 {
+	if math.IsNaN(sm.values[ch][idx]) {
+		sm.values[ch][idx] = 0.0
+	}
 	value *= 1.0 - sm.smoothFactor
 	value += sm.values[ch][idx] * sm.smoothFactor
 	sm.values[ch][idx] = value

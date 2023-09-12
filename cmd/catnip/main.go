@@ -40,7 +40,18 @@ func main() {
 
 	chk(cfg.validate(), "invalid config")
 
+	smoother := dsp.NewSmoother(dsp.SmootherConfig{
+		SampleSize:      cfg.sampleSize,
+		SampleRate:      cfg.sampleRate,
+		ChannelCount:    cfg.channelCount,
+		SmoothingFactor: cfg.smoothFactor,
+		SmoothingMethod: dsp.SmoothingMethod(cfg.smoothingMethod),
+		AverageSize:     cfg.smoothingAverageWindowSize,
+	})
+
 	display := graphic.NewDisplay()
+
+	display.Smoother = smoother
 
 	catnipCfg := catnip.Config{
 		Backend:      cfg.backend,
@@ -83,14 +94,7 @@ func main() {
 			DontNormalize: cfg.dontNormalize,
 			BinMethod:     dsp.MaxSampleValue(),
 		}),
-		Smoother: dsp.NewSmoother(dsp.SmootherConfig{
-			SampleSize:      cfg.sampleSize,
-			SampleRate:      cfg.sampleRate,
-			ChannelCount:    cfg.channelCount,
-			SmoothingFactor: cfg.smoothFactor,
-			SmoothingMethod: dsp.SmoothingMethod(cfg.smoothingMethod),
-			AverageSize:     cfg.smoothingAverageWindowSize,
-		}),
+		Smoother: smoother,
 	}
 
 	// Root Context
@@ -132,12 +136,12 @@ func doFlags(cfg *config) bool {
 	parser.Int(&cfg.frameRate, "f", "fps", "frame rate (0 to draw on every sample)")
 	parser.Int(&cfg.channelCount, "ch", "channels", "channel count (1 or 2)")
 	parser.Float64(&cfg.smoothFactor, "sf", "smoothing", "smooth factor (0-100)")
-	parser.Int(&cfg.smoothingMethod, "sm", "smooth-method", "smoothing method")
+	parser.Int(&cfg.smoothingMethod, "sm", "smooth-method", "smoothing method (0, 1, 2, 3, 4, 5)")
 	parser.Int(&cfg.smoothingAverageWindowSize, "sas", "smooth-average-size", "smoothing window size")
 	parser.Int(&cfg.baseSize, "bt", "base", "base thickness [0, +Inf)")
 	parser.Int(&cfg.barSize, "bw", "bar", "bar width [1, +Inf)")
 	parser.Int(&cfg.spaceSize, "bs", "space", "space width [0, +Inf)")
-	parser.Int(&cfg.drawType, "dt", "draw", "draw type (1, 2, 3, 4, 5, 6)")
+	parser.Int(&cfg.drawType, "dt", "draw", "draw type (1, 2, 3, 4, 5, 6, 7, 8, 9)")
 	parser.Bool(&cfg.dontNormalize, "dn", "dont-normalize", "dont normalize analyzer output")
 	parser.Bool(&cfg.useThreaded, "t", "threaded", "use the threaded processor")
 	parser.Bool(&cfg.invertDraw, "i", "invert", "invert the direction of bin drawing")
