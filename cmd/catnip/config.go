@@ -47,6 +47,11 @@ type config struct {
 	invertDraw bool
 	// Styles is the configuration for bar color styles
 	styles graphic.Styles
+
+	// Use the number writer instead of
+	useNumberWriter bool
+	// Number of bins to use for the number writer per channel (0 uses default 50)
+	numberWriterBins int
 }
 
 // NewZeroConfig returns a zero config
@@ -69,6 +74,8 @@ func newZeroConfig() config {
 		combine:                    false,
 		useThreaded:                false,
 		invertDraw:                 false,
+		useNumberWriter:            false,
+		numberWriterBins:           0,
 	}
 }
 
@@ -100,6 +107,10 @@ func (cfg *config) validate() error {
 		cfg.smoothFactor = 0.00001
 	default:
 		cfg.smoothFactor /= 100.0
+	}
+
+	if cfg.numberWriterBins <= 0 {
+		cfg.numberWriterBins = 50
 	}
 
 	return nil

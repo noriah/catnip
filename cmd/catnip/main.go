@@ -12,6 +12,7 @@ import (
 	"github.com/noriah/catnip/dsp/window"
 	"github.com/noriah/catnip/graphic"
 	"github.com/noriah/catnip/input"
+	"github.com/noriah/catnip/processor"
 
 	_ "github.com/noriah/catnip/input/all"
 
@@ -51,6 +52,17 @@ func main() {
 
 	display := graphic.NewDisplay()
 
+	var output processor.Output
+
+	if !cfg.useNumberWriter {
+		output = display
+	} else {
+		writer := NewWriter()
+		writer.Init(cfg.sampleRate, cfg.sampleSize)
+		writer.SetInvertDraw(cfg.invertDraw)
+		output = writer
+	}
+
 	display.Smoother = smoother
 
 	catnipCfg := catnip.Config{
@@ -62,30 +74,11 @@ func main() {
 		ProcessRate:  cfg.frameRate,
 		Combine:      cfg.combine,
 		UseThreaded:  cfg.useThreaded,
-		SetupFunc: func() error {
-			if err := display.Init(cfg.sampleRate, cfg.sampleSize); err != nil {
-				return err
-			}
-
-			display.SetSizes(cfg.barSize, cfg.spaceSize)
-			display.SetBase(cfg.baseSize)
-			display.SetDrawType(graphic.DrawType(cfg.drawType))
-			display.SetStyles(cfg.styles)
-			display.SetInvertDraw(cfg.invertDraw)
-
-			return nil
-		},
-		StartFunc: func(ctx context.Context) (context.Context, error) {
-			ctx = display.Start(ctx)
-			return ctx, nil
-		},
-		CleanupFunc: func() error {
-			display.Stop()
-			display.Close()
-			return nil
-		},
-		Output:   display,
-		Windower: window.Lanczos(),
+		SetupFunc:    setupFunc(!cfg.useNumberWriter, &cfg, display),
+		StartFunc:    startFunc(!cfg.useNumberWriter, display),
+		CleanupFunc:  cleanupFunc(!cfg.useNumberWriter, display),
+		Output:       output,
+		Windower:     window.Lanczos(),
 		Analyzer: dsp.NewAnalyzer(dsp.AnalyzerConfig{
 			SampleRate:    cfg.sampleRate,
 			SampleSize:    cfg.sampleSize,
@@ -102,6 +95,51 @@ func main() {
 	defer cancel()
 
 	chk(catnip.Run(&catnipCfg, ctx), "failed to run catnip")
+}
+
+func setupFunc(isDisplay bool, cfg *config, display *graphic.Display) func() error {
+	if !isDisplay {
+		return func() error { return nil }
+	}
+
+	return func() error {
+		if err := display.Init(cfg.sampleRate, cfg.sampleSize); err != nil {
+			return err
+		}
+
+		display.SetSizes(cfg.barSize, cfg.spaceSize)
+		display.SetBase(cfg.baseSize)
+		display.SetDrawType(graphic.DrawType(cfg.drawType))
+		display.SetStyles(cfg.styles)
+		display.SetInvertDraw(cfg.invertDraw)
+
+		return nil
+	}
+}
+
+func startFunc(isDisplay bool, display *graphic.Display) func(context.Context) (context.Context, error) {
+	if !isDisplay {
+		return func(ctx context.Context) (context.Context, error) {
+			return ctx, nil
+		}
+	}
+
+	return func(ctx context.Context) (context.Context, error) {
+		ctx = display.Start(ctx)
+		return ctx, nil
+	}
+}
+
+func cleanupFunc(isDisplay bool, display *graphic.Display) func() error {
+	if !isDisplay {
+		return func() error { return nil }
+	}
+
+	return func() error {
+		display.Stop()
+		display.Close()
+		return nil
+	}
 }
 
 func doFlags(cfg *config) bool {
@@ -145,6 +183,9 @@ func doFlags(cfg *config) bool {
 	parser.Bool(&cfg.dontNormalize, "dn", "dont-normalize", "dont normalize analyzer output")
 	parser.Bool(&cfg.useThreaded, "t", "threaded", "use the threaded processor")
 	parser.Bool(&cfg.invertDraw, "i", "invert", "invert the direction of bin drawing")
+
+	parser.Bool(&cfg.useNumberWriter, "nw", "number-writer", "use writer (default: false)")
+	parser.Int(&cfg.numberWriterBins, "nwb", "number-writer-bins", "number of bins for the number writer per channel. (default 50)")
 
 	fg, bg, center := graphic.DefaultStyles().AsUInt16s()
 	parser.UInt16(&fg, "fg", "foreground",
