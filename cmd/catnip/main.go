@@ -59,6 +59,7 @@ func main() {
 	} else {
 		writer := NewWriter()
 		writer.Init(cfg.sampleRate, cfg.sampleSize)
+    writer.SetBinCount(cfg.numberWriterBins)
 		writer.SetInvertDraw(cfg.invertDraw)
 		output = writer
 	}
@@ -184,8 +185,8 @@ func doFlags(cfg *config) bool {
 	parser.Bool(&cfg.useThreaded, "t", "threaded", "use the threaded processor")
 	parser.Bool(&cfg.invertDraw, "i", "invert", "invert the direction of bin drawing")
 
-	parser.Bool(&cfg.useNumberWriter, "nw", "number-writer", "use writer (default: false)")
-	parser.Int(&cfg.numberWriterBins, "nwb", "number-writer-bins", "number of bins for the number writer per channel. (default 50)")
+	parser.Bool(&cfg.useNumberWriter, "nw", "number-writer", "use writer")
+	parser.Int(&cfg.numberWriterBins, "nwb", "number-writer-bins", "number of bins for the number writer per channel.")
 
 	fg, bg, center := graphic.DefaultStyles().AsUInt16s()
 	parser.UInt16(&fg, "fg", "foreground",

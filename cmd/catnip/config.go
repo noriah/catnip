@@ -75,7 +75,7 @@ func newZeroConfig() config {
 		useThreaded:                false,
 		invertDraw:                 false,
 		useNumberWriter:            false,
-		numberWriterBins:           0,
+		numberWriterBins:           50,
 	}
 }
 

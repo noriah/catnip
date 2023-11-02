@@ -47,6 +47,10 @@ func (d *Writer) Close() error {
 	return nil
 }
 
+func (d *Writer) SetBinCount(count int) {
+  d.binCount = count
+}
+
 func (d *Writer) SetInvertDraw(invert bool) {
 	d.invertDraw = invert
 }
