@@ -111,7 +111,7 @@ func (d *Writer) Write(buffers [][]float64, channels int) error {
 				xBin = d.binCount - 1 - xBin
 			}
 
-			fmt.Printf("%4.2f ", chBins[xBin]*scale)
+			fmt.Printf("%6.3f ", chBins[xBin]*scale)
 		}
 	}
 

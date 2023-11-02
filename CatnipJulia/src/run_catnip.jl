@@ -1,116 +1,148 @@
 GLMakie.activate!()
 
+# set_theme!(theme_black())
+
 set_window_config!(;
-    vsync=false,
-    framerate=60.0,
-    float=true,
-    pause_renderloop=false,
-    focus_on_show=false,
-    decorated=true,
-    title="Catnip"
+  vsync=false,
+  framerate=60.0,
+  float=true,
+  pause_renderloop=false,
+  focus_on_show=false,
+  decorated=true,
+  title="catnip"
 )
 
 function run_catnip(; timeout=false)
-    numSets = 120
+  # 5 seconds at 60 samples per second out of catnip
+  numSets = 300
 
-    fig = Figure(resolution=(1200, 800), fontsize=14)
-    ax1 = Axis3(fig[1, 1]; aspect=(2, 1, 0.25), elevation=pi / 6, perspectiveness=0.5)
+  fig = Figure(resolution=(1200, 800), fontsize=14)
+  ax1 = Axis3(fig[1, 1]; aspect=(2, 1, 0.25), elevation=pi / 6, perspectiveness=0.5)
 
-    data = CircularBuffer{Vector{Float64}}(numSets)
+  data = CircularBuffer{Vector{Float64}}(numSets)
 
-    push!(data, [0.0, 0.0])
-    push!(data, [0.0, 0.0])
+  push!(data, [0.0, 0.0])
+  push!(data, [0.0, 0.0])
 
-    z = Observable(mapreduce(permutedims, vcat, data))
+  z = Observable(mapreduce(permutedims, vcat, data))
 
-    mSize = @lift(Vec3f.(1, 1, $z[:]))
+  mSize = @lift(Vec3f.(1, 1, $z[:]))
 
-    zZ = @lift(0 * $z)
+  zZ = @lift(0 * $z)
 
-    sets = @lift(size($z, 1))
-    bars = @lift(size($z, 2))
+  sets = @lift(size($z, 1))
+  bars = @lift(size($z, 2))
 
-    x = @lift(range(1, $sets, $sets))
-    y = @lift(range(1, $bars, $bars))
+  x = @lift(range(1, $sets, $sets))
+  y = @lift(range(1, $bars, $bars))
 
-    function makeColorMap(s, b)
-        mat = zeros(s, b)
+  idx = Observable(1)
 
-        for j = 0:b-1
-            mat[(j*s)+1] = 0
-        end
+  function makeColorMap(s, b, x)
+    mat = zeros(s, b)
 
-        for i = 1:s-1
-            # v = 1 - min(0.8, i / s)
-            v = 1 - (i / s)
-            # v = i / s
+    for i = 0:s-1
+      # v = 1 - min(0.8, i / s)
+      v = 1.0 - (i / s)
+      # v = i / s
 
-            for j = 0:b-1
-                mat[(j*s)+i+1] = v
-            end
-        end
-
-        return mat
+      for j = 0:b-1
+        mat[i+(j*s)+1] = v
+      end
     end
 
-    zC = @lift($z[:])
-
-    staticColorMap = @lift(makeColorMap($sets, $bars)[:])
-
-
-    function updateZ()
-        z[] = mapreduce(permutedims, vcat, data)
+    for j = 0:b-1
+      mat[x+(j*s)] = 0.0
     end
 
-    rectMesh = Rect3f(Vec3f(-0.5, -0.5, 0), Vec3f(1, 1, 1))
+    return mat
+  end
 
-    display(fig)
+  function makeColorMap2(z, s, b, x)
+    d = z[:]
 
-    command = `$(ENV["GOBIN"])/catnip -d alsa_output.pci-0000_0e_00.4.iec958-stereo.monitor -r 122880 -n 2048 -sas 5 -sf 45 -i -nw -nwb 50`
-    #command = `go run ./cmd/catnip -d spotify -r 122880 -n 2048 -sas 5 -sf 45 -i -nw -nwb 50`
+    maxValue = reduce(d) do left, right
+      left > right ? left : right
+    end
 
+    maxValue = max(maxValue, 100.0)
 
-    try
-        open(command, "r", stdout) do io
-            count = 0
-            while count < numSets + 2
-                count += 1
+    for j = 0:b-1
+      d[x+(j*s)] = maxValue
+    end
 
-                line = readline(io)
-                line = rstrip(lstrip(line))
-                elms = split(line, " ")
-                nums = map(x -> parse(Float64, x), elms)
-                #println(nums)
-                pushfirst!(data, reverse(nums))
-            end
+    d[1] = 0.0
 
-            updateZ()
+    return d
+  end
 
-            limits!(ax1, 0, sets[], 0, bars[], 0, 100)
+  zC = @lift($z[:])
 
-            meshscatter!(ax1, x, y, zZ; marker=rectMesh, color=staticColorMap,
-                markersize=mSize, colormap=:summer,
-                shading=true)
+  staticColorMap = @lift(makeColorMap2($z, $sets, $bars, $idx)[:])
 
 
+  function updateZ()
+    z[] = mapreduce(permutedims, vcat, data)
+  end
 
-            #while !eof(io) && (count < numSets + 4 || !timeout)
-            while !eof(io) && !timeout
-                count += 1
-                line = readline(io)
-                line = rstrip(lstrip(line))
-                elms = split(line, " ")
-                nums = map(x -> parse(Float64, x), elms)
-                nums = reverse(nums)
+  rectMesh = Rect3f(Vec3f(-0.5, -0.5, 0), Vec3f(1, 1, 1))
 
-                #println(nums)
+  display(fig)
 
-                pushfirst!(data, nums)
+  command = `catnip -d spotify -r 122880 -n 2048 -sas 6 -sf 45 -i -nw -nwb 60`
+  #command = `go run ./cmd/catnip -d spotify -r 122880 -n 2048 -sas 5 -sf 45 -i -nw -nwb 50`
 
-                updateZ()
-            end
+
+  try
+    open(command, "r", stdout) do io
+      count = 0
+      while count < numSets + 2
+        count += 1
+
+        line = readline(io)
+        line = strip(line)
+        elms = split(line, " ")
+        elms = [elm for elm in elms if !isempty(elm)]
+        nums = map(x -> parse(Float64, strip(x)), elms)
+        #println(nums)
+        pushfirst!(data, reverse(nums))
+      end
+
+      updateZ()
+
+      limits!(ax1, 0, sets[], 0, bars[], 0, 100)
+
+      meshscatter!(ax1, x, y, zZ; marker=rectMesh, color=staticColorMap,
+        markersize=mSize, colormap=:plasma,
+        shading=true)
+
+
+
+      #while !eof(io) && (count < numSets + 4 || !timeout)
+      while !eof(io) && !timeout
+        count += 1
+        if count >= numSets
+          count = 0
         end
-    catch e
-        @show e
+
+        line = readline(io)
+        line = strip(line)
+        elms = split(line, " ")
+        elms = [elm for elm in elms if !isempty(elm)]
+        nums = map(x -> parse(Float64, strip(x)), elms)
+        nums = reverse(nums)
+
+        idx[] = numSets - count
+        #println(nums)
+
+        data[idx[]] = nums
+
+        # pushfirst!(data, nums)
+
+        updateZ()
+      end
     end
+  catch e
+    @show e
+  end
 end
