@@ -5,3 +5,5 @@
 /cmd/catnip/profile.go
 /prof.go
 /target
+/CatnipJulia/Manifest.toml
+/CatnipJulia/CatnipJuliaSysimagePrecompile.so
