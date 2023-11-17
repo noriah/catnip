@@ -13,6 +13,8 @@
 </p>
 ^ click for a fun video
 
+[![A visualization of catnip over time](https://img.youtube.com/vi/sU3fkOB5HZ8/0.jpg)](https://youtu.be/sU3fkOB5HZ8)
+
 ## it supports audio backends
 - ALSA (linux FFmpeg)
 - AVFoundation (macOS FFmpeg)
