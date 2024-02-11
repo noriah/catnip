@@ -1,11 +1,13 @@
-GLMakie.activate!()
+using Colors
+using DataStructures: CircularBuffer
+using GLMakie
 
-# set_theme!(theme_black())
+set_theme!(theme_black())
 
-set_window_config!(;
+GLMakie.activate!(;
   vsync=false,
   framerate=60.0,
-  float=true,
+  float=false,
   pause_renderloop=false,
   focus_on_show=false,
   decorated=true,
@@ -13,11 +15,15 @@ set_window_config!(;
 )
 
 function run_catnip(; timeout=false)
-  # 5 seconds at 60 samples per second out of catnip
+  # 6 seconds at 60 samples per second out of catnip
   numSets = 300
+  # numSets = 120
 
-  fig = Figure(resolution=(1200, 800), fontsize=14)
+  fig = Figure(fontsize=14; size=(1200, 888))
   ax1 = Axis3(fig[1, 1]; aspect=(2, 1, 0.25), elevation=pi / 6, perspectiveness=0.5)
+
+  hidedecorations!(ax1)
+  hidespines!(ax1)
 
   data = CircularBuffer{Vector{Float64}}(numSets)
 
@@ -58,27 +64,31 @@ function run_catnip(; timeout=false)
     return mat
   end
 
-  function makeColorMap2(z, s, b, x)
-    d = z[:]
+  function makeColorMap2(data, sets, bars, idx)
+    d = data[:]
 
-    maxValue = reduce(d) do left, right
-      left > right ? left : right
+    for n in eachindex(d)
+      d[n] > 100.0 && (d[n] = 100.0)
+      # d[n] < 1.0 && (d[n] = 100.0)
     end
 
-    maxValue = max(maxValue, 100.0)
+    # for j = 0:bars-1
+    #   d[idx+(j*sets)] = 100.0
+    # end
 
-    for j = 0:b-1
-      d[x+(j*s)] = maxValue
+    for j = 0:bars-1
+      d[idx+(j*sets)] = 100.0
     end
 
-    d[1] = 0.0
+    d[idx] = 0.0
+    d[idx+((bars-1)*sets)] = 100.0
 
     return d
   end
 
   zC = @lift($z[:])
 
-  staticColorMap = @lift(makeColorMap2($z, $sets, $bars, $idx)[:])
+  staticColorMap = @lift(makeColorMap2($z, $sets, $bars, $idx))
 
 
   function updateZ()
@@ -89,7 +99,12 @@ function run_catnip(; timeout=false)
 
   display(fig)
 
-  command = `catnip -d spotify -r 122880 -n 2048 -sas 6 -sf 45 -i -nw -nwb 60`
+  mymagma = GLMakie.to_colormap(:magma)
+  # mymagma = GLMakie.to_colormap(:BuPu_9)
+  mymagma[1] = RGBA(0.0,0.0,0.0,0.0)
+
+  command = `catnip -d spotify -r 122880 -n 2048 -sas 6 -sf 45 -i -nw -nwb 81`
+  # command = `catnip -d "Google Chrome" -r 122880 -n 2048 -sas 6 -sf 45 -i -nw -nwb 60`
   #command = `go run ./cmd/catnip -d spotify -r 122880 -n 2048 -sas 5 -sf 45 -i -nw -nwb 50`
 
 
@@ -113,9 +128,11 @@ function run_catnip(; timeout=false)
       limits!(ax1, 0, sets[], 0, bars[], 0, 100)
 
       meshscatter!(ax1, x, y, zZ; marker=rectMesh, color=staticColorMap,
-        markersize=mSize, colormap=:plasma,
-        shading=true)
+        markersize=mSize, colormap=mymagma,
+        # markersize=mSize, colormap=:plasma,
+        shading=MultiLightShading)
 
+      idx[] = numSets
 
 
       #while !eof(io) && (count < numSets + 4 || !timeout)
@@ -132,12 +149,12 @@ function run_catnip(; timeout=false)
         nums = map(x -> parse(Float64, strip(x)), elms)
         nums = reverse(nums)
 
-        idx[] = numSets - count
+        # idx[] = numSets - count
         #println(nums)
 
-        data[idx[]] = nums
+        # data[idx[]] = nums
 
-        # pushfirst!(data, nums)
+        pushfirst!(data, nums)
 
         updateZ()
       end
@@ -146,3 +163,5 @@ function run_catnip(; timeout=false)
     @show e
   end
 end
+
+run_catnip()

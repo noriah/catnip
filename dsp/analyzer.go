@@ -127,6 +127,10 @@ func (az *analyzer) ProcessBin(idx int, src []complex128) float64 {
 		fftCeil = az.fftSize
 	}
 
+	if fftFloor >= fftCeil {
+		fftFloor = fftCeil - 1
+	}
+
 	src = src[fftFloor:fftCeil]
 	mag := 0.0
 	count := len(src)

@@ -168,7 +168,7 @@ func (d *Display) Stop() error {
 func (d *Display) Write(buffers [][]float64, channels int) error {
 
 	peak := 0.0
-	bins := d.Bins(channels)
+	bins := d.binsInternal(channels, bufferLength(buffers))
 
 	for i := 0; i < channels; i++ {
 		for _, val := range buffers[i][:bins] {
@@ -309,6 +309,18 @@ func (d *Display) Bins(chCount int) int {
 	default:
 		return 0
 	}
+}
+
+func bufferLength(buffers [][]float64) int {
+	return len(buffers[0])
+}
+
+func (d *Display) binsInternal(chCount, bufLen int) int {
+	bins := d.Bins(chCount)
+	if bins >= bufLen {
+		bins = bufLen - 1
+	}
+	return bins
 }
 
 func (d *Display) inputProcessor() {
@@ -474,7 +486,7 @@ func sizeAndCap(value float64, space int, zeroBase bool, baseRune rune) (int, ru
 
 // drawUp will draw up.
 func (d *Display) drawUp(bins [][]float64, channelCount int, scale float64) {
-	binCount := d.Bins(channelCount)
+	binCount := d.binsInternal(channelCount, bufferLength(bins))
 	barSpace := intMax(d.termHeight-d.baseSize, 0)
 	scale = float64(barSpace) / scale
 
@@ -515,7 +527,7 @@ func (d *Display) drawUp(bins [][]float64, channelCount int, scale float64) {
 
 // drawUpDown will draw up and down.
 func (d *Display) drawUpDown(bins [][]float64, channelCount int, scale float64) {
-	binCount := d.Bins(channelCount)
+	binCount := d.binsInternal(channelCount, bufferLength(bins))
 	centerStart := intMax((d.termHeight-d.baseSize)/2, 0)
 	centerStop := centerStart + d.baseSize
 
@@ -563,7 +575,7 @@ func (d *Display) drawUpDown(bins [][]float64, channelCount int, scale float64) 
 // drawUpDownSplit will draw up and down split down the middle for left and
 // right channels.
 func (d *Display) drawUpDownSplit(bins [][]float64, channelCount int, scale float64) {
-	binCount := d.Bins(2)
+	binCount := d.binsInternal(2, bufferLength(bins))
 	centerStart := intMax((d.termHeight-d.baseSize)/2, 0)
 	centerStop := centerStart + d.baseSize
 
@@ -616,7 +628,7 @@ func (d *Display) drawUpDownSplit(bins [][]float64, channelCount int, scale floa
 // drawUpDownSplitVert will draw up and down split down the middle for left and
 // right channels.
 func (d *Display) drawUpDownSplitVert(bins [][]float64, channelCount int, scale float64) {
-	binCount := d.Bins(2)
+	binCount := d.binsInternal(2, bufferLength(bins))
 	centerStart := intMax((d.termHeight-d.baseSize)/2, 0)
 	centerStop := centerStart + d.baseSize
 
@@ -668,7 +680,7 @@ func (d *Display) drawUpDownSplitVert(bins [][]float64, channelCount int, scale 
 
 // drawDown will draw down.
 func (d *Display) drawDown(bins [][]float64, channelCount int, scale float64) {
-	binCount := d.Bins(channelCount)
+	binCount := d.binsInternal(channelCount, bufferLength(bins))
 	barSpace := intMax(d.termHeight-d.baseSize, 0)
 	scale = float64(barSpace) / scale
 
@@ -712,7 +724,7 @@ func (d *Display) drawDown(bins [][]float64, channelCount int, scale float64) {
 }
 
 func (d *Display) drawLeft(bins [][]float64, channelCount int, scale float64) {
-	binCount := d.Bins(channelCount)
+	binCount := d.binsInternal(channelCount, bufferLength(bins))
 	barSpace := intMax(d.termWidth-d.baseSize, 0)
 	scale = float64(barSpace) / scale
 
@@ -753,7 +765,7 @@ func (d *Display) drawLeft(bins [][]float64, channelCount int, scale float64) {
 
 // drawLeftRight will draw left and right.
 func (d *Display) drawLeftRight(bins [][]float64, channelCount int, scale float64) {
-	binCount := d.Bins(channelCount)
+	binCount := d.binsInternal(channelCount, bufferLength(bins))
 	centerStart := intMax((d.termWidth-d.baseSize)/2, 0)
 	centerStop := centerStart + d.baseSize
 
@@ -803,7 +815,7 @@ func (d *Display) drawLeftRight(bins [][]float64, channelCount int, scale float6
 
 // drawLeftRight will draw left and right.
 func (d *Display) drawLeftRightSplit(bins [][]float64, channelCount int, scale float64) {
-	binCount := d.Bins(2)
+	binCount := d.binsInternal(2, bufferLength(bins))
 	centerStart := intMax((d.termWidth-d.baseSize)/2, 0)
 	centerStop := centerStart + d.baseSize
 
@@ -854,7 +866,7 @@ func (d *Display) drawLeftRightSplit(bins [][]float64, channelCount int, scale f
 }
 
 func (d *Display) drawRight(bins [][]float64, channelCount int, scale float64) {
-	binCount := d.Bins(channelCount)
+	binCount := d.binsInternal(channelCount, bufferLength(bins))
 	barSpace := intMax(d.termWidth-d.baseSize, 0)
 	scale = float64(barSpace) / scale
 

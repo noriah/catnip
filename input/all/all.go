@@ -5,4 +5,5 @@ import (
 	_ "github.com/noriah/catnip/input/ffmpeg"
 	_ "github.com/noriah/catnip/input/parec"
 	_ "github.com/noriah/catnip/input/pipewire"
+	_ "github.com/noriah/catnip/input/stdinput"
 )

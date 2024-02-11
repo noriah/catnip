@@ -1,5 +1,4 @@
-// Package execread provides a shared struct that wraps around cmd.
-package execread
+package stdinput
 
 import (
 	"context"
@@ -7,38 +6,57 @@ import (
 	"io"
 	"math"
 	"os"
-	"os/exec"
 	"sync"
 	"time"
+	_ "unsafe"
 
 	"github.com/noriah/catnip/input"
 	"github.com/pkg/errors"
 )
 
-// Session is a session that reads floating-point audio values from a Cmd.
+func init() {
+	input.RegisterBackend("stdin", StdinBackend{})
+}
+
+type StdinBackend struct{}
+
+func (b StdinBackend) Init() error {
+	return nil
+}
+
+func (b StdinBackend) Close() error {
+	return nil
+}
+
+func (b StdinBackend) Devices() ([]input.Device, error) {
+	return []input.Device{StdInputDevice{}}, nil
+}
+
+func (b StdinBackend) DefaultDevice() (input.Device, error) {
+	return StdInputDevice{}, nil
+}
+
+func (b StdinBackend) Start(config input.SessionConfig) (input.Session, error) {
+	return NewStdinSession(config), nil
+}
+
+type StdInputDevice struct{}
+
+func (d StdInputDevice) String() string {
+	return "stdin"
+}
+
 type Session struct {
-	// OnStart is called when the session starts. Nil by default.
-	OnStart func(ctx context.Context, cmd *exec.Cmd) error
-
-	argv []string
-	cfg  input.SessionConfig
-
-	samples int // multiplied
-
+	cfg     input.SessionConfig
+	samples int
 	// maligned.
 	f32mode bool
 }
 
-// NewSession creates a new execread session. It never returns an error.
-func NewSession(argv []string, f32mode bool, cfg input.SessionConfig) *Session {
-	if len(argv) < 1 {
-		panic("argv has no arg0")
-	}
-
+func NewStdinSession(cfg input.SessionConfig) *Session {
 	return &Session{
-		argv:    argv,
 		cfg:     cfg,
-		f32mode: f32mode,
+		f32mode: true,
 		samples: cfg.SampleSize * cfg.FrameSize,
 	}
 }
@@ -48,30 +66,17 @@ func (s *Session) Start(ctx context.Context, dst [][]input.Sample, kickChan chan
 		return errors.New("invalid dst length given")
 	}
 
-	cmd := exec.CommandContext(ctx, s.argv[0], s.argv[1:]...)
-	cmd.Stderr = os.Stderr
+	// if initial_flags, err := Fcntl(int(uintptr(syscall.Stdin)), syscall.F_GETFL, 0); err == nil {
+	// 	initial_flags |= syscall.O_NONBLOCK
+	// 	if _, err := Fcntl(int(uintptr(syscall.Stdin)), syscall.F_SETFL, initial_flags); err != nil {
+	// 		return errors.Wrap(err, "failed to set non block flag.")
+	// 	}
+	// } else {
+	// 	return errors.Wrap(err, "failed to set non block flag.")
+	// }
 
-	o, err := cmd.StdoutPipe()
-	if err != nil {
-		return errors.Wrap(err, "failed to get stdout pipe")
-	}
+	o := os.Stdin
 	defer o.Close()
-
-	// We need o as an *os.File for SetWriteDeadline.
-	of, ok := o.(*os.File)
-	if !ok {
-		return errors.New("stdout pipe is not an *os.File (bug)")
-	}
-
-	if err := cmd.Start(); err != nil {
-		return errors.Wrap(err, "failed to start "+s.argv[0])
-	}
-
-	if s.OnStart != nil {
-		if err := s.OnStart(ctx, cmd); err != nil {
-			return err
-		}
-	}
 
 	framesz := s.cfg.FrameSize
 	reader := floatReader{
@@ -95,16 +100,18 @@ func (s *Session) Start(ctx context.Context, dst [][]input.Sample, kickChan chan
 	// the sample duration. This smooths out the jitter.
 	var readExpired bool
 
+	// timer := time.NewTimer(time.Millisecond * 100)
+
 	for {
 		// Set us a read deadline. If the deadline is reached, we'll write zeros
 		// to the buffer.
 		timeout := sampleDuration
 		if !readExpired {
-			timeout *= 6
+			timeout *= 2
 		}
-		if err := of.SetReadDeadline(time.Now().Add(timeout)); err != nil {
-			return errors.Wrap(err, "failed to set read deadline")
-		}
+		// if err := o.SetReadDeadline(time.Now().Add(timeout)); err != nil {
+		// 	return errors.Wrap(err, "failed to set read deadline")
+		// }
 
 		_, err := io.ReadFull(o, raw)
 		if err != nil {
