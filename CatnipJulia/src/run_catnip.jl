@@ -1,5 +1,5 @@
 using Colors
-using DataStructures: CircularBuffer
+using DataStructures
 using GLMakie
 
 set_theme!(theme_black())
@@ -15,17 +15,20 @@ GLMakie.activate!(;
 )
 
 function run_catnip(; timeout=false)
+  println("Start")
   # 6 seconds at 60 samples per second out of catnip
   numSets = 300
   # numSets = 120
 
   fig = Figure(fontsize=14; size=(1200, 888))
-  ax1 = Axis3(fig[1, 1]; aspect=(2, 1, 0.25), elevation=pi / 6, perspectiveness=0.5)
+  ax1 = Axis3(fig[1, 1]; aspect=(2, 1, 0.25), elevation=2pi / 5, perspectiveness=0.5, azimuth=0)
 
   hidedecorations!(ax1)
   hidespines!(ax1)
 
-  data = CircularBuffer{Vector{Float64}}(numSets)
+  println("Allocate")
+
+  data = DataStructures.CircularBuffer{Vector{Float64}}(numSets)
 
   push!(data, [0.0, 0.0])
   push!(data, [0.0, 0.0])
@@ -77,7 +80,8 @@ function run_catnip(; timeout=false)
     # end
 
     for j = 0:bars-1
-      d[idx+(j*sets)] = 100.0
+      d[1+(j*sets)] = 100.0
+      # d[idx+(j*sets)] = 100.0
     end
 
     d[idx] = 0.0
@@ -103,14 +107,16 @@ function run_catnip(; timeout=false)
   # mymagma = GLMakie.to_colormap(:BuPu_9)
   mymagma[1] = RGBA(0.0,0.0,0.0,0.0)
 
-  command = `catnip -d spotify -r 122880 -n 2048 -sas 6 -sf 45 -i -nw -nwb 81`
+  command = `catnip -d 4:VisOut -r 122880 -n 2048 -sas 6 -sf 45 -i -nw -nwb 81`
   # command = `catnip -d "Google Chrome" -r 122880 -n 2048 -sas 6 -sf 45 -i -nw -nwb 60`
   #command = `go run ./cmd/catnip -d spotify -r 122880 -n 2048 -sas 5 -sf 45 -i -nw -nwb 50`
 
 
   try
+    println("Open StdOut")
     open(command, "r", stdout) do io
       count = 0
+      println("Loop")
       while count < numSets + 2
         count += 1
 

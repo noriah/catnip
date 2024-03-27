@@ -64,7 +64,7 @@ func (p AVFoundation) Devices() ([]input.Device, error) {
 
 		// If we're not scanning a device (which starts with a square bracket)
 		// anymore, then we stop.
-		if !strings.HasPrefix(text, "[") {
+		if !strings.HasPrefix(text, "[") || strings.HasPrefix(text, "[in") {
 			audio = false
 			continue
 		}

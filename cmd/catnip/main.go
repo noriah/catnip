@@ -59,7 +59,7 @@ func main() {
 	} else {
 		writer := NewWriter()
 		writer.Init(cfg.sampleRate, cfg.sampleSize)
-    writer.SetBinCount(cfg.numberWriterBins)
+		writer.SetBinCount(cfg.numberWriterBins)
 		writer.SetInvertDraw(cfg.invertDraw)
 		output = writer
 	}
@@ -84,7 +84,7 @@ func main() {
 			SampleRate:    cfg.sampleRate,
 			SampleSize:    cfg.sampleSize,
 			SquashLow:     true,
-			SquashLowOld:  false,
+			SquashLowOld:  true,
 			DontNormalize: cfg.dontNormalize,
 			BinMethod:     dsp.MaxSampleValue(),
 		}),
