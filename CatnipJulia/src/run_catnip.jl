@@ -20,8 +20,8 @@ function run_catnip(; timeout=false)
   numSets = 300
   # numSets = 120
 
-  fig = Figure(fontsize=14; size=(1200, 888))
-  ax1 = Axis3(fig[1, 1]; aspect=(2, 1, 0.25), elevation=2pi / 5, perspectiveness=0.5, azimuth=0)
+  fig = Figure(fontsize=14; size=(740, 976))
+  ax1 = Axis3(fig[1, 1]; aspect=(1.5, 1.00, 0.25), elevation=(2 * pi) / 4, perspectiveness=0.25, azimuth=0 * pi)
 
   hidedecorations!(ax1)
   hidespines!(ax1)
@@ -105,9 +105,9 @@ function run_catnip(; timeout=false)
 
   mymagma = GLMakie.to_colormap(:magma)
   # mymagma = GLMakie.to_colormap(:BuPu_9)
-  mymagma[1] = RGBA(0.0,0.0,0.0,0.0)
+  mymagma[1] = RGBA(0.0, 0.0, 0.0, 0.0)
 
-  command = `catnip -d 4:VisOut -r 122880 -n 2048 -sas 6 -sf 45 -i -nw -nwb 81`
+  command = `catnip -d spotify -r 122880 -n 2048 -sm 4 -sas 6 -sf 45 -i -nw -nwb 82`
   # command = `catnip -d "Google Chrome" -r 122880 -n 2048 -sas 6 -sf 45 -i -nw -nwb 60`
   #command = `go run ./cmd/catnip -d spotify -r 122880 -n 2048 -sas 5 -sf 45 -i -nw -nwb 50`
 
@@ -153,7 +153,7 @@ function run_catnip(; timeout=false)
         elms = split(line, " ")
         elms = [elm for elm in elms if !isempty(elm)]
         nums = map(x -> parse(Float64, strip(x)), elms)
-        nums = reverse(nums)
+        #nums = reverse(nums)
 
         # idx[] = numSets - count
         #println(nums)
