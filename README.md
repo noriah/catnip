@@ -79,7 +79,7 @@ go install ./cmd/catnip -tags portaudio,fftw
 <!-- Links -->
 [noriah-dev]: https://noriah.dev
 [go-dev]: https://go.dev
-[betawhat]: https://google.com/search?q=betamax
+[betawhat]: https://en.wikipedia.org/wiki/Betamax
 [speakers]: https://github.com/noriah/catnip/commit/b1dc3840fa0ed583eba40dbaaa2c0c34c425e26e
 [speakers-2]: https://github.com/noriah/catnip/commit/d3c13fb16742184d7c506a567b938045f3be1c1a
 
