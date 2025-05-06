@@ -119,12 +119,7 @@ func NewSession(cfg input.SessionConfig) (*Session, error) {
 
 	// pw-cat 1.4.0 introduces explicit stdout support, needs --raw arg
 	// see https://gitlab.freedesktop.org/pipewire/pipewire/-/issues/4629#top
-	useRawArg, err := checkNeedRawArg()
-	if err != nil {
-		return nil, errors.Wrap(err, "failed to check need of pipewire '--raw' arg")
-	}
-
-	if useRawArg {
+	if checkNeedRawArg() {
 		args = append(args, "--raw")
 	}
 
@@ -310,22 +305,12 @@ func shortEpoch() string {
 	return base64.RawURLEncoding.EncodeToString(buf[:])
 }
 
-func checkNeedRawArg() (bool, error) {
-	cmd := exec.Command("pw-cat", "--help")
-
-	out, err := cmd.Output()
+func checkNeedRawArg() bool {
+	out, err := exec.Command("pw-cat", "--help").Output()
 
 	if err != nil {
-		return false, err
+		panic(err)
 	}
 
-	lines := strings.Split(string(out), "\n")
-
-	for _, line := range lines {
-		if strings.Contains(line, "--raw") {
-			return true, nil
-		}
-	}
-
-	return false, nil
+	return strings.Contains(string(out), "--raw")
 }
