@@ -9,7 +9,6 @@ import (
 	"log"
 	"os"
 	"os/exec"
-	"strconv"
 	"strings"
 	"sync"
 	"sync/atomic"
@@ -311,51 +310,22 @@ func shortEpoch() string {
 	return base64.RawURLEncoding.EncodeToString(buf[:])
 }
 
-func getPipewireVersion() (string, error) {
-	cmd := exec.Command("pw-cat", "--version")
+func checkNeedRawArg() (bool, error) {
+	cmd := exec.Command("pw-cat", "--help")
 
 	out, err := cmd.Output()
 
 	if err != nil {
-		return "", err
+		return false, err
 	}
 
 	lines := strings.Split(string(out), "\n")
 
 	for _, line := range lines {
-		if version, ok := strings.CutPrefix(line, "Compiled with libpipewire "); ok {
-			return version, nil
+		if strings.Contains(line, "--raw") {
+			return true, nil
 		}
 	}
 
-	return "unknown", nil
-}
-
-func checkNeedRawArg() (bool, error) {
-	versionCheck := []int{1, 4, 0}
-
-	version, err := getPipewireVersion()
-	if err != nil {
-		return false, errors.Wrap(err, "failed to get pipewire version")
-	}
-
-	// only need the first three parts. the last bin can contain waste
-	versionSplit := strings.SplitN(version, ".", 4)
-
-	if len(versionSplit) < len(versionCheck) {
-		return false, errors.New("bad version string length")
-	}
-
-	for i := range versionCheck {
-		num, err := strconv.Atoi(versionSplit[i])
-		if err != nil {
-			return false, err
-		}
-
-		if num < versionCheck[i] {
-			return false, nil
-		}
-	}
-
-	return true, nil
+	return false, nil
 }
