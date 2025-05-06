@@ -8,6 +8,8 @@ import (
 	"fmt"
 	"log"
 	"os"
+	"os/exec"
+	"strconv"
 	"strings"
 	"sync"
 	"sync/atomic"
@@ -114,8 +116,21 @@ func NewSession(cfg input.SessionConfig) (*Session, error) {
 		"--media-category", "Capture",
 		"--media-role", "DSP",
 		"--properties", string(propsJSON),
-		"-",
 	}
+
+	// pw-cat 1.4.0 introduces explicit stdout support, needs --raw arg
+	// see https://gitlab.freedesktop.org/pipewire/pipewire/-/issues/4629#top
+	useRawArg, err := checkNeedRawArg()
+	if err != nil {
+		return nil, errors.Wrap(err, "failed to check need of pipewire '--raw' arg")
+	}
+
+	if useRawArg {
+		args = append(args, "--raw")
+	}
+
+	// output to STDOUT
+	args = append(args, "-")
 
 	return &Session{
 		session:    *execread.NewSession(args, true, cfg),
@@ -166,7 +181,6 @@ func (s *Session) Start(ctx context.Context, dst [][]input.Sample, kickChan chan
 //
 //   - https://gitlab.freedesktop.org/pipewire/pipewire/-/issues/2731
 //   - https://gitlab.freedesktop.org/pipewire/wireplumber/-/issues/358
-//
 func (s *Session) startRelinker(ctx context.Context) error {
 	var catnipPorts map[string]pwObjectID
 	var err error
@@ -295,4 +309,53 @@ func shortEpoch() string {
 	var buf [8]byte
 	binary.LittleEndian.PutUint64(buf[:], uint64(now))
 	return base64.RawURLEncoding.EncodeToString(buf[:])
+}
+
+func getPipewireVersion() (string, error) {
+	cmd := exec.Command("pw-cat", "--version")
+
+	out, err := cmd.Output()
+
+	if err != nil {
+		return "", err
+	}
+
+	lines := strings.Split(string(out), "\n")
+
+	for _, line := range lines {
+		if version, ok := strings.CutPrefix(line, "Compiled with libpipewire "); ok {
+			return version, nil
+		}
+	}
+
+	return "unknown", nil
+}
+
+func checkNeedRawArg() (bool, error) {
+	versionCheck := []int{1, 4, 0}
+
+	version, err := getPipewireVersion()
+	if err != nil {
+		return false, errors.Wrap(err, "failed to get pipewire version")
+	}
+
+	// only need the first three parts. the last bin can contain waste
+	versionSplit := strings.SplitN(version, ".", 4)
+
+	if len(versionSplit) < len(versionCheck) {
+		return false, errors.New("bad version string length")
+	}
+
+	for i := range versionCheck {
+		num, err := strconv.Atoi(versionSplit[i])
+		if err != nil {
+			return false, err
+		}
+
+		if num < versionCheck[i] {
+			return false, nil
+		}
+	}
+
+	return true, nil
 }
