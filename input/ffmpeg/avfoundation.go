@@ -115,7 +115,13 @@ func (p AVFoundation) Start(cfg input.SessionConfig) (input.Session, error) {
 		return nil, fmt.Errorf("invalid device type %T", cfg.Device)
 	}
 
-	return NewSession(dv, cfg)
+	session, err := NewSession(dv, cfg)
+
+	// HACK(github noriah/catnip#25) ffmpeg avfoundation (darwin) unconditionally
+	// prints errors even with loglevel set to panic or quiet.
+	session.DisconnectedStderr = true
+
+	return session, err
 }
 
 type AVFoundationDevice struct {
