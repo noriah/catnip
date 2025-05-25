@@ -118,9 +118,11 @@ type pwNodeProps struct {
 
 // Constants for MediaClass.
 const (
-	pwAudioDevice       string = "Audio/Device"
-	pwAudioSink         string = "Audio/Sink"
-	pwStreamOutputAudio string = "Stream/Output/Audio"
+	pwAudioDevice         string = "Audio/Device"
+	pwAudioSink           string = "Audio/Sink"
+	pwAudioSource         string = "Audio/Source"
+	pwAudioSourceVirtual  string = "Audio/Source/Virtual"
+	pwStreamOutputAudio   string = "Stream/Output/Audio"
 )
 
 type pwPortDirection string

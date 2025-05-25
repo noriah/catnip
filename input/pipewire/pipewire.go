@@ -42,6 +42,8 @@ func (p Backend) Devices() ([]input.Device, error) {
 	pwSinks := pwObjs.Filter(func(o pwObject) bool {
 		return o.Type == pwInterfaceNode &&
 			o.Info.Props.MediaClass == pwAudioSink ||
+			o.Info.Props.MediaClass == pwAudioSource ||
+			o.Info.Props.MediaClass == pwAudioSourceVirtual ||
 			o.Info.Props.MediaClass == pwStreamOutputAudio
 	})
 
