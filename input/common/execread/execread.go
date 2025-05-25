@@ -20,6 +20,10 @@ type Session struct {
 	// OnStart is called when the session starts. Nil by default.
 	OnStart func(ctx context.Context, cmd *exec.Cmd) error
 
+	// prevents cmd.Stderr from poiting to os.Stderr. false by default.
+	// this is a hack for github noriah/catnip#25
+	DisconnectedStderr bool
+
 	argv []string
 	cfg  input.SessionConfig
 
@@ -49,7 +53,10 @@ func (s *Session) Start(ctx context.Context, dst [][]input.Sample, kickChan chan
 	}
 
 	cmd := exec.CommandContext(ctx, s.argv[0], s.argv[1:]...)
-	cmd.Stderr = os.Stderr
+
+	if !s.DisconnectedStderr {
+		cmd.Stderr = os.Stderr
+	}
 
 	o, err := cmd.StdoutPipe()
 	if err != nil {
