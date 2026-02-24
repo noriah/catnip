@@ -69,6 +69,56 @@ go install ./cmd/catnip -tags portaudio,fftw
 - use `catnip -b {backend} list-devices` to show available devices
 - use `catnip -b {backend} -d {device}` to run - use the full device name
 - use `catnip -h` for information on several more customizations
+- use `catnip ... -raw` for raw output - more options in help text
+
+### raw output
+
+*NOTE:* functionality and interface (cli/etc..) subject to change.
+
+the raw output prints raw data to stdout.
+each float is one of the frequency bins in one of the channels.
+the number of bins per channel can be set with `-rawb`/`--output-raw-bins`.
+each channel is read out fully before the next channel is read out.
+
+```
+# 2 channels, 4 bins each
+#ch0b0  ch0b1  ch0b2  ch0b3  ch1b0  ch1b1  ch1b2  ch1b3
+27.899 49.253 81.805 61.699 14.518 48.265 79.597 61.140
+31.290 51.166 78.141 57.759 16.334 51.028 78.153 55.133
+...
+```
+
+values can be output in a mirrored format similar to several of the "graphical"
+outputs using `-rawm`/`--output-raw-mirror`.
+
+```
+# 2 channels, 4 bins each, mirrored output
+#ch0b0  ch0b1  ch0b2  ch0b3  ch1b3  ch1b2  ch1b1  ch1b0
+27.899 49.253 81.805 61.699 61.140 79.597 48.265 14.518
+31.290 51.166 78.141 57.759 55.133 78.153 51.028 16.334
+...
+```
+
+the order can be flipped by using the standard `-i`/`--invert` flag.
+this prints the lower frequencies last.
+
+```
+# 2 channels, 4 bins each, inverted output
+#ch0b3  ch0b2  ch0b1  ch0b0  ch1b3  ch1b2  ch1b1  ch1b0
+61.699 81.805 49.253 27.899 61.140 79.597 48.265 14.518
+57.759 78.141 51.166 31.290 55.133 78.153 51.028 16.334
+...
+```
+
+this can be combined with the mirror flag as well
+
+```
+# 2 channels, 4 bins each, inverted & mirrored output
+#ch0b3  ch0b2  ch0b1  ch0b0  ch1b0  ch1b1  ch1b2  ch1b3
+61.699 81.805 49.253 27.899 14.518 48.265 79.597 61.140
+57.759 78.141 51.166 31.290 16.334 51.028 78.153 55.133
+...
+```
 
 ## question it
 ### catnip?

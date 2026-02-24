@@ -51,20 +51,19 @@ func main() {
 	})
 
 	display := graphic.NewDisplay()
+	display.Smoother = smoother
 
 	var output processor.Output
+	output = display
 
-	if !cfg.useRawOutput {
-		output = display
-	} else {
-		writer := NewRawOutput()
-		writer.Init(cfg.sampleRate, cfg.sampleSize)
-		writer.SetBinCount(cfg.rawOutputBins)
-		writer.SetInvertDraw(cfg.invertDraw)
-		output = writer
+	if cfg.useRawOutput {
+		rawOutput := NewRawOutput()
+		rawOutput.Init(cfg.sampleRate, cfg.sampleSize)
+		rawOutput.SetBinCount(cfg.rawOutputBins)
+		rawOutput.SetInvertDraw(cfg.invertDraw)
+		rawOutput.SetMirrorOutput(cfg.rawOutputMirror)
+		output = rawOutput
 	}
-
-	display.Smoother = smoother
 
 	catnipCfg := catnip.Config{
 		Backend:      cfg.backend,
@@ -187,6 +186,7 @@ func doFlags(cfg *config) bool {
 
 	parser.Bool(&cfg.useRawOutput, "raw", "output-raw", "print raw frequency bins")
 	parser.Int(&cfg.rawOutputBins, "rawb", "output-raw-bins", "number of bins per channel for the raw output")
+	parser.Bool(&cfg.rawOutputMirror, "rawm", "output-raw-mirror", "mirror the raw output similar to \"graphical\" output")
 
 	fg, bg, center := graphic.DefaultStyles().AsUInt16s()
 	parser.UInt16(&fg, "fg", "foreground",

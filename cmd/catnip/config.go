@@ -52,6 +52,8 @@ type config struct {
 	useRawOutput bool
 	// Number of bins per channel to use for the raw output (0 uses default 50)
 	rawOutputBins int
+	// Mirror the output bins similar to graphical output
+	rawOutputMirror bool
 }
 
 // NewZeroConfig returns a zero config
@@ -76,6 +78,7 @@ func newZeroConfig() config {
 		invertDraw:                 false,
 		useRawOutput:               false,
 		rawOutputBins:              50,
+		rawOutputMirror:            false,
 	}
 }
 

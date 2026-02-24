@@ -19,11 +19,12 @@ const (
 
 // RawOutput handles printing our raw data.
 type RawOutput struct {
-	Smoother   dsp.Smoother
-	trackZero  int
-	binCount   int
-	invertDraw bool
-	window     *util.MovingWindow
+	Smoother     dsp.Smoother
+	trackZero    int
+	binCount     int
+	invertDraw   bool
+	mirrorOutput bool
+	window       *util.MovingWindow
 }
 
 var _ processor.Output = &RawOutput{}
@@ -52,6 +53,10 @@ func (d *RawOutput) Close() error {
 
 func (d *RawOutput) SetBinCount(count int) {
 	d.binCount = count
+}
+
+func (d *RawOutput) SetMirrorOutput(mirror bool) {
+	d.mirrorOutput = mirror
 }
 
 func (d *RawOutput) SetInvertDraw(invert bool) {
@@ -108,7 +113,11 @@ func (d *RawOutput) Write(buffers [][]float64, channels int) error {
 
 		for xBar := 0; xBar < d.binCount; xBar++ {
 
-			xBin := (xBar * (1 - xSet)) + (((d.binCount - 1) - xBar) * xSet)
+			xBin := xBar
+
+			if d.mirrorOutput {
+				xBin = (xBar * (1 - xSet)) + (((d.binCount - 1) - xBar) * xSet)
+			}
 
 			if d.invertDraw {
 				xBin = d.binCount - 1 - xBin
