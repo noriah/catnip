@@ -48,10 +48,10 @@ type config struct {
 	// Styles is the configuration for bar color styles
 	styles graphic.Styles
 
-	// Use the number writer instead of
-	useNumberWriter bool
-	// Number of bins to use for the number writer per channel (0 uses default 50)
-	numberWriterBins int
+	// Use the raw output instead of "graphical" bars
+	useRawOutput bool
+	// Number of bins per channel to use for the raw output (0 uses default 50)
+	rawOutputBins int
 }
 
 // NewZeroConfig returns a zero config
@@ -74,8 +74,8 @@ func newZeroConfig() config {
 		combine:                    false,
 		useThreaded:                false,
 		invertDraw:                 false,
-		useNumberWriter:            false,
-		numberWriterBins:           50,
+		useRawOutput:               false,
+		rawOutputBins:              50,
 	}
 }
 
@@ -109,8 +109,8 @@ func (cfg *config) validate() error {
 		cfg.smoothFactor /= 100.0
 	}
 
-	if cfg.numberWriterBins <= 0 {
-		cfg.numberWriterBins = 50
+	if cfg.rawOutputBins <= 0 {
+		cfg.rawOutputBins = 50
 	}
 
 	return nil

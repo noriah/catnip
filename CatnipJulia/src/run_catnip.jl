@@ -107,9 +107,9 @@ function run_catnip(; timeout=false)
   # mymagma = GLMakie.to_colormap(:BuPu_9)
   mymagma[1] = RGBA(0.0, 0.0, 0.0, 0.0)
 
-  command = `catnip -d spotify -r 122880 -n 2048 -sm 4 -sas 6 -sf 45 -i -nw -nwb 82`
-  # command = `catnip -d "Google Chrome" -r 122880 -n 2048 -sas 6 -sf 45 -i -nw -nwb 60`
-  #command = `go run ./cmd/catnip -d spotify -r 122880 -n 2048 -sas 5 -sf 45 -i -nw -nwb 50`
+  command = `catnip -d spotify -r 122880 -n 2048 -sm 4 -sas 6 -sf 45 -i -raw -rawb 82`
+  # command = `catnip -d "Google Chrome" -r 122880 -n 2048 -sas 6 -sf 45 -i -raw -rawb 60`
+  #command = `go run ./cmd/catnip -d spotify -r 122880 -n 2048 -sas 5 -sf 45 -i -raw -rawb 50`
 
 
   try

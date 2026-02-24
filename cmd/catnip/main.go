@@ -54,12 +54,12 @@ func main() {
 
 	var output processor.Output
 
-	if !cfg.useNumberWriter {
+	if !cfg.useRawOutput {
 		output = display
 	} else {
-		writer := NewWriter()
+		writer := NewRawOutput()
 		writer.Init(cfg.sampleRate, cfg.sampleSize)
-		writer.SetBinCount(cfg.numberWriterBins)
+		writer.SetBinCount(cfg.rawOutputBins)
 		writer.SetInvertDraw(cfg.invertDraw)
 		output = writer
 	}
@@ -75,9 +75,9 @@ func main() {
 		ProcessRate:  cfg.frameRate,
 		Combine:      cfg.combine,
 		UseThreaded:  cfg.useThreaded,
-		SetupFunc:    setupFunc(!cfg.useNumberWriter, &cfg, display),
-		StartFunc:    startFunc(!cfg.useNumberWriter, display),
-		CleanupFunc:  cleanupFunc(!cfg.useNumberWriter, display),
+		SetupFunc:    setupFunc(!cfg.useRawOutput, &cfg, display),
+		StartFunc:    startFunc(!cfg.useRawOutput, display),
+		CleanupFunc:  cleanupFunc(!cfg.useRawOutput, display),
 		Output:       output,
 		Windower:     window.Lanczos(),
 		Analyzer: dsp.NewAnalyzer(dsp.AnalyzerConfig{
@@ -185,8 +185,8 @@ func doFlags(cfg *config) bool {
 	parser.Bool(&cfg.useThreaded, "t", "threaded", "use the threaded processor")
 	parser.Bool(&cfg.invertDraw, "i", "invert", "invert the direction of bin drawing")
 
-	parser.Bool(&cfg.useNumberWriter, "nw", "number-writer", "use writer")
-	parser.Int(&cfg.numberWriterBins, "nwb", "number-writer-bins", "number of bins for the number writer per channel.")
+	parser.Bool(&cfg.useRawOutput, "raw", "output-raw", "print raw frequency bins")
+	parser.Int(&cfg.rawOutputBins, "rawb", "output-raw-bins", "number of bins per channel for the raw output")
 
 	fg, bg, center := graphic.DefaultStyles().AsUInt16s()
 	parser.UInt16(&fg, "fg", "foreground",

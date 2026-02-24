@@ -5,6 +5,7 @@ import (
 	"fmt"
 
 	"github.com/noriah/catnip/dsp"
+	"github.com/noriah/catnip/processor"
 	"github.com/noriah/catnip/util"
 )
 
@@ -16,8 +17,8 @@ const (
 	PeakThreshold = 0.001
 )
 
-// Writer handles drawing our visualizer.
-type Writer struct {
+// RawOutput handles printing our raw data.
+type RawOutput struct {
 	Smoother   dsp.Smoother
 	trackZero  int
 	binCount   int
@@ -25,15 +26,17 @@ type Writer struct {
 	window     *util.MovingWindow
 }
 
-func NewWriter() *Writer {
-	return &Writer{
+var _ processor.Output = &RawOutput{}
+
+func NewRawOutput() *RawOutput {
+	return &RawOutput{
 		binCount: 50,
 	}
 }
 
 // Init initializes the display.
 // Should be called before any other display method.
-func (d *Writer) Init(sampleRate float64, sampleSize int) error {
+func (d *RawOutput) Init(sampleRate float64, sampleSize int) error {
 	// make a large buffer as this could be as big as the screen width/height.
 
 	windowSize := ((int(ScalingWindow * sampleRate)) / sampleSize) * 2
@@ -43,30 +46,30 @@ func (d *Writer) Init(sampleRate float64, sampleSize int) error {
 }
 
 // Close will stop display and clean up the terminal.
-func (d *Writer) Close() error {
+func (d *RawOutput) Close() error {
 	return nil
 }
 
-func (d *Writer) SetBinCount(count int) {
-  d.binCount = count
+func (d *RawOutput) SetBinCount(count int) {
+	d.binCount = count
 }
 
-func (d *Writer) SetInvertDraw(invert bool) {
+func (d *RawOutput) SetInvertDraw(invert bool) {
 	d.invertDraw = invert
 }
 
 // Start display is bad.
-func (d *Writer) Start(ctx context.Context) context.Context {
+func (d *RawOutput) Start(ctx context.Context) context.Context {
 	return ctx
 }
 
 // Stop display not work.
-func (d *Writer) Stop() error {
+func (d *RawOutput) Stop() error {
 	return nil
 }
 
 // Draw takes data and draws.
-func (d *Writer) Write(buffers [][]float64, channels int) error {
+func (d *RawOutput) Write(buffers [][]float64, channels int) error {
 
 	peak := 0.0
 	bins := d.Bins(channels)
@@ -121,6 +124,6 @@ func (d *Writer) Write(buffers [][]float64, channels int) error {
 }
 
 // Bins returns the number of bars we will draw.
-func (d *Writer) Bins(chCount int) int {
+func (d *RawOutput) Bins(chCount int) int {
 	return d.binCount
 }

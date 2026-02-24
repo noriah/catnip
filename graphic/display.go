@@ -5,6 +5,7 @@ import (
 	"sync/atomic"
 
 	"github.com/noriah/catnip/dsp"
+	"github.com/noriah/catnip/processor"
 	"github.com/noriah/catnip/util"
 
 	"github.com/nsf/termbox-go"
@@ -105,6 +106,8 @@ type Display struct {
 	ctx         context.Context
 	cancel      context.CancelFunc
 }
+
+var _ processor.Output = &Display{}
 
 func NewDisplay() *Display {
 	return &Display{}
